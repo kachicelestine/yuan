@@ -135,9 +135,9 @@ export function Checkout({ rails: available, signedIn }: { rails: string[]; sign
           <ul className="grid grid-cols-2 gap-2.5 text-left">
             {rankProducts("hot", "week")
               .slice(0, 4)
-              .map((r) => (
+              .map((r, i) => (
                 <li key={r.product.slug}>
-                  <ProductCard product={r.product} sizes="(min-width: 640px) 200px, 45vw" />
+                  <ProductCard product={r.product} eager={i < 2} sizes="(min-width: 640px) 200px, 45vw" />
                 </li>
               ))}
           </ul>

@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -7,18 +8,26 @@ import { Icon } from "@/components/icon";
 import { useChrome } from "@/components/shell/chrome";
 import { Sheet, type Detent } from "@/components/sheet";
 import { haptic } from "@/lib/feedback";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { useStored } from "@/lib/use-stored";
 import { useFeedPrefs, weight } from "./feed-prefs";
 import { FeedSlide, type FeedItem } from "./feed-slide";
 import { FeedSwitcher, type FeedKind } from "./feed-switcher";
-import { ProductPanel, type PanelTab } from "./product-panel";
+import type { PanelTab } from "./product-panel";
 import { ProductPeek } from "./product-peek";
+
+// The shop panel (four tabs of product detail) isn't needed to watch the feed: on phones it
+// opens in a sheet on tap. Its code loads on demand, warmed once the page is idle.
+const ProductPanel = dynamic(() => import("./product-panel").then((m) => m.ProductPanel), { ssr: false });
+const warmPanel = () => import("./product-panel");
 
 // Phones: the video has the screen to itself. A feed switcher and search sit on top; the
 // product peek docks beside the minimized tab bar and opens the shop sheet, which holds
 // every action. Desktop: the same tabs live in a panel beside the player.
 export function Feed({ items: all }: { items: FeedItem[] }) {
   const scroller = useRef<HTMLDivElement>(null);
+  // Desktop shows the panel beside the video; phones never build that copy.
+  const wide = useMediaQuery("(min-width: 1280px)");
   const [feed, setFeed] = useState<FeedKind>("foryou");
   const [active, setActive] = useState(0);
   const [liked, setLiked] = useState<Record<string, boolean>>({});
@@ -43,6 +52,13 @@ export function Feed({ items: all }: { items: FeedItem[] }) {
   const index = Math.min(active, items.length - 1);
   // Undefined only when the Following feed is empty.
   const current = items[index] as FeedItem | undefined;
+
+  useEffect(() => {
+    const idle = "requestIdleCallback" in window ? requestIdleCallback(() => void warmPanel(), { timeout: 6000 }) : undefined;
+    return () => {
+      if (idle !== undefined) cancelIdleCallback(idle);
+    };
+  }, []);
 
   // Let the floating bars darken while bright media sits under them.
   const tone = current?.video.tone;
@@ -152,6 +168,7 @@ export function Feed({ items: all }: { items: FeedItem[] }) {
                   index={i}
                   total={items.length}
                   active={i === index}
+                  near={Math.abs(i - index) <= 1}
                   showProgress={i === index && !navExpanded}
                   burst={burst?.id === item.video.id ? burst : null}
                   onDoubleTap={(x, y) => {
@@ -198,7 +215,7 @@ export function Feed({ items: all }: { items: FeedItem[] }) {
 
       {panel && (
         <aside aria-label="Shop this video" className="glass-sheet hidden h-full w-[400px] shrink-0 flex-col overflow-hidden rounded-[30px] pt-4 xl:flex">
-          <ProductPanel key={panel.item.video.id} {...panel} />
+          {wide && <ProductPanel key={panel.item.video.id} {...panel} />}
         </aside>
       )}
 

@@ -2,9 +2,10 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Inter_Tight } from "next/font/google";
 import { StoreProvider } from "@/components/providers";
 import { AppShellExtras } from "@/components/shell/app-shell-extras";
-import { CommandPalette } from "@/components/shell/command-palette";
+import { CommandPaletteLoader } from "@/components/shell/command-palette-loader";
 import { FlyToBag } from "@/components/shell/fly-to-bag";
 import { brand } from "@/config/brand";
+import { packMarkets } from "@/lib/markets-wire";
 import { getMarkets } from "@/server/markets";
 import "./globals.css";
 
@@ -40,7 +41,7 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Cached for a day (see src/server/markets.ts), so this stays in the static shell.
-  const markets = await getMarkets();
+  const markets = packMarkets(await getMarkets());
   return (
     <html lang="en" data-glass="regular" className={`${inter.variable} ${interTight.variable} antialiased`}>
       <body className="min-h-dvh">
@@ -48,7 +49,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           {children}
           <FlyToBag />
           <AppShellExtras />
-          <CommandPalette />
+          <CommandPaletteLoader />
         </StoreProvider>
       </body>
     </html>

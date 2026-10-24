@@ -61,6 +61,12 @@ Dependencies point inward: presentation → server → application → domain. E
 10. **Tests.** Vitest. Domain and use cases get fast unit tests with in-memory fakes; repositories get integration tests against in-memory PGlite, using the same migrations as production. Integration tests call the real composition root (`wire` in `src/server/container.ts`) with a fixed clock, so they test the wiring that ships.
 11. **The account is the source of truth; the device mirrors it.** Signed out, the bag, lists and claimed coupons live in the browser. `GET /api/account` returns the account's copy; the first time a device sees an account it merges its own copy in (`syncAccountAction`, mode `merge`), and later edits are saved a moment after they stop (mode `save`). Edits made offline are flagged and saved on the next visit. Signing out removes the account's data from the device. Anything with value (coins, coupons bought with coins) changes only through its own server action and is never accepted from a device.
 12. **Coupons are reserved, then spent.** Checkout reserves the coupon in the same transaction as the order (a conditional update, so two checkouts can't share one); payment spends it; an invoice that expires unpaid cancels the order and returns the coupon.
+13. **Performance budget: first paint and largest paint within 1 s on a mid-range phone on 4G.** Measured cold (empty browser cache) with headless Chrome at Fast 4G and a 4x slower CPU. What gets us there, each choice measured before it stayed:
+    - *CSS is inlined* (`experimental.inlineCss`): Tailwind's CSS is small, and no render-blocking stylesheet request means first paint as soon as the HTML is parsed.
+    - *Photos come from our own origin.* The `/img` route (`src/app/img/[photo]/route.ts`) fetches each exact rendition from Unsplash's CDN once, keeps it in memory and on disk, and serves it immutable for a year; a CDN in front of the app caches it at the edge. Phones never open a second connection, which costs about 0.6 s on a slow network. Next's built-in optimizer was tried and dropped: it pulls each full-size original first (0.5–1 MB), which timed out on slow links.
+    - *Images are sized for what's on screen.* Widths stop at 1080; quality drops as width grows; grid and list images are capped at 2x density on 3x phones (`capDensity`); cards ask the CDN for their own crop (`reframe`). Only the hero gets `fetchPriority="high"`, and feed slides load their photo only when one swipe away.
+    - *Less JavaScript.* No zod in the browser (the public env is checked by hand); the command palette loads on first use; countries travel as tuples, not objects. The React Compiler was tried and left off: it made every page's JS 10–15% larger.
+    - *Judge speed in production mode* (`pnpm preview`): `next dev` compiles on demand and is several times slower.
 
 ## Status
 
@@ -68,7 +74,7 @@ Built: markets, catalog (with search), identity, ordering (with the server-side 
 
 ## Risks to settle before launch
 
-- **Abuse limits.** Sign-in codes are limited per email and per code; there is no per-IP limit yet, so a deployment should sit behind a CDN or WAF with rate limiting until one is added.
+- **Abuse limits.** Sign-in codes are limited per email and per code; there is no per-IP limit yet, so a deployment should sit behind a CDN or WAF with rate limiting until one is added. The `/img` route only serves Unsplash photos at the app's own sizes and qualities, but any Unsplash photo id; once sellers upload media it should serve our own storage only.
 
 - **Crypto licensing.** Taking stablecoin payments and holding them in escrow can require money-transmitter or virtual-asset licences, KYC/AML checks and Travel Rule compliance, depending on the country. Some countries restrict paying for goods with crypto.
 - **Mainland China.** Crypto transactions are banned there, so paying sellers based in mainland China in stablecoins carries legal risk. The payout port is designed so a regulated fiat off-ramp (or a Hong Kong entity) can be plugged in for those sellers.

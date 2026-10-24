@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { Icon, VerifiedBadge } from "@/components/icon";
+import { FeaturedCover } from "@/components/live/featured-cover";
 import { LiveSchedule } from "@/components/live/live-schedule";
 import { Price } from "@/components/price";
 import { auctionRoom, getProduct, getSeller } from "@/lib/catalog";
 import { compact } from "@/lib/format";
+import { capDensity, reframe } from "@/lib/images";
 import { liveReplays, liveRooms, liveSchedule } from "@/lib/live";
 
 export const metadata: Metadata = { title: "Live", description: "Shop live with the factories and makers: shows, factory tours and auctions." };
@@ -35,7 +37,7 @@ export default function LiveLobby() {
 
       <Link href={`/live/${featured.id}`} data-tone="dark" className="group relative block overflow-hidden rounded-[32px]">
         <span className="relative block aspect-[4/5] sm:aspect-[16/9]">
-          <Image src={featured.image} alt="" fill loading="eager" sizes="(min-width: 1100px) 1050px, 100vw" className="object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
+          <FeaturedCover image={featured.image} />
         </span>
         <span className="absolute inset-0 bg-[linear-gradient(180deg,rgb(0_0_0/0.35),transparent_30%,transparent_45%,rgb(0_0_0/0.85))]" />
         <span className="absolute top-4 left-4 flex gap-1.5">
@@ -82,7 +84,7 @@ export default function LiveLobby() {
               <li key={room.id}>
                 <Link href={`/live/${room.id}`} data-tone="dark" className="group relative block overflow-hidden rounded-[24px]">
                   <span className="relative block aspect-[3/4]">
-                    <Image src={room.image} alt="" fill sizes="(min-width: 1100px) 260px, 50vw" className="object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
+                    <Image src={reframe(room.image, "3:4")} alt="" fill sizes={capDensity("(min-width: 1100px) 260px, 50vw")} className="object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
                   </span>
                   <span className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/30" />
                   <span className="absolute top-2.5 left-2.5 flex items-center gap-1 rounded-full bg-live px-2 py-0.5 text-[10px] font-extrabold tracking-[0.06em]">
@@ -109,7 +111,7 @@ export default function LiveLobby() {
           <li>
             <Link href="/live/auction" data-tone="dark" className="group relative block overflow-hidden rounded-[24px]">
               <span className="relative block aspect-[3/4]">
-                <Image src={auctionRoom.image} alt="" fill sizes="(min-width: 1100px) 260px, 50vw" className="object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
+                <Image src={reframe(auctionRoom.image, "3:4")} alt="" fill sizes={capDensity("(min-width: 1100px) 260px, 50vw")} className="object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
               </span>
               <span className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/30" />
               <span className="absolute top-2.5 left-2.5 flex items-center gap-1 rounded-full bg-live px-2 py-0.5 text-[10px] font-extrabold tracking-[0.06em]">LIVE AUCTION</span>

@@ -22,6 +22,8 @@ type Props = {
   index: number;
   total: number;
   active: boolean;
+  /** Within one swipe of the slide on screen; only these load their photo. */
+  near: boolean;
   showProgress: boolean;
   /** Where the last double tap landed, so the heart pops under the finger. */
   burst: { x: number; y: number } | null;
@@ -34,7 +36,7 @@ type Props = {
 
 // A slide is only the media. Every control lives in the shop sheet (see <Feed>), so the
 // product gets the whole screen. A double tap still likes, TikTok-style.
-export function FeedSlide({ item, index, total, active, showProgress, burst, onDoubleTap, onSpot, muted }: Props) {
+export function FeedSlide({ item, index, total, active, near, showProgress, burst, onDoubleTap, onSpot, muted }: Props) {
   const money = useMoney();
   const lastTap = useRef(0);
   const single = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -71,14 +73,19 @@ export function FeedSlide({ item, index, total, active, showProgress, burst, onD
       onPointerUp={onPointerUp}
       className="relative h-full snap-start snap-always overflow-hidden bg-surface select-none"
     >
-      <Image
-        src={video.image}
-        alt=""
-        fill
-        loading={index === 0 ? "eager" : undefined}
-        sizes="(min-width: 1024px) 480px, 100vw"
-        className={`object-cover ${active ? "motion-safe:animate-kenburns" : "scale-[1.04]"}`}
-      />
+      {/* The first slide's photo is what a cold visit paints first, so it outranks everything else. */}
+      {near && (
+        <Image
+          src={video.image}
+          alt=""
+          fill
+          loading={index === 0 ? "eager" : "lazy"}
+          fetchPriority={index === 0 ? "high" : "low"}
+          quality={55}
+          sizes="(min-width: 1024px) 480px, 100vw"
+          className={`object-cover ${active ? "motion-safe:animate-kenburns" : "scale-[1.04]"}`}
+        />
+      )}
       {video.clip && <ClipPlayer src={video.clip} playing={active && !paused} paused={active && paused} muted={muted} showBar={showProgress} />}
       <div aria-hidden="true" className="scrim-feed pointer-events-none absolute inset-0" />
 

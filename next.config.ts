@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { DEVICE_SIZES, IMAGE_SIZES, QUALITIES } from "./src/lib/image-config";
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -8,9 +9,16 @@ const nextConfig: NextConfig = {
   partialPrefetching: true,
   // The floating dev badge sits on top of the mobile tab bar; build errors still show.
   devIndicators: false,
+  // The React Compiler was measured and left off: its memoization code made every page's
+  // JavaScript 10–15% larger and first-load main-thread time longer. If a screen ever needs
+  // it for interactions, opt that component in with `compilationMode: "annotation"`.
   experimental: {
     // Detects lost connections, retries navigations, and powers the offline banner.
     useOffline: true,
+    // Tailwind's CSS (~20 KB gzipped) ships inside the HTML instead of as a render-blocking
+    // stylesheet. A/B-tested on a 4G phone: first paint 0.15–0.45 s sooner on most pages,
+    // for ~60 KB more HTML per full page load (Next 16 also copies the CSS into the RSC data).
+    inlineCss: true,
   },
   async headers() {
     return [
@@ -25,11 +33,14 @@ const nextConfig: NextConfig = {
     ];
   },
   images: {
-    // Product and creator photos are served by Unsplash's image CDN, which
-    // resizes on the fly, so we skip Next's optimizer and build the URLs ourselves.
+    // Unsplash's CDN makes each rendition at the exact size; our /img route caches it and
+    // serves it from our own origin (see src/lib/image-loader.ts). Next's built-in optimizer
+    // would pull every full-size original first (0.5–1 MB each) and resize it itself.
     loader: "custom",
     loaderFile: "./src/lib/image-loader.ts",
-    qualities: [72],
+    deviceSizes: DEVICE_SIZES,
+    imageSizes: IMAGE_SIZES,
+    qualities: QUALITIES,
   },
   turbopack: {
     rules: {

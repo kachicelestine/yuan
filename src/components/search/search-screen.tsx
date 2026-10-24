@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { AgentOrb } from "@/components/ask/ask-screen";
 import { Icon, VerifiedBadge } from "@/components/icon";
@@ -28,6 +28,7 @@ import {
   type ProductSort,
 } from "@/lib/catalog";
 import { compact } from "@/lib/format";
+import { capDensity } from "@/lib/images";
 import { useStored } from "@/lib/use-stored";
 import { Chip, FiltersSheet } from "./filters-sheet";
 import { VisualSearch } from "./visual-search";
@@ -51,15 +52,14 @@ const rooms = [
 type Category = { id: CategoryId; label: string; image: string };
 
 /** Search everything: products with filters and sort, videos, factories and live rooms. */
-export function SearchScreen({ categories }: { categories: Category[] }) {
+export function SearchScreen({ categories, initialQuery = "", initialSnap = false }: { categories: Category[]; initialQuery?: string; initialSnap?: boolean }) {
   const router = useRouter();
-  const params = useSearchParams();
-  const [query, setQuery] = useState(params.get("q") ?? "");
+  const [query, setQuery] = useState(initialQuery);
   const [tab, setTab] = useState<Tab>("products");
   const [filters, setFilters] = useState<ProductFilters>({});
   const [sort, setSort] = useState<ProductSort>("best");
   const [sheet, setSheet] = useState<Detent>("closed");
-  const [snap, setSnap] = useState(params.get("snap") === "1");
+  const [snap, setSnap] = useState(initialSnap);
   const [voice, setVoice] = useState(false);
   const [recent, setRecent] = useStored<string[]>("app.recent-searches", []);
   const { markets, market } = useStore();
@@ -246,7 +246,7 @@ export function SearchScreen({ categories }: { categories: Category[] }) {
                 return (
                   <li key={v.id}>
                     <Link href={`/?v=${v.id}`} data-tone={v.tone} className="relative block aspect-[9/16] overflow-hidden rounded-[22px] bg-surface">
-                      <Image src={v.image} alt="" fill sizes="(min-width: 1024px) 20vw, 50vw" className="object-cover" />
+                      <Image src={v.image} alt="" fill sizes={capDensity("(min-width: 1024px) 20vw, 50vw")} className="object-cover" />
                       <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
                       <span className="absolute top-2 left-2 flex items-center gap-1 text-xs font-bold text-legible">
                         <Icon name="play" filled className="size-3.5" />
@@ -308,7 +308,7 @@ export function SearchScreen({ categories }: { categories: Category[] }) {
             {live.map((r) => (
               <li key={r.href}>
                 <Link href={r.href} className="relative block aspect-[4/5] overflow-hidden rounded-[26px] sm:aspect-[4/3]">
-                  <Image src={r.image} alt="" fill sizes="(min-width: 640px) 50vw, 100vw" className="object-cover" />
+                  <Image src={r.image} alt="" fill sizes={capDensity("(min-width: 640px) 50vw, 100vw")} className="object-cover" />
                   <span className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-black/30" />
                   <span className="absolute top-3 left-3 flex items-center gap-2">
                     <span className="flex h-6 items-center gap-1.5 rounded-full bg-live px-2 text-[10.5px] font-extrabold tracking-[0.08em]">

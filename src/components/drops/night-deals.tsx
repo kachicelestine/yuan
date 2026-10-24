@@ -35,7 +35,7 @@ export function NightDeals({ deals }: { deals: Deal[] }) {
   return (
     <section aria-labelledby="night-deals">
       <div className="relative overflow-hidden rounded-[32px]">
-        <Image src={photo("1735126419093-9cf5c85320a3", { ar: "16:9", fy: 0.35 })} alt="" fill sizes="(min-width: 1024px) 900px, 100vw" className="object-cover" />
+        <Image src={photo("1735126419093-9cf5c85320a3", { ar: "16:9", fy: 0.35 })} alt="" fill loading="eager" fetchPriority="high" sizes="(min-width: 1024px) 900px, 100vw" className="object-cover" />
         <div aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgb(5_5_6/0.3),rgb(5_5_6/0.9))]" />
         <div className="relative flex flex-wrap items-end justify-between gap-4 p-5 pt-24">
           <div>

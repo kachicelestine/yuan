@@ -54,7 +54,7 @@ export function KitBuilder() {
     <div className="mx-auto max-w-[1000px] px-3.5 pt-safe pb-36 lg:px-6 lg:pt-6 lg:pb-16">
       <header data-tone="dark" className="relative -mx-3.5 overflow-hidden lg:mx-0 lg:rounded-[32px]">
         <span className="relative block aspect-[16/10] max-h-[340px] w-full lg:aspect-[16/6]">
-          <Image src={photo("1641959166364-6c9b9898e804", { ar: "16:9" })} alt="" fill loading="eager" sizes="(min-width: 1000px) 950px, 100vw" className="object-cover" />
+          <Image src={photo("1641959166364-6c9b9898e804", { ar: "16:9" })} alt="" fill loading="eager" fetchPriority="high" sizes="(min-width: 1000px) 950px, 100vw" className="object-cover" />
         </span>
         <span className="absolute inset-0 bg-gradient-to-t from-canvas via-black/30 to-black/30" />
         <Link href="/c/energy" aria-label="Back" className="pt-safe absolute top-3 left-3.5 lg:hidden">

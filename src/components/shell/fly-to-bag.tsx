@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import imageLoader from "@/lib/image-loader";
+import { getImageProps } from "next/image";
 
 /**
  * When something is added to the bag, its photo arcs from where you tapped into the bag
@@ -23,7 +23,7 @@ export function FlyToBag() {
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return bump();
 
       const img = document.createElement("img");
-      img.src = imageLoader({ src: image, width: 96 });
+      img.src = getImageProps({ src: image, alt: "", width: 56, height: 56 }).props.src;
       img.alt = "";
       img.setAttribute("aria-hidden", "true");
       Object.assign(img.style, { position: "fixed", left: "0", top: "0", width: "56px", height: "56px", borderRadius: "16px", objectFit: "cover", zIndex: "90", pointerEvents: "none", boxShadow: "0 10px 30px rgb(0 0 0 / 0.45)" });

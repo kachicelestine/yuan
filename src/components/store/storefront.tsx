@@ -11,6 +11,7 @@ import { RatingSummary, ReviewList } from "@/components/reviews/reviews";
 import { brand } from "@/config/brand";
 import type { Product, Review, ReviewSummary, Seller, SellerProfile, Video } from "@/lib/catalog";
 import { compact } from "@/lib/format";
+import { capDensity } from "@/lib/images";
 import { useStored } from "@/lib/use-stored";
 
 type Tab = "products" | "videos" | "reviews" | "factory";
@@ -44,7 +45,7 @@ export function Storefront({ seller, profile, products, videos, reviews, reviewC
   return (
     <div className="mx-auto max-w-[1100px] pb-36 lg:px-6 lg:pt-6 lg:pb-16">
       <div data-tone="dark" className="relative aspect-[16/9] max-h-[340px] w-full overflow-hidden lg:rounded-[32px]">
-        <Image src={profile.cover} alt="" fill loading="eager" sizes="(min-width: 1100px) 1050px, 100vw" className="object-cover" />
+        <Image src={profile.cover} alt="" fill loading="eager" fetchPriority="high" sizes="(min-width: 1100px) 1050px, 100vw" className="object-cover" />
         <span className="absolute inset-0 bg-gradient-to-t from-canvas via-transparent to-black/40" />
         <div className="pt-safe absolute inset-x-0 top-0 flex items-center justify-between px-3.5 lg:hidden">
           <Link href="/search" aria-label="Back" className="glass grid size-12 place-items-center rounded-full">
@@ -156,7 +157,7 @@ export function Storefront({ seller, profile, products, videos, reviews, reviewC
               {videos.map((v) => (
                 <li key={v.id}>
                   <Link href={`/?v=${v.id}`} className="relative block aspect-[9/16] overflow-hidden rounded-[16px] bg-surface">
-                    <Image src={v.image} alt="" fill sizes="(min-width: 1024px) 20vw, 33vw" className="object-cover" />
+                    <Image src={v.image} alt="" fill sizes={capDensity("(min-width: 1024px) 20vw, 33vw")} className="object-cover" />
                     <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
                     <span className="absolute bottom-2 left-2 flex items-center gap-1 text-[11px] font-bold text-legible">
                       <Icon name="play" filled className="size-3" />

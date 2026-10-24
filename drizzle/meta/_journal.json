@@ -36,6 +36,20 @@
       "when": 1792825594472,
       "tag": "0004_account_data",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792844118222,
+      "tag": "0005_absolute_image_urls",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792844689624,
+      "tag": "0006_hero_and_cover_urls",
+      "breakpoints": true
     }
   ]
 }

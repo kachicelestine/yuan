@@ -12,6 +12,7 @@ import { useMoney } from "@/components/price";
 import { useStore } from "@/components/providers";
 import { brand } from "@/config/brand";
 import { categories, products, type CategoryId } from "@/lib/catalog";
+import { capDensity } from "@/lib/images";
 import { useStored } from "@/lib/use-stored";
 
 type Step = "hello" | "country" | "interests" | "alerts" | "account" | "done";
@@ -154,7 +155,7 @@ export function WelcomeFlow() {
               return (
                 <li key={c.id}>
                   <button type="button" aria-pressed={on} onClick={() => toggleInterest(c.id)} className={`relative block aspect-[4/5] w-full overflow-hidden rounded-[20px] text-left ring-2 transition-[box-shadow,transform] duration-300 ease-spring ${on ? "scale-[0.97] ring-white" : "ring-transparent"}`}>
-                    <Image src={c.image} alt="" fill sizes="(min-width: 520px) 160px, 33vw" className="object-cover" />
+                    <Image src={c.image} alt="" fill sizes={capDensity("(min-width: 520px) 160px, 33vw")} className="object-cover" />
                     <span className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
                     <span className="absolute inset-x-2 bottom-2 text-[12.5px] leading-tight font-bold text-legible">{c.label}</span>
                     {on && (

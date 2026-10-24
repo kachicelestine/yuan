@@ -13,4 +13,3 @@ export function Flag({ code, className = "size-5" }: { code: string; className?:
     />
   );
 }
-

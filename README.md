@@ -35,10 +35,17 @@ Run `pnpm db:migrate` again whenever a new migration lands in `drizzle/`. If the
 | `pnpm check` | Type-check, lint (including architecture boundaries) and run every test |
 | `pnpm test` | Unit tests, plus integration tests against in-memory Postgres |
 | `pnpm build` | Production build |
+| `pnpm preview` | Production build, then serve it on port 3000: how the app really performs |
 | `pnpm db:generate` | Generate a migration after changing a `schema.ts` |
 | `pnpm db:migrate` / `pnpm db:seed` | Prepare a Postgres server |
 | `pnpm db:studio` | Browse the database |
 | `pnpm data:countries` | Rebuild the countries and exchange-rate seed from open datasets |
+
+## Performance
+
+`pnpm dev` compiles each page the first time it's opened and ships unminified React, so it is several times slower than the real app; judge speed with `pnpm preview`. The budget is a first paint and largest paint within 1 s on a mid-range phone on 4G, and the choices behind it are in ARCHITECTURE.md (decision 13).
+
+On Windows, excluding the project folder from Microsoft Defender (or using a Dev Drive) makes `pnpm dev` noticeably faster.
 
 ## Configuration
 

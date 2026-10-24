@@ -6,6 +6,7 @@ import { Icon } from "@/components/icon";
 import { useMoney } from "@/components/price";
 import { getSeller, type Product } from "@/lib/catalog";
 import { compact } from "@/lib/format";
+import { capDensity } from "@/lib/images";
 
 /** A product in a results grid: photo with deal badges, price, rating, sold count and seller. */
 export function ProductCard({ product, sizes, eager, badge }: { product: Product; sizes: string; eager?: boolean; badge?: string }) {
@@ -18,7 +19,7 @@ export function ProductCard({ product, sizes, eager, badge }: { product: Product
   return (
     <Link href={`/p/${product.slug}`} className="group glass-inset flex h-full flex-col overflow-hidden rounded-[22px]">
       <span className="relative block aspect-square overflow-hidden">
-        <Image src={product.images[0]} alt="" fill loading={eager ? "eager" : undefined} sizes={sizes} className="object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
+        <Image src={product.images[0]} alt="" fill loading={eager ? "eager" : undefined} fetchPriority={eager ? "high" : undefined} sizes={capDensity(sizes)} className="object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
         {(badge || off > 0) && (
           <span className="absolute top-2 left-2 rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold shadow-[inset_0_1px_0_rgb(255_255_255/0.3)]">
             {badge ?? `−${off}%`}

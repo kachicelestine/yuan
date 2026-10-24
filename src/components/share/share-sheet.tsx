@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import Image, { getImageProps } from "next/image";
 import { useState } from "react";
 import { Icon } from "@/components/icon";
 import { useMakePoll } from "@/components/poll/poll-screen";
@@ -8,7 +8,6 @@ import { useMoney } from "@/components/price";
 import { Sheet, type Detent } from "@/components/sheet";
 import { brand } from "@/config/brand";
 import { productsInCategory, similarProducts, type Product } from "@/lib/catalog";
-import imageLoader from "@/lib/image-loader";
 
 type Target = { id: string; label: string; color: string; glyph: React.ReactNode; href?: (url: string, text: string) => string };
 
@@ -61,7 +60,7 @@ function ShareContent({ product, onClose }: { product: Product; onClose: () => v
     }
   }
 
-  // Draws a 1080×1350 poster on a canvas: Unsplash serves CORS headers, so the photo can be exported.
+  // Draws a 1080×1350 poster on a canvas. The photo comes from our own image optimizer, so the canvas can be exported.
   async function savePoster() {
     setSaving("busy");
     try {
@@ -72,7 +71,7 @@ function ShareContent({ product, onClose }: { product: Product; onClose: () => v
       if (!ctx) throw new Error("no canvas");
       const photo = new window.Image();
       photo.crossOrigin = "anonymous";
-      photo.src = imageLoader({ src: product.images[0], width: 1080, quality: 80 });
+      photo.src = getImageProps({ src: product.images[0], alt: "", width: 1080, height: 1350 }).props.src;
       await photo.decode();
       ctx.fillStyle = "#0b0b0e";
       ctx.fillRect(0, 0, 1080, 1350);

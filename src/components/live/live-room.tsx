@@ -87,7 +87,7 @@ export function LiveRoom({ host, seller, title, image, place, viewers, items, co
         data-tone="light"
         className="fixed inset-0 overflow-hidden bg-black lg:relative lg:inset-auto lg:aspect-[9/16] lg:h-full lg:max-w-full lg:rounded-[28px] lg:shadow-[0_30px_80px_rgb(0_0_0/0.5),0_0_0_0.5px_rgb(255_255_255/0.12)]"
       >
-        <Image src={image} alt={`${host} presenting products live`} fill loading="eager" sizes="(min-width: 1024px) 480px, 100vw" className="object-cover motion-safe:animate-kenburns" />
+        <Image src={image} alt={`${host} presenting products live`} fill loading="eager" fetchPriority="high" quality={55} sizes="(min-width: 1024px) 480px, 100vw" className="object-cover motion-safe:animate-kenburns" />
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgb(0_0_0/0.45),transparent_22%,transparent_40%,rgb(0_0_0/0.78))]" />
 
         <header className="pt-safe absolute inset-x-3 top-0 z-10 flex items-center gap-2 lg:top-3">

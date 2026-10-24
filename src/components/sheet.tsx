@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 
 export type Detent = "closed" | "half" | "full";
@@ -38,6 +38,10 @@ const noSubscribe = () => () => {};
 export function Sheet({ detent, onDetent, label, children }: Props) {
   // Rendered into <body>, so a sheet can open from anywhere (even inside a <p> or <button>).
   const onClient = useSyncExternalStore(noSubscribe, () => true, () => false);
+  // A sheet's contents aren't built until it first opens (most never do), then stay mounted
+  // so their state survives closing and the close animation has something to show.
+  const [opened, setOpened] = useState(detent !== "closed");
+  if (!opened && detent !== "closed") setOpened(true);
   const ref = useRef<HTMLDialogElement>(null);
   const gesture = useRef<Gesture | null>(null);
   const swallowClick = useRef(false);
@@ -151,7 +155,7 @@ export function Sheet({ detent, onDetent, label, children }: Props) {
         >
           <span className="h-[5px] w-9 rounded-full bg-white/35" />
         </button>
-        {children}
+        {opened && children}
       </div>
     </dialog>,
     document.body,

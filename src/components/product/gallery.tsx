@@ -18,7 +18,7 @@ export function Gallery({ images, title }: { images: string[]; title: string }) 
       >
         {images.map((src, i) => (
           <div key={src} className="relative aspect-square w-full shrink-0 snap-center">
-            <Image src={src} alt={i === 0 ? title : ""} fill loading={i === 0 ? "eager" : undefined} sizes="100vw" className="object-cover" />
+            <Image src={src} alt={i === 0 ? title : ""} fill loading={i === 0 ? "eager" : "lazy"} fetchPriority={i === 0 ? "high" : "low"} sizes="100vw" className="object-cover" />
           </div>
         ))}
       </div>
@@ -32,7 +32,8 @@ export function Gallery({ images, title }: { images: string[]; title: string }) 
 
       <div className="hidden flex-col gap-3 lg:flex">
         <div className="relative aspect-[4/3] overflow-hidden rounded-[30px] bg-surface">
-          <Image src={images[index]} alt={title} fill loading="eager" sizes="(min-width: 1280px) 760px, 60vw" className="object-cover" />
+          {/* Lazy, so phones (where this is hidden) never download it; high priority once it's on screen. */}
+          <Image src={images[index]} alt={title} fill loading="lazy" fetchPriority="high" sizes="(min-width: 1280px) 760px, 60vw" className="object-cover" />
         </div>
         {images.length > 1 && (
           <div className="grid grid-cols-5 gap-3">

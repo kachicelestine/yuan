@@ -3,6 +3,7 @@
 import { createContext, startTransition, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { Watch } from "@/components/product/price-history";
 import { announceAdd, haptic } from "@/lib/feedback";
+import { unpackMarkets, type PackedMarket } from "@/lib/markets-wire";
 import type { Market } from "@/lib/types";
 import { removeStored, useStored, writeStored } from "@/lib/use-stored";
 import { cartKey, type CartItem } from "@/modules/ordering";
@@ -137,7 +138,8 @@ export function glassLevel(value: number) {
   return "tinted";
 }
 
-export function StoreProvider({ markets, children }: { markets: Market[]; children: React.ReactNode }) {
+export function StoreProvider({ markets: packed, children }: { markets: PackedMarket[]; children: React.ReactNode }) {
+  const markets = useMemo(() => unpackMarkets(packed), [packed]);
   const [ready, setReady] = useState(false);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);

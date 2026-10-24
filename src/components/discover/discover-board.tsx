@@ -7,6 +7,7 @@ import { Icon, type IconName } from "@/components/icon";
 import { useMoney } from "@/components/price";
 import type { CategoryId, Note, Product } from "@/lib/catalog";
 import { compact } from "@/lib/format";
+import { capDensity } from "@/lib/images";
 
 export type BoardNote = Note & { product?: Pick<Product, "slug" | "title" | "price"> };
 
@@ -93,7 +94,7 @@ export function DiscoverBoard({ notes, categories }: { notes: BoardNote[]; categ
           const media = (
             <>
               <span data-tone="light" className={`relative block overflow-hidden ${ratioClass[note.ratio]}`}>
-                <Image src={note.image} alt="" fill loading={i < 2 ? "eager" : undefined} sizes="(min-width: 1024px) 25vw, 50vw" className="object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+                <Image src={note.image} alt="" fill loading={i < 2 ? "eager" : undefined} fetchPriority={i < 2 ? "high" : undefined} sizes={capDensity("(min-width: 1024px) 25vw, 50vw")} className="object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
                 {note.live && (
                   <span className="absolute top-2 left-2 flex h-6 items-center gap-1.5 rounded-full bg-live px-2 text-[10.5px] font-extrabold tracking-[0.08em]">
                     <span className="size-1.5 rounded-full bg-white" />

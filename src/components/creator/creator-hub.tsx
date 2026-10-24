@@ -9,6 +9,7 @@ import { useStore } from "@/components/providers";
 import { creatorLinks, creatorWeeks, sampleOffers } from "@/lib/account";
 import { getProduct } from "@/lib/catalog";
 import { compact, niceCeil } from "@/lib/format";
+import { capDensity } from "@/lib/images";
 import { useStored } from "@/lib/use-stored";
 
 /** Earn by posting what you buy: earnings, links, free samples and payouts. */
@@ -176,7 +177,7 @@ export function CreatorHub() {
             return (
               <li key={slug} className="glass-inset overflow-hidden rounded-[22px]">
                 <span className="relative block aspect-square">
-                  <Image src={p.images[0]} alt="" fill sizes="(min-width: 640px) 25vw, 50vw" className="object-cover" />
+                  <Image src={p.images[0]} alt="" fill sizes={capDensity("(min-width: 640px) 25vw, 50vw")} className="object-cover" />
                 </span>
                 <span className="flex flex-col gap-2 p-3">
                   <span className="line-clamp-2 text-[13px] leading-snug font-semibold">{p.title}</span>

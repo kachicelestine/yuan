@@ -8,6 +8,7 @@ import { Flag } from "@/components/market/flag";
 import { useStore } from "@/components/providers";
 import { brand } from "@/config/brand";
 import { categories, searchProducts, searchSellers } from "@/lib/catalog";
+import { isPaletteShortcut } from "./palette-shortcut";
 
 type Command = { id: string; group: string; label: string; hint?: string; icon?: IconName; image?: string; flag?: string; href?: string; market?: string; glass?: number };
 
@@ -50,8 +51,11 @@ function fuzzy(text: string, query: string) {
   return true;
 }
 
-/** ⌘K / Ctrl+K anywhere (or "/" outside a text field): jump to any page, product, seller or setting. */
-export function CommandPalette() {
+/**
+ * Jump to any page, product, seller or setting. Loaded on first use by <CommandPaletteLoader>,
+ * which opens it straight away (`openOnMount`); after that it listens for the shortcut itself.
+ */
+export function CommandPalette({ openOnMount = false }: { openOnMount?: boolean }) {
   const router = useRouter();
   const { markets, setMarket, setGlass } = useStore();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -62,8 +66,7 @@ export function CommandPalette() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const typing = e.target instanceof HTMLElement && (e.target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName));
-      if ((e.key === "k" && (e.metaKey || e.ctrlKey)) || (e.key === "/" && !typing)) {
+      if (isPaletteShortcut(e)) {
         e.preventDefault();
         open();
       }
@@ -71,12 +74,15 @@ export function CommandPalette() {
     const open = () => {
       if (!dialog.current?.open) dialog.current?.showModal();
     };
+    if (openOnMount) open();
     window.addEventListener("keydown", onKey);
     window.addEventListener("app:palette", open);
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("app:palette", open);
     };
+    // Opening on mount is a one-off; later opens come from the listeners.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function close() {

@@ -8,6 +8,7 @@ import { Icon } from "@/components/icon";
 import { useMoney } from "@/components/price";
 import { brand } from "@/config/brand";
 import { getProduct, type Poll } from "@/lib/catalog";
+import { capDensity } from "@/lib/images";
 import { draftPoll, pollFriends } from "@/lib/polls";
 import { useStored } from "@/lib/use-stored";
 
@@ -120,7 +121,7 @@ export function PollScreen({ fixture }: { fixture: Poll | null }) {
                   className={`group relative block w-full overflow-hidden rounded-[20px] text-left ring-2 transition-[box-shadow] ${picked === i ? "ring-white" : "ring-transparent"}`}
                 >
                   <span className="relative block aspect-[3/4]">
-                    <Image src={o.product.images[0]} alt="" fill sizes="(min-width: 620px) 200px, 33vw" className="object-cover" />
+                    <Image src={o.product.images[0]} alt="" fill sizes={capDensity("(min-width: 620px) 200px, 33vw")} className="object-cover" />
                     <span className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
                     {showResults && (
                       <span aria-hidden="true" className="absolute inset-x-0 bottom-0 bg-white/18 backdrop-blur-[2px] transition-[height] duration-700 ease-soft" style={{ height: `${pct * 100}%` }} />

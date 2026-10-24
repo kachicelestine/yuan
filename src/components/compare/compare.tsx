@@ -13,6 +13,7 @@ import { useMakePoll } from "@/components/poll/poll-screen";
 import { Sheet, type Detent } from "@/components/sheet";
 import { getProduct, productsInCategory, type Product } from "@/lib/catalog";
 import { compareLimit, compareRows, verdict, type CompareRow } from "@/lib/compare";
+import { capDensity } from "@/lib/images";
 import { useStored } from "@/lib/use-stored";
 
 const presets = [
@@ -146,7 +147,7 @@ export function CompareScreen() {
                 <li key={p.slug} className="relative">
                   <Link href={`/p/${p.slug}`} className="block">
                     <span className="relative block aspect-square overflow-hidden rounded-[18px] bg-surface lg:aspect-[4/3]">
-                      <Image src={p.images[0]} alt="" fill sizes="(min-width: 1000px) 300px, 33vw" className="object-cover" />
+                      <Image src={p.images[0]} alt="" fill sizes={capDensity("(min-width: 1000px) 300px, 33vw")} className="object-cover" />
                     </span>
                     <span className="mt-1.5 line-clamp-2 text-[12.5px] leading-snug font-semibold">{p.title}</span>
                   </Link>
