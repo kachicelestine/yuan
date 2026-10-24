@@ -1,10 +1,16 @@
 import { domainError, err, ok, type Clock, type DomainError, type EventLog, type Result } from "@/shared/kernel";
-import { answerQuestion, askQuestion, writeComment, type LikeTarget, type PostError } from "../domain/posts";
+import { answerQuestion, askQuestion, writeComment, writeReview, type LikeTarget, type PostError } from "../domain/posts";
 import type { CommentRepository, LikeRepository, NoteRepository, QuestionRepository, ReviewRepository, VideoRepository, WatchTally } from "../domain/repositories";
 import { toCommentView, toQuestionView, type CommentView, type QuestionView } from "./views";
 
 /** Who is acting, as other people will see them. */
 export type Actor = Readonly<{ accountId: string; name: string; avatar: string }>;
+
+/** Confirms a buyer received a product (ordering owns orders and parcels). */
+export interface PurchaseDirectory {
+  /** The shop and the delivery country, when this buyer's order has the product and its parcel was delivered. */
+  delivered(buyerId: string, orderId: string, productSlug: string): Promise<{ sellerId: string; country: string } | null>;
+}
 
 /** Lets content check products without reading catalog tables. */
 export interface ProductDirectory {
@@ -25,7 +31,9 @@ export type InteractionDeps = {
   /** Reads outside a transaction. */
   videos: VideoRepository;
   likes: LikeRepository;
+  reviews: ReviewRepository;
   products: ProductDirectory;
+  purchases: PurchaseDirectory;
   uow: { run<T>(work: (scope: InteractionScope) => Promise<T>): Promise<T> };
   clock: Clock;
   newId: () => string;
@@ -33,6 +41,8 @@ export type InteractionDeps = {
 
 export type CommentPosted = Readonly<{ type: "CommentPosted"; commentId: string; videoId: string; authorId: string; at: Date }>;
 export type QuestionAsked = Readonly<{ type: "QuestionAsked"; questionId: string; productSlug: string; sellerId: string; at: Date }>;
+
+export type ReviewPosted = Readonly<{ type: "ReviewPosted"; reviewId: string; productSlug: string; sellerId: string; rating: number; at: Date }>;
 
 export type QuestionAnswered = Readonly<{ type: "QuestionAnswered"; questionId: string; productSlug: string; askerId: string | null; at: Date }>;
 
@@ -44,7 +54,7 @@ const notFound = (what: string) => err(domainError("not_found", `That ${what} is
 class Missing extends Error {}
 
 /** Likes, votes, comments, questions and shares: the writes people make while browsing. */
-export function makeInteractions({ videos, likes, products, uow, clock, newId }: InteractionDeps) {
+export function makeInteractions({ videos, likes, reviews, products, purchases, uow, clock, newId }: InteractionDeps) {
   /**
    * One like (or vote) per person per target, with the target's counter kept in step in
    * the same transaction. Liking twice changes nothing; liking something that doesn't
@@ -130,6 +140,42 @@ export function makeInteractions({ videos, likes, products, uow, clock, newId }:
         await s.events.record(productSlug, event);
       });
       return ok(toQuestionView(question));
+    },
+
+    /** A review from someone who received the product; one per product per order. */
+    async postReview(actor: Actor, input: { orderId: string; productSlug: string; rating: number; text: string }): Promise<Result<{ id: string }, InteractionError | DomainError<"not_purchased" | "already_reviewed">>> {
+      const bought = await purchases.delivered(actor.accountId, input.orderId, input.productSlug);
+      if (!bought) return err(domainError("not_purchased", "You can review a product once it's delivered."));
+      if (await reviews.exists(input.orderId, input.productSlug)) return err(domainError("already_reviewed", "You've already reviewed this one."));
+      const at = clock.now();
+      const written = writeReview({
+        id: newId(),
+        productSlug: input.productSlug,
+        sellerId: bought.sellerId,
+        orderId: input.orderId,
+        authorId: actor.accountId,
+        authorName: actor.name,
+        authorAvatar: actor.avatar,
+        country: bought.country,
+        rating: input.rating,
+        text: input.text,
+        photos: [],
+        option: null,
+        createdAt: at,
+      });
+      if (!written.ok) return written;
+      const event: ReviewPosted = { type: "ReviewPosted", reviewId: written.value.id, productSlug: input.productSlug, sellerId: bought.sellerId, rating: written.value.rating, at };
+      await uow.run(async (s) => {
+        await s.reviews.add(written.value);
+        await s.events.record(input.productSlug, event);
+      });
+      return ok({ id: written.value.id });
+    },
+
+    /** Which of these products this buyer already reviewed in an order. */
+    async reviewed(orderId: string, slugs: readonly string[]): Promise<string[]> {
+      const done = await Promise.all(slugs.map((s) => reviews.exists(orderId, s)));
+      return slugs.filter((_, i) => done[i]);
     },
 
     /** A shop answers a question about one of its products. */

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { char, check, index, integer, pgSchema, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { ORDER_STATUSES } from "../domain/order";
+import { DISPUTE_REASONS, SHIPMENT_STATUSES } from "../domain/shipment";
 import { SHIPPING_METHODS } from "../domain/pricing";
 
 export const orderingSchema = pgSchema("ordering");
@@ -64,4 +65,39 @@ export const orderLines = orderingSchema.table(
     qty: integer().notNull(),
   },
   (t) => [primaryKey({ columns: [t.orderId, t.position] }), index("order_lines_seller_idx").on(t.sellerId), check("order_lines_qty", sql`${t.qty} >= 1`)],
+);
+
+export const shipmentStatus = orderingSchema.enum("shipment_status", SHIPMENT_STATUSES);
+export const disputeReason = orderingSchema.enum("dispute_reason", DISPUTE_REASONS);
+
+/** One parcel per shop per paid order: what it owes, where it is, and any dispute. */
+export const shipments = orderingSchema.table(
+  "shipments",
+  {
+    orderId: uuid()
+      .notNull()
+      .references(() => orders.id),
+    sellerId: text().notNull(),
+    status: shipmentStatus().notNull(),
+    amountCents: integer().notNull(),
+    carrier: text(),
+    tracking: text(),
+    shippedAt: timestamp({ withTimezone: true }),
+    deliveredAt: timestamp({ withTimezone: true }),
+    confirmedBy: text(),
+    disputeReason: disputeReason(),
+    disputeNote: text(),
+    disputeOpenedAt: timestamp({ withTimezone: true }),
+    resolution: text(),
+    resolutionNote: text(),
+    resolvedBy: uuid(),
+    resolvedAt: timestamp({ withTimezone: true }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.orderId, t.sellerId] }),
+    index("shipments_seller_idx").on(t.sellerId, t.status),
+    index("shipments_autoconfirm_idx").on(t.shippedAt).where(sql`${t.status} = 'shipped'`),
+    index("shipments_disputed_idx").on(t.disputeOpenedAt).where(sql`${t.status} = 'disputed'`),
+    check("shipments_amount", sql`${t.amountCents} >= 0`),
+  ],
 );

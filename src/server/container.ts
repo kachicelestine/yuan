@@ -2,7 +2,7 @@ import "server-only";
 import { spawnSync } from "node:child_process";
 import { brand } from "@/config/brand";
 import { serverEnv } from "@/config/server-env";
-import { makeCatalogQueries, makeSearchProducts, makeSelling } from "@/modules/catalog";
+import { makeCatalogQueries, makeRatings, makeSearchProducts, makeSelling } from "@/modules/catalog";
 import { DrizzleCategoryRepository, DrizzleProductRepository, DrizzleSellerRepository } from "@/modules/catalog/infrastructure/drizzle-catalog-repositories";
 import { DrizzleProductSearch } from "@/modules/catalog/infrastructure/drizzle-product-search";
 import { makeContentQueries, makeInteractions, makeModeration, makeUploads, type VideoEncoder } from "@/modules/content";
@@ -34,12 +34,16 @@ import { makeOnboarding } from "@/modules/merchants";
 import { DrizzleApplicationRepository, DrizzleMembershipRepository } from "@/modules/merchants/infrastructure/drizzle-merchants-repositories";
 import { DrizzleCountryRepository, DrizzleFxRateRepository } from "@/modules/markets/infrastructure/drizzle-markets-repository";
 import { OpenErApiRateSource } from "@/modules/markets/infrastructure/open-er-api-rate-source";
-import { makeCancelUnpaidOrder, makeCart, makeCheckout, makeGetOrder, makeMarkOrderPaid, makeSellerOrders, orderNumber } from "@/modules/ordering";
+import { makeCancelUnpaidOrder, makeCart, makeCheckout, makeFulfilment, makeGetOrder, makeMarkOrderPaid, makeSellerOrders, orderNumber } from "@/modules/ordering";
 import { DrizzleCartRepository } from "@/modules/ordering/infrastructure/drizzle-cart-repository";
 import { DrizzleOrderRepository } from "@/modules/ordering/infrastructure/drizzle-order-repository";
-import { makeCheckInvoice, makeRequestPayment, makeSyncInvoices, type PaymentNetwork } from "@/modules/payments";
+import { DrizzleShipmentRepository } from "@/modules/ordering/infrastructure/drizzle-shipment-repository";
+import { makeCheckInvoice, makeEscrow, makeRequestPayment, makeSyncInvoices, type PaymentNetwork } from "@/modules/payments";
 import { BaseUsdcNetwork } from "@/modules/payments/infrastructure/base-usdc-network";
-import { DrizzleInvoiceRepository, DrizzleLedger } from "@/modules/payments/infrastructure/drizzle-payments-repositories";
+import { DrizzleDisbursementRepository, DrizzleInvoiceRepository, DrizzleLedger } from "@/modules/payments/infrastructure/drizzle-payments-repositories";
+import { makeNotifications } from "@/modules/notifications";
+import { DrizzleNotificationRepository } from "@/modules/notifications/infrastructure/drizzle-notifications-repository";
+import { ConsoleEmail, ResendEmail } from "@/modules/notifications/infrastructure/email";
 import { RailRouter, SimulatedNetwork } from "@/modules/payments/infrastructure/networks";
 import type { Database } from "@/shared/infrastructure/database";
 import { OutboxDispatcher, OutboxEventLog } from "@/shared/infrastructure/outbox";
@@ -50,6 +54,7 @@ import { unitOfWork } from "@/shared/infrastructure/unit-of-work";
 import { newId, systemClock, type Clock, type ObjectStorage } from "@/shared/kernel";
 import { CatalogProductDirectory } from "./adapters/content-products";
 import { WalletCoupons } from "./adapters/coupons";
+import { IdentityEmails, MerchantWallets, OrderingPurchases, OrderingTotals } from "./adapters/fulfilment";
 import { CatalogShops } from "./adapters/shops";
 import { MarketDestinations } from "./adapters/destinations";
 import { CatalogPricing } from "./adapters/order-catalog";
@@ -151,12 +156,29 @@ export function wire(db: Database, options: WireOptions = {}) {
   const content = contentRepos(db);
   const { storage, privateStorage, encoder, premoderated } = options.media ?? media();
 
+  const onboarding = makeOnboarding({
+    applications: new DrizzleApplicationRepository(db),
+    memberships: new DrizzleMembershipRepository(db),
+    shops: new CatalogShops(sellers),
+    documents: privateStorage,
+    // Opening the shop, the owner's membership and the decision commit together.
+    uow: unitOfWork(db, (tx) => ({
+      applications: new DrizzleApplicationRepository(tx),
+      memberships: new DrizzleMembershipRepository(tx),
+      shops: new CatalogShops(new DrizzleSellerRepository(tx)),
+      events: new OutboxEventLog(tx, () => clock.now()),
+    })),
+    clock,
+    newId: () => newId(),
+  });
+
   const checkInvoice = makeCheckInvoice({
     network,
     invoices: new DrizzleInvoiceRepository(db),
     // Invoice, ledger journal, order status and the order's coupon settle in one transaction.
     uow: unitOfWork(db, (tx) => {
       const orders = new DrizzleOrderRepository(tx);
+      const shipments = new DrizzleShipmentRepository(tx);
       const claims = new DrizzleClaimRepository(tx);
       const events = new OutboxEventLog(tx, () => clock.now());
       return {
@@ -164,7 +186,7 @@ export function wire(db: Database, options: WireOptions = {}) {
         ledger: new DrizzleLedger(tx),
         events,
         orderPaid: async (orderId: string, at: Date) => {
-          const r = await makeMarkOrderPaid({ orders, events })(orderId, at);
+          const r = await makeMarkOrderPaid({ orders, shipments, events })(orderId, at);
           if (r.ok) await claims.redeemForOrder(orderId, at);
           return r;
         },
@@ -195,6 +217,7 @@ export function wire(db: Database, options: WireOptions = {}) {
     }),
     listMarkets: makeListMarkets({ countries, fx: new DrizzleFxRateRepository(db) }),
     catalog: makeCatalogQueries({ categories: new DrizzleCategoryRepository(db), sellers, products, clock }),
+    ratings: makeRatings({ products }),
     selling: makeSelling({ products, categories: new DrizzleCategoryRepository(db), sellers, photos: storage, clock, newId: () => newId() }),
     searchProducts: makeSearchProducts({ search: new DrizzleProductSearch(db), sellers, clock }),
     engagement,
@@ -202,7 +225,9 @@ export function wire(db: Database, options: WireOptions = {}) {
     interactions: makeInteractions({
       videos: content.videos,
       likes: content.likes,
+      reviews: content.reviews,
       products: new CatalogProductDirectory(products),
+      purchases: new OrderingPurchases(new DrizzleOrderRepository(db), new DrizzleShipmentRepository(db)),
       // A like and its counter, or a comment and the video's count, move together.
       uow: unitOfWork(db, (tx) => ({ ...contentRepos(tx), events: new OutboxEventLog(tx, () => clock.now()) })),
       clock,
@@ -227,21 +252,7 @@ export function wire(db: Database, options: WireOptions = {}) {
     }),
     storage,
     privateStorage,
-    onboarding: makeOnboarding({
-      applications: new DrizzleApplicationRepository(db),
-      memberships: new DrizzleMembershipRepository(db),
-      shops: new CatalogShops(sellers),
-      documents: privateStorage,
-      // Opening the shop, the owner's membership and the decision commit together.
-      uow: unitOfWork(db, (tx) => ({
-        applications: new DrizzleApplicationRepository(tx),
-        memberships: new DrizzleMembershipRepository(tx),
-        shops: new CatalogShops(new DrizzleSellerRepository(tx)),
-        events: new OutboxEventLog(tx, () => clock.now()),
-      })),
-      clock,
-      newId: () => newId(),
-    }),
+    onboarding,
     cart: makeCart({ carts: new DrizzleCartRepository(db), catalog: pricing }),
 
     checkout: makeCheckout({
@@ -260,7 +271,36 @@ export function wire(db: Database, options: WireOptions = {}) {
       newOrderNumber: () => orderNumber("LY", random),
     }),
     getOrder: makeGetOrder({ orders: new DrizzleOrderRepository(db) }),
-    sellerOrders: makeSellerOrders({ orders: new DrizzleOrderRepository(db) }),
+    sellerOrders: makeSellerOrders({ orders: new DrizzleOrderRepository(db), shipments: new DrizzleShipmentRepository(db) }),
+    fulfilment: makeFulfilment({
+      orders: new DrizzleOrderRepository(db),
+      shipments: new DrizzleShipmentRepository(db),
+      // A parcel's state, its event and the order closing commit together.
+      uow: unitOfWork(db, (tx) => ({ orders: new DrizzleOrderRepository(tx), shipments: new DrizzleShipmentRepository(tx), events: new OutboxEventLog(tx, () => clock.now()) })),
+      clock,
+    }),
+    escrow: makeEscrow({
+      ledger: new DrizzleLedger(db),
+      disbursements: new DrizzleDisbursementRepository(db),
+      invoices: new DrizzleInvoiceRepository(db),
+      orders: new OrderingTotals(new DrizzleOrderRepository(db)),
+      wallets: new MerchantWallets(() => onboarding),
+      // A transfer's record, its journal and its event commit together.
+      uow: unitOfWork(db, (tx) => ({ ledger: new DrizzleLedger(tx), disbursements: new DrizzleDisbursementRepository(tx), events: new OutboxEventLog(tx, () => clock.now()) })),
+      clock,
+      newId: () => newId(),
+      commissionRate: serverEnv.PLATFORM_COMMISSION,
+      payoutRail: "usdc-base",
+    }),
+    notifications: makeNotifications({
+      notifications: new DrizzleNotificationRepository(db),
+      email: serverEnv.RESEND_API_KEY && serverEnv.EMAIL_FROM ? new ResendEmail({ apiKey: serverEnv.RESEND_API_KEY, from: serverEnv.EMAIL_FROM }) : new ConsoleEmail(),
+      directory: new IdentityEmails(new DrizzleAccountRepository(db)),
+      clock,
+      newId: () => newId(),
+      siteUrl: brand.url,
+      appName: brand.name,
+    }),
 
     checkInvoice,
     syncInvoices: makeSyncInvoices({ invoices: new DrizzleInvoiceRepository(db), checkInvoice, clock }),

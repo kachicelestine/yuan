@@ -22,7 +22,7 @@ import type { AccountView } from "@/modules/identity";
 import type { OrderView } from "@/modules/ordering";
 import { signOutAction } from "@/server/actions/auth";
 
-const statusLabel: Record<OrderView["status"], string> = { awaiting_payment: "Waiting for payment", paid: "Paid · packing in China", cancelled: "Cancelled" };
+const statusLabel: Record<OrderView["status"], string> = { awaiting_payment: "Waiting for payment", paid: "Paid · on its way", cancelled: "Cancelled", completed: "Delivered" };
 
 const levels = [
   { id: "clear", label: "Clear" },
@@ -40,12 +40,15 @@ export function MeScreen({
   orders = [],
   hasShop = false,
   admin = false,
+  unread = 0,
 }: {
   account?: AccountView | null;
   orders?: OrderView[];
   /** Runs a shop: Sell opens the seller tools instead of the application. */
   hasShop?: boolean;
   admin?: boolean;
+  /** Unread notifications. */
+  unread?: number;
 }) {
   const money = useMoney();
   const router = useRouter();
@@ -59,6 +62,7 @@ export function MeScreen({
 
   const tiles: { href: string; label: string; icon: IconName; note?: string; badge?: number }[] = [
     { href: `/orders/${orders[0]?.number ?? demoShipment.orderId}`, label: "Orders", icon: "truck", note: account ? plural(orders.length, "order") : "Sample" },
+    { href: "/notifications", label: "Notifications", icon: "bell", badge: unread || undefined, note: account ? undefined : "Sign in" },
     { href: "/inbox", label: "Inbox", icon: "chat", badge: 3 },
     { href: "/rewards", label: "Rewards", icon: "gift", note: `${coins.toLocaleString("en-US")} coins` },
     { href: "/coupons", label: "Coupons", icon: "card", note: `${wallet.length} ready` },

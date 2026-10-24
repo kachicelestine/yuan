@@ -21,6 +21,7 @@ async function MeBody() {
   // Who's signed in, and their orders, are per request.
   await connection();
   const account = await currentAccount();
-  const [orders, shops] = account ? await Promise.all([(await services()).getOrder.list(account.id), myShops()]) : [[], []];
-  return <MeScreen account={account} orders={orders} hasShop={shops.length > 0} admin={isAdmin(account)} />;
+  const app = await services();
+  const [orders, shops, unread] = account ? await Promise.all([app.getOrder.list(account.id), myShops(), app.notifications.unread(account.id)]) : [[], [], 0];
+  return <MeScreen account={account} orders={orders} hasShop={shops.length > 0} admin={isAdmin(account)} unread={unread} />;
 }

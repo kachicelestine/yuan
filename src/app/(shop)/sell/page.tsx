@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { ApplyForm } from "@/components/sell/apply-form";
 import { brand } from "@/config/brand";
+import { serverEnv } from "@/config/server-env";
 import { SellerDashboard } from "@/components/sell/seller-dashboard";
 import { SellFrame, SellSkeleton } from "@/components/sell/sell-frame";
 import { services } from "@/server/container";
@@ -34,16 +35,29 @@ async function SellBody() {
       </SellFrame>
     );
   }
-  const [page, listings, orders, questions] = await Promise.all([
+  const [page, listings, orders, questions, available, payouts, wallet] = await Promise.all([
     app.catalog.getSeller(shop.sellerId),
     app.selling.listings(shop.sellerId),
     app.sellerOrders.list(shop.sellerId),
     app.content.unansweredQuestions(shop.sellerId),
+    app.escrow.available(shop.sellerId),
+    app.escrow.payouts(shop.sellerId),
+    app.onboarding.payoutWallet(shop.sellerId),
   ]);
+  // What Protect still holds for parcels not yet confirmed, as it will reach the shop.
+  const held = orders.filter((o) => o.shipment && ["awaiting_shipment", "shipped", "disputed"].includes(o.shipment.status)).reduce((n, o) => n + o.shipment!.amount, 0);
+  const money = {
+    available: available / 100,
+    inProtect: Math.round(held * (1 - serverEnv.PLATFORM_COMMISSION) * 100) / 100,
+    commission: serverEnv.PLATFORM_COMMISSION,
+    payouts,
+    wallet,
+    explorer: serverEnv.PAYMENTS_BASE_CHAIN === "base" ? "https://basescan.org" : "https://sepolia.basescan.org",
+  };
   if (!page) redirect("/me");
   return (
     <SellFrame title="Your shop">
-      <SellerDashboard seller={page.seller} storefront={page.storefront} listings={listings} orders={orders} questions={questions} />
+      <SellerDashboard seller={page.seller} storefront={page.storefront} listings={listings} orders={orders} questions={questions} money={money} />
     </SellFrame>
   );
 }

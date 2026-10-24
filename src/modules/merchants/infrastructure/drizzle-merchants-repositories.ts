@@ -33,6 +33,11 @@ export class DrizzleApplicationRepository implements ApplicationRepository {
     await this.db.insert(applications).values(row).onConflictDoUpdate({ target: applications.id, set: row });
   }
 
+  async findBySeller(sellerId: string) {
+    const [r] = await this.db.select().from(applications).where(and(eq(applications.sellerId, sellerId), eq(applications.status, "approved"))).limit(1);
+    return r ? toApplication(r) : null;
+  }
+
   async listByStatus(status: ApplicationStatus, limit: number) {
     const rows = await this.db.select().from(applications).where(eq(applications.status, status)).orderBy(asc(applications.submittedAt), asc(applications.createdAt)).limit(limit);
     return rows.map(toApplication);
@@ -53,6 +58,10 @@ export class DrizzleMembershipRepository implements MembershipRepository {
 
   async forAccount(accountId: string): Promise<Membership[]> {
     return this.db.select().from(members).where(eq(members.accountId, accountId)).orderBy(asc(members.since));
+  }
+
+  async forSeller(sellerId: string): Promise<Membership[]> {
+    return this.db.select().from(members).where(eq(members.sellerId, sellerId)).orderBy(asc(members.since));
   }
 
   async find(sellerId: string, accountId: string) {

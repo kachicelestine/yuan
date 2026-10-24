@@ -87,6 +87,12 @@ export function makeOnboarding({ applications, memberships, shops, documents, uo
     /** The shops this person can run. */
     memberships: (accountId: string): Promise<Membership[]> => memberships.forAccount(accountId),
 
+    /** Everyone who runs a shop (for notifications). */
+    members: async (sellerId: string): Promise<string[]> => (await memberships.forSeller(sellerId)).map((m) => m.accountId),
+
+    /** Where the shop's payouts go: the wallet from its approved application. */
+    payoutWallet: async (sellerId: string): Promise<string | null> => (await applications.findBySeller(sellerId))?.payoutWallet ?? null,
+
     async saveDetails(accountId: string, business: BusinessDetails, payoutWallet: string | null): Promise<Result<ApplicationView, OnboardingError>> {
       const a = await current(accountId);
       const next = saveDetails(a, business, payoutWallet);

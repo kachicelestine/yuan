@@ -54,3 +54,32 @@ export async function resolveAction(targetType: string, targetId: string, action
   const r = await (await services()).moderation.resolve(admin.id, parsed.data.targetType, parsed.data.targetId, parsed.data.action);
   return r.ok ? { ok: true } : fail(r.error.code, r.error.message);
 }
+
+/** Decide a dispute: refund the buyer, or release the money to the shop. Both sides see the note. */
+export async function resolveDisputeAction(orderId: string, sellerId: string, outcome: "refund" | "release", note: string): Promise<{ ok: true } | Failure> {
+  const admin = await currentAdmin();
+  if (!admin) return forbidden();
+  const p = z.object({ orderId: z.uuid(), sellerId: z.string().min(1).max(60), outcome: z.enum(["refund", "release"]), note: z.string().max(2000) }).safeParse({ orderId, sellerId, outcome, note });
+  if (!p.success) return fail("invalid", "That couldn't be read.");
+  const r = await (await services()).fulfilment.resolve(admin.id, p.data.orderId, p.data.sellerId, p.data.outcome, p.data.note);
+  return r.ok ? { ok: true } : fail(r.error.code, r.error.message);
+}
+
+/** Record a payout or refund sent from the treasury wallet. */
+export async function markSentAction(id: string, txHash: string, address: string | null): Promise<{ ok: true } | Failure> {
+  const admin = await currentAdmin();
+  if (!admin) return forbidden();
+  const p = z.object({ id: z.uuid(), txHash: z.string().max(100), address: z.string().max(100).nullable() }).safeParse({ id, txHash, address });
+  if (!p.success) return fail("invalid", "That couldn't be read.");
+  const r = await (await services()).escrow.markSent(admin.id, p.data.id, { txHash: p.data.txHash, address: p.data.address || null });
+  return r.ok ? { ok: true } : fail(r.error.code, r.error.message);
+}
+
+export async function cancelPayoutAction(id: string, note: string): Promise<{ ok: true } | Failure> {
+  const admin = await currentAdmin();
+  if (!admin) return forbidden();
+  const p = z.object({ id: z.uuid(), note: z.string().max(1000) }).safeParse({ id, note });
+  if (!p.success) return fail("invalid", "That couldn't be read.");
+  const r = await (await services()).escrow.cancelPayout(admin.id, p.data.id, p.data.note);
+  return r.ok ? { ok: true } : fail(r.error.code, r.error.message);
+}

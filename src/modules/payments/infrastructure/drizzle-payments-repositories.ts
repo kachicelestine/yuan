@@ -1,11 +1,12 @@
-import { and, asc, eq, gt, or, sum } from "drizzle-orm";
+import { and, asc, desc, eq, gt, or, sum } from "drizzle-orm";
 import type { Database } from "@/shared/infrastructure/database";
 import { cents } from "@/shared/kernel/money";
+import type { Disbursement } from "../domain/disbursement";
 import type { Invoice } from "../domain/invoice";
 import type { Journal } from "../domain/ledger";
-import type { InvoiceRepository, Ledger } from "../domain/ports";
+import type { DisbursementRepository, InvoiceRepository, Ledger } from "../domain/ports";
 import type { RailId } from "../domain/rails";
-import { invoices, journals, ledgerEntries } from "./schema";
+import { disbursements, invoices, journals, ledgerEntries } from "./schema";
 
 const toInvoice = (r: typeof invoices.$inferSelect): Invoice => ({
   id: r.id,
@@ -70,6 +71,17 @@ export class DrizzleInvoiceRepository implements InvoiceRepository {
 export class DrizzleLedger implements Ledger {
   constructor(private readonly db: Database) {}
 
+  async postOnce(j: Journal) {
+    const inserted = await this.db
+      .insert(journals)
+      .values({ id: j.id, reference: j.reference, memo: j.memo, at: j.at })
+      .onConflictDoNothing({ target: journals.reference })
+      .returning({ id: journals.id });
+    if (!inserted.length) return false;
+    await this.db.insert(ledgerEntries).values(j.entries.map((e) => ({ journalId: j.id, account: e.account, amountCents: e.amount })));
+    return true;
+  }
+
   /** Writes a journal and its entries. A journal's reference is unique, so posting twice fails loudly. */
   async post(j: Journal) {
     await this.db.insert(journals).values({ id: j.id, reference: j.reference, memo: j.memo, at: j.at });
@@ -80,5 +92,77 @@ export class DrizzleLedger implements Ledger {
   async balance(account: string) {
     const [r] = await this.db.select({ total: sum(ledgerEntries.amountCents) }).from(ledgerEntries).where(eq(ledgerEntries.account, account));
     return Number(r?.total ?? 0);
+  }
+}
+
+const toDisbursement = (r: typeof disbursements.$inferSelect): Disbursement => ({
+  id: r.id,
+  kind: r.kind,
+  sellerId: r.sellerId,
+  orderId: r.orderId,
+  accountId: r.accountId,
+  amount: cents(r.amountCents),
+  address: r.address,
+  status: r.status,
+  txHash: r.txHash,
+  note: r.note,
+  requestedAt: r.requestedAt,
+  decidedAt: r.decidedAt,
+  decidedBy: r.decidedBy,
+});
+
+export class DrizzleDisbursementRepository implements DisbursementRepository {
+  constructor(private readonly db: Database) {}
+
+  async find(id: string) {
+    const [r] = await this.db.select().from(disbursements).where(eq(disbursements.id, id)).limit(1);
+    return r ? toDisbursement(r) : null;
+  }
+
+  async save(d: Disbursement) {
+    const values = {
+      id: d.id,
+      kind: d.kind,
+      sellerId: d.sellerId,
+      orderId: d.orderId,
+      accountId: d.accountId,
+      amountCents: d.amount,
+      address: d.address,
+      status: d.status,
+      txHash: d.txHash,
+      note: d.note,
+      requestedAt: d.requestedAt,
+      decidedAt: d.decidedAt,
+      decidedBy: d.decidedBy,
+    };
+    await this.db.insert(disbursements).values(values).onConflictDoUpdate({ target: disbursements.id, set: values });
+  }
+
+  async findRefund(orderId: string, sellerId: string) {
+    const [r] = await this.db
+      .select()
+      .from(disbursements)
+      .where(and(eq(disbursements.kind, "refund"), eq(disbursements.orderId, orderId), eq(disbursements.sellerId, sellerId)))
+      .limit(1);
+    return r ? toDisbursement(r) : null;
+  }
+
+  async txRecorded(txHash: string) {
+    return (await this.db.select({ id: disbursements.id }).from(disbursements).where(eq(disbursements.txHash, txHash)).limit(1)).length > 0;
+  }
+
+  async pending(limit: number) {
+    return (await this.db.select().from(disbursements).where(eq(disbursements.status, "requested")).orderBy(asc(disbursements.requestedAt)).limit(limit)).map(toDisbursement);
+  }
+
+  async payoutsFor(sellerId: string, limit: number) {
+    return (
+      await this.db
+        .select()
+        .from(disbursements)
+        .where(and(eq(disbursements.kind, "payout"), eq(disbursements.sellerId, sellerId)))
+        .orderBy(desc(disbursements.requestedAt))
+        .limit(limit)
+    ).map(toDisbursement);
   }
 }

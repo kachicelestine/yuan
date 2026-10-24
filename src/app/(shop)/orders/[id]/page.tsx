@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { OrderJourney } from "@/components/orders/order-journey";
 import { demoShipment } from "@/lib/account";
+import { getSellers } from "@/server/catalog";
 import { services } from "@/server/container";
 import { currentAccount } from "@/server/session";
 
@@ -29,7 +30,14 @@ async function OrderBody({ params }: { params: PageProps<"/orders/[id]">["params
   if (id === demoShipment.orderId) return <OrderJourney />;
   const account = await currentAccount();
   if (!account) redirect(`/signin?next=${encodeURIComponent(`/orders/${id}`)}`);
-  const placed = await (await services()).getOrder.byNumber(id, account.id);
+  const app = await services();
+  const placed = await app.getOrder.byNumber(id, account.id);
   if (!placed) notFound();
-  return <OrderJourney placed={placed} />;
+  const [parcels, sellers, reviewed] = await Promise.all([
+    app.fulfilment.forOrder(placed.id),
+    getSellers(),
+    app.interactions.reviewed(placed.id, [...new Set(placed.lines.map((l) => l.slug))]),
+  ]);
+  const shops = Object.fromEntries(sellers.filter((s) => parcels.some((p) => p.sellerId === s.id)).map((s) => [s.id, { name: s.name, avatar: s.avatar }]));
+  return <OrderJourney placed={placed} parcels={parcels} shops={shops} reviewed={reviewed} />;
 }

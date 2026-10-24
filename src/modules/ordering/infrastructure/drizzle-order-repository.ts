@@ -72,6 +72,11 @@ export class DrizzleOrderRepository implements OrderRepository {
     };
   }
 
+  async transition(orderId: string, from: Order["status"], to: Order["status"]) {
+    const rows = await this.db.update(orders).set({ status: to }).where(and(eq(orders.id, orderId), eq(orders.status, from))).returning({ id: orders.id });
+    return rows.length > 0;
+  }
+
   /** Inserts a new order with its lines, or updates an existing order's status. Lines never change. */
   async save(o: Order) {
     const [existing] = await this.db.select({ id: orders.id }).from(orders).where(eq(orders.id, o.id)).limit(1);

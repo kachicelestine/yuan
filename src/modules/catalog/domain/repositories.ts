@@ -26,5 +26,7 @@ export interface ProductRepository {
   /** A shop's listings in every status, newest first. */
   listBySeller(sellerId: SellerId): Promise<Product[]>;
   slugExists(slug: string): Promise<boolean>;
+  /** Folds one review's stars into the product's average, once per review id. */
+  applyRating(reviewId: string, slug: string, rating: number): Promise<boolean>;
   save(product: Product): Promise<void>;
 }

@@ -1,4 +1,4 @@
-import { and, eq, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, notInArray, sql } from "drizzle-orm";
 import type { DomainEvent, EventLog } from "@/shared/kernel";
 import { newId } from "@/shared/kernel";
 import type { Database } from "./database";
@@ -30,6 +30,11 @@ export type DispatchResult = { claimed: number; delivered: number; retried: numb
  * (FOR UPDATE SKIP LOCKED), so several dispatchers can run side by side without
  * taking the same row; a crashed dispatcher's lease just expires. Failures retry
  * with exponential backoff and stop after `maxAttempts`.
+ *
+ * A dispatcher only claims topics it has a handler for. During a deploy (or with a
+ * stale dev server on the same database) an older version must not swallow events
+ * it doesn't understand: they wait for a version that does. Topics nothing handles
+ * are retired after a while by `retireUnhandled`.
  */
 export class OutboxDispatcher {
   constructor(
@@ -37,6 +42,10 @@ export class OutboxDispatcher {
     private readonly handlers: Readonly<Record<string, OutboxHandler | undefined>>,
     private readonly options: { batch?: number; leaseMs?: number; maxAttempts?: number; now?: () => Date } = {},
   ) {}
+
+  private get topics() {
+    return Object.keys(this.handlers).filter((t) => this.handlers[t]);
+  }
 
   private get now() {
     return this.options.now?.() ?? new Date();
@@ -51,6 +60,8 @@ export class OutboxDispatcher {
     const now = this.now;
     const leaseUntil = new Date(now.getTime() + (this.options.leaseMs ?? 60_000));
     const batch = this.options.batch ?? 25;
+    const topics = this.topics;
+    if (!topics.length) return { claimed: 0, delivered: 0, retried: 0, failed: 0 };
     const claimed = await this.db
       .update(outbox)
       .set({ lockedUntil: leaseUntil, attempts: sql`${outbox.attempts} + 1` })
@@ -58,6 +69,7 @@ export class OutboxDispatcher {
         sql`${outbox.id} in (
           select id from ${outbox}
           where ${outbox.processedAt} is null and ${outbox.failedAt} is null and ${outbox.availableAt} <= ${now.toISOString()}
+            and ${inArray(outbox.topic, topics)}
             and (${outbox.lockedUntil} is null or ${outbox.lockedUntil} < ${now.toISOString()})
           order by ${outbox.availableAt}
           limit ${batch}
@@ -70,8 +82,7 @@ export class OutboxDispatcher {
     for (const row of claimed) {
       const message: OutboxMessage = { id: row.id, topic: row.topic, key: row.key, payload: row.payload as Record<string, unknown>, attempts: row.attempts, createdAt: row.createdAt };
       try {
-        // Topics nobody listens to yet are simply marked delivered.
-        await this.handlers[row.topic]?.(message);
+        await this.handlers[row.topic]!(message);
         await this.db.update(outbox).set({ processedAt: this.now, lockedUntil: null, lastError: null }).where(eq(outbox.id, row.id));
         result.delivered++;
       } catch (error) {
@@ -87,6 +98,21 @@ export class OutboxDispatcher {
       }
     }
     return result;
+  }
+
+  /**
+   * Marks waiting rows older than `before` whose topic no handler here knows as delivered
+   * (nothing subscribes to them: OrderPlaced kept for history, say). Run it only from the
+   * newest version, so a topic a newer version handles is never retired by an older one.
+   */
+  async retireUnhandled(before: Date) {
+    const topics = this.topics;
+    const rows = await this.db
+      .update(outbox)
+      .set({ processedAt: this.now, lastError: "no subscriber" })
+      .where(and(isNull(outbox.processedAt), isNull(outbox.failedAt), lt(outbox.createdAt, before), topics.length ? notInArray(outbox.topic, topics) : undefined))
+      .returning({ id: outbox.id });
+    return rows.length;
   }
 
   /** Deletes delivered rows older than `before`. Failed rows stay until a person clears them. */

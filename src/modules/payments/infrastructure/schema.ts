@@ -64,3 +64,34 @@ export const simulatedTransfers = paymentsSchema.table("simulated_transfers", {
   txHash: text().notNull(),
   at: timestamp({ withTimezone: true }).notNull(),
 });
+
+export const disbursementKind = paymentsSchema.enum("disbursement_kind", ["payout", "refund"]);
+export const disbursementStatus = paymentsSchema.enum("disbursement_status", ["requested", "sent", "cancelled"]);
+
+/** Payouts to shops and refunds to buyers, sent from the treasury by a person for now. */
+export const disbursements = paymentsSchema.table(
+  "disbursements",
+  {
+    id: uuid().primaryKey(),
+    kind: disbursementKind().notNull(),
+    sellerId: text().notNull(),
+    orderId: uuid(),
+    accountId: uuid(),
+    amountCents: bigint({ mode: "number" }).notNull(),
+    address: text(),
+    status: disbursementStatus().notNull(),
+    txHash: text(),
+    note: text(),
+    requestedAt: timestamp({ withTimezone: true }).notNull(),
+    decidedAt: timestamp({ withTimezone: true }),
+    decidedBy: uuid(),
+  },
+  (t) => [
+    index("disbursements_pending_idx").on(t.requestedAt).where(sql`${t.status} = 'requested'`),
+    index("disbursements_seller_idx").on(t.sellerId, t.requestedAt),
+    // One refund per shop per order, however often the event is delivered.
+    uniqueIndex("disbursements_refund_uq").on(t.orderId, t.sellerId).where(sql`${t.kind} = 'refund'`),
+    uniqueIndex("disbursements_tx_uq").on(t.txHash),
+    check("disbursements_amount", sql`${t.amountCents} > 0`),
+  ],
+);

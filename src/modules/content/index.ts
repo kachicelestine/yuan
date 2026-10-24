@@ -8,6 +8,8 @@ export {
   type Interactions,
   type InteractionScope,
   type ProductDirectory,
+  type PurchaseDirectory,
+  type ReviewPosted,
   type QuestionAnswered,
   type QuestionAsked,
 } from "./application/interactions";

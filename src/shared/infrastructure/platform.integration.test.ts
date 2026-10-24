@@ -31,14 +31,24 @@ describe("outbox", () => {
     expect(keys).not.toContain("order-2");
   });
 
-  it("delivers to handlers once, and marks topics nobody handles as delivered", async () => {
+  it("delivers handled topics once, leaves the rest for a version that handles them, then retires them", async () => {
     await new OutboxEventLog(db, now).record("order-3", { type: "Unhandled", at: clock });
     const seen: string[] = [];
     const dispatcher = new OutboxDispatcher(db, { OrderPlaced: async (m) => void seen.push(`${m.topic}:${m.key}`) }, { now });
     const first = await dispatcher.dispatchOnce();
-    expect(first.delivered).toBeGreaterThanOrEqual(2);
-    expect(seen).toContain("OrderPlaced:order-1");
+    expect(first.delivered).toBe(1);
+    expect(seen).toEqual(["OrderPlaced:order-1"]);
     expect((await dispatcher.dispatchOnce()).claimed).toBe(0);
+    // An older dispatcher didn't swallow "Unhandled": a newer one still gets it.
+    const newer = new OutboxDispatcher(db, { Unhandled: async (m) => void seen.push(`${m.topic}:${m.key}`) }, { now });
+    expect((await newer.dispatchOnce()).delivered).toBe(1);
+    expect(seen).toContain("Unhandled:order-3");
+
+    // A topic nothing handles waits a week, then is retired.
+    await new OutboxEventLog(db, now).record("order-9", { type: "History", at: clock });
+    expect(await dispatcher.retireUnhandled(new Date(clock.getTime() - 7 * 24 * 3600_000))).toBe(0);
+    advance(8 * 24 * 3600_000);
+    expect(await dispatcher.retireUnhandled(new Date(clock.getTime() - 7 * 24 * 3600_000))).toBe(1);
     expect(await dispatcher.backlog()).toMatchObject({ pending: 0, failed: 0 });
   });
 

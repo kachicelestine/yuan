@@ -48,7 +48,7 @@ export const MAX_DURATION_MS = 3 * 60_000;
 export const UPLOAD_TYPES: Readonly<Record<string, string>> = { "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm" };
 
 export type VideoUploaded = Readonly<{ type: "VideoUploaded"; videoId: string; sourceKey: string; at: Date }>;
-export type VideoPublished = Readonly<{ type: "VideoPublished"; videoId: string; sellerId: string; category: string; at: Date }>;
+export type VideoPublished = Readonly<{ type: "VideoPublished"; videoId: string; sellerId: string; category: string; authorId: string | null; at: Date }>;
 
 /** A new upload, waiting for its renditions. Hashtags are normalised: lower case, no "#". */
 export function draftVideo(props: {
@@ -115,7 +115,7 @@ export function approve(video: Video, at: Date): Result<{ video: Video; event: V
 
 const goLive = (video: Video, at: Date) => ({
   video: { ...video, status: "ready" as const, publishedAt: at },
-  event: { type: "VideoPublished" as const, videoId: video.id, sellerId: video.sellerId, category: video.category, at },
+  event: { type: "VideoPublished" as const, videoId: video.id, sellerId: video.sellerId, category: video.category, authorId: video.authorId, at },
 });
 
 /** Encoding gave up (unreadable file, too long, no video track). */

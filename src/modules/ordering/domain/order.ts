@@ -1,7 +1,8 @@
 import { domainError, err, ok, type Cents, type DomainError, type Result } from "@/shared/kernel";
 import type { Pricing, ShippingMethod } from "./pricing";
 
-export const ORDER_STATUSES = ["awaiting_payment", "paid", "cancelled"] as const;
+/** completed: every parcel delivered or refunded, and Protect has closed. */
+export const ORDER_STATUSES = ["awaiting_payment", "paid", "cancelled", "completed"] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 /** A snapshot of what was bought, so later catalog edits never change a placed order. */

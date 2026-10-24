@@ -1,11 +1,11 @@
-import { and, asc, desc, eq, inArray, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { Database } from "@/shared/infrastructure/database";
 import { cents } from "@/shared/kernel/money";
 import type { Category, CategoryId } from "../domain/category";
 import type { Product } from "../domain/product";
 import type { CategoryRepository, ProductRepository, SellerRepository } from "../domain/repositories";
 import type { Seller, SellerId } from "../domain/seller";
-import { categories, products, sellers, type StoredOption } from "./schema";
+import { appliedRatings, categories, products, sellers, type StoredOption } from "./schema";
 
 const toCategory = (r: typeof categories.$inferSelect): Category => ({ ...r, id: r.id as CategoryId });
 
@@ -147,6 +147,22 @@ export class DrizzleProductRepository implements ProductRepository {
 
   async listBySeller(sellerId: SellerId) {
     return (await this.db.select().from(products).where(eq(products.sellerId, sellerId)).orderBy(desc(products.createdAt), desc(products.id))).map(toProduct);
+  }
+
+  async applyRating(reviewId: string, slug: string, rating: number) {
+    return this.db.transaction(async (tx) => {
+      const fresh = await tx.insert(appliedRatings).values({ reviewId }).onConflictDoNothing().returning({ id: appliedRatings.reviewId });
+      if (!fresh.length) return false;
+      await tx
+        .update(products)
+        .set({
+          rating: sql`round(((${products.rating} * ${products.reviewCount}) + ${rating}) / (${products.reviewCount} + 1), 1)`,
+          reviewCount: sql`${products.reviewCount} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(products.slug, slug));
+      return true;
+    });
   }
 
   async slugExists(slug: string) {

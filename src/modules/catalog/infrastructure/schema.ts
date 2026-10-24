@@ -84,3 +84,9 @@ export const products = catalogSchema.table(
     check("products_duty_rate", sql`${t.dutyRate} between 0 and 1`),
   ],
 );
+
+/** Reviews already counted in a product's rating, so a redelivered event counts once. */
+export const appliedRatings = catalogSchema.table("applied_ratings", {
+  reviewId: text().primaryKey(),
+  appliedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+});

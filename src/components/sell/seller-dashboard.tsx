@@ -10,10 +10,12 @@ import type { ListingView, SellerView, StorefrontView } from "@/modules/catalog"
 import type { QuestionView } from "@/modules/content";
 import type { SellerOrderView } from "@/modules/ordering";
 import { compact } from "@/lib/format";
-import { answerQuestionAction } from "@/server/actions/shop";
+import { CARRIERS } from "@/modules/ordering";
+import { answerQuestionAction, shipAction } from "@/server/actions/shop";
+import { SellerMoney, type ShopMoney } from "./seller-money";
 import { StorefrontForm } from "./storefront-form";
 
-type Tab = "listings" | "orders" | "questions" | "shop";
+type Tab = "listings" | "orders" | "questions" | "money" | "shop";
 
 type Props = {
   seller: SellerView;
@@ -21,20 +23,32 @@ type Props = {
   listings: ListingView[];
   orders: SellerOrderView[];
   questions: (QuestionView & { at: string })[];
+  money: ShopMoney;
 };
 
 const STATUS: Record<ListingView["status"], string> = { active: "Live", draft: "Draft", archived: "Archived" };
 
+const PARCEL: Record<string, { label: string; tone: string }> = {
+  none: { label: "Paid", tone: "bg-positive/15 text-positive" },
+  awaiting_shipment: { label: "To ship", tone: "bg-accent/20 text-accent-light" },
+  shipped: { label: "Shipped", tone: "bg-agent/15 text-agent" },
+  delivered: { label: "Delivered · paid", tone: "bg-positive/15 text-positive" },
+  disputed: { label: "Problem reported", tone: "bg-save/15 text-save" },
+  refunded: { label: "Refunded", tone: "bg-white/10 text-ink-2" },
+};
+
 /** Everything a shop runs on: listings, orders, buyers' questions and the storefront. */
-export function SellerDashboard({ seller, storefront, listings, orders, questions }: Props) {
+export function SellerDashboard({ seller, storefront, listings, orders, questions, money: funds }: Props) {
   const params = useSearchParams();
   const [tab, setTab] = useState<Tab>((params.get("tab") as Tab) || "listings");
   const money = useMoney();
-  const paid = orders.filter((o) => o.status === "paid");
+  const paid = orders.filter((o) => o.status === "paid" || o.status === "completed");
+  const toShip = orders.filter((o) => o.shipment?.status === "awaiting_shipment" || o.shipment?.status === "disputed");
   const tabs: { id: Tab; label: string; badge?: number }[] = [
     { id: "listings", label: "Listings" },
-    { id: "orders", label: "Orders", badge: paid.length || undefined },
-    { id: "questions", label: "Questions", badge: questions.length || undefined },
+    { id: "orders", label: "Orders", badge: toShip.length || undefined },
+    { id: "questions", label: "Q&A", badge: questions.length || undefined },
+    { id: "money", label: "Money" },
     { id: "shop", label: "Shop" },
   ];
 
@@ -53,7 +67,7 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
         </Link>
       </div>
 
-      <div role="tablist" aria-label="Seller tools" className="glass grid grid-cols-4 rounded-full p-1">
+      <div role="tablist" aria-label="Seller tools" className="glass grid grid-cols-5 rounded-full p-1">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -61,10 +75,10 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
             role="tab"
             aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
-            className={`relative h-9 rounded-full text-[13px] font-semibold ${tab === t.id ? "bg-white/15 text-ink" : "text-ink-2"}`}
+            className={`relative h-9 rounded-full text-[12.5px] font-semibold ${tab === t.id ? "bg-white/15 text-ink" : "text-ink-2"}`}
           >
             {t.label}
-            {t.badge !== undefined && <span className="ml-1 rounded-full bg-accent px-1.5 text-[10px] font-bold text-white">{t.badge}</span>}
+            {t.badge !== undefined && <span className="absolute -top-1 -right-0.5 rounded-full bg-accent px-1.5 text-[10px] font-bold text-white">{t.badge}</span>}
           </button>
         ))}
       </div>
@@ -112,7 +126,7 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
                   <span>
                     {new Date(o.placedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} · to {o.country}
                   </span>
-                  <span className={`rounded-full px-2 py-0.5 font-bold ${o.status === "paid" ? "bg-positive/15 text-positive" : "bg-white/10"}`}>{o.status === "paid" ? "Paid" : "Awaiting payment"}</span>
+                  <span className={`rounded-full px-2 py-0.5 font-bold ${PARCEL[o.shipment?.status ?? "none"].tone}`}>{o.status === "awaiting_payment" ? "Awaiting payment" : PARCEL[o.shipment?.status ?? "none"].label}</span>
                 </header>
                 <ul className="flex flex-col gap-1.5">
                   {o.lines.map((l, i) => (
@@ -126,6 +140,14 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
                     </li>
                   ))}
                 </ul>
+                {o.shipment?.status === "awaiting_shipment" && o.status === "paid" && <ShipForm orderId={o.id} />}
+                {o.shipment?.tracking && (
+                  <p className="mt-2 text-xs text-ink-2">
+                    {o.shipment.carrier} · <span className="font-mono">{o.shipment.tracking}</span>
+                  </p>
+                )}
+                {o.shipment?.status === "disputed" && <p className="mt-2 rounded-2xl bg-save/10 p-2.5 text-xs text-ink-2">The buyer reported a problem. The payment is held while our team looks; a quick reply to the buyer helps.</p>}
+                {o.shipment?.resolution && <p className="mt-2 text-xs text-ink-2">Decision: {o.shipment.resolution.note}</p>}
               </article>
             ))
           )}
@@ -133,6 +155,8 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
       )}
 
       {tab === "questions" && <QuestionInbox questions={questions} listings={listings} />}
+
+      {tab === "money" && <SellerMoney money={funds} />}
 
       {tab === "shop" && <StorefrontForm seller={seller} storefront={storefront} />}
     </div>
@@ -186,5 +210,50 @@ function QuestionInbox({ questions, listings }: { questions: Props["questions"];
         </article>
       ))}
     </section>
+  );
+}
+
+/** Carrier and tracking number: the buyer sees them at once and Protect starts its clock. */
+function ShipForm({ orderId }: { orderId: string }) {
+  const router = useRouter();
+  const [carrier, setCarrier] = useState<string>(CARRIERS[0]);
+  const [tracking, setTracking] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function send() {
+    setBusy(true);
+    setError(null);
+    const r = await shipAction(orderId, carrier, tracking);
+    setBusy(false);
+    if (!r.ok) return setError(r.message);
+    router.refresh();
+  }
+
+  return (
+    <div className="mt-3 flex flex-col gap-2">
+      <div className="flex gap-2">
+        <select aria-label="Carrier" value={carrier} onChange={(e) => setCarrier(e.target.value)} className="glass-inset h-11 w-32 shrink-0 rounded-2xl px-3 text-sm outline-none">
+          {CARRIERS.map((c) => (
+            <option key={c}>{c}</option>
+          ))}
+        </select>
+        <input
+          aria-label="Tracking number"
+          value={tracking}
+          onChange={(e) => setTracking(e.target.value.toUpperCase())}
+          placeholder="Tracking number"
+          className="glass-inset h-11 min-w-0 flex-1 rounded-2xl px-3 font-mono text-sm outline-none placeholder:font-sans placeholder:text-ink-3"
+        />
+      </div>
+      <button type="button" disabled={busy || tracking.trim().length < 6} onClick={send} className="h-11 rounded-full bg-accent text-sm font-bold disabled:opacity-40">
+        {busy ? "Saving…" : "Mark as shipped"}
+      </button>
+      {error && (
+        <p role="alert" className="text-xs text-like">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }

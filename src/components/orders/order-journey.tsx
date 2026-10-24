@@ -12,7 +12,8 @@ import { brand } from "@/config/brand";
 import { demoShipment } from "@/lib/account";
 import { getProduct, type Shipment } from "@/lib/catalog";
 import { shiftDelivery } from "@/lib/landed";
-import type { OrderView } from "@/modules/ordering";
+import type { OrderView, ShipmentView } from "@/modules/ordering";
+import { OrderParcels } from "./order-parcels";
 
 const problems = ["It hasn't arrived", "It arrived damaged", "It's not as described", "Wrong item or size", "Something else"];
 
@@ -35,7 +36,18 @@ function fromOrder(order: { id: string; total: number; lines: { slug: string; qt
 }
 
 /** Where your order is, from factory to door, with Protect holding the money until you're happy. */
-export function OrderJourney({ placed }: { placed?: OrderView | null }) {
+export function OrderJourney({
+  placed,
+  parcels = [],
+  shops = {},
+  reviewed = [],
+}: {
+  placed?: OrderView | null;
+  /** One per shop once the order is paid. */
+  parcels?: ShipmentView[];
+  shops?: Record<string, { name: string; avatar: string }>;
+  reviewed?: string[];
+}) {
   const { markets, market: home } = useStore();
   const money = useMoney();
   const [sheet, setSheet] = useState<Detent>("closed");
@@ -71,6 +83,9 @@ export function OrderJourney({ placed }: { placed?: OrderView | null }) {
         </p>
       )}
 
+      {placed && parcels.length > 0 ? (
+        <ParcelProgress parcels={parcels} eta={s.eta} from={s.from} to={market.city} toCode={market.code} />
+      ) : (
       <section aria-label="Delivery" className="glass relative overflow-hidden rounded-[30px] p-5">
         <p className="text-xs font-semibold text-ink-2">Arriving</p>
         <p className="font-display text-[34px] leading-tight font-extrabold tracking-[-0.03em]">{s.eta}</p>
@@ -115,7 +130,9 @@ export function OrderJourney({ placed }: { placed?: OrderView | null }) {
         </div>
       </section>
 
-      <section aria-labelledby="steps-h" className="mt-5">
+      )}
+
+      <section aria-labelledby="steps-h" className={placed && parcels.length > 0 ? "hidden" : "mt-5"}>
         <h2 id="steps-h" className="mb-3 px-1 text-[15px] font-bold">
           Journey
         </h2>
@@ -156,7 +173,9 @@ export function OrderJourney({ placed }: { placed?: OrderView | null }) {
             <p className="text-[13px] text-ink-2">The seller is paid 3 days after delivery, around {s.protectUntil}, unless you report a problem. Then the money stays put until it&apos;s fixed.</p>
           </div>
         </div>
-        {reported ? (
+        {parcels.length > 0 ? (
+          <p className="mt-3 text-[13px] text-ink-2">Confirm each parcel when it arrives, or report a problem on it below.</p>
+        ) : reported ? (
           <p role="status" className="mt-3 rounded-2xl bg-positive/10 p-3 text-[13px]">
             <b className="font-semibold">Case opened: “{reported}”.</b> We&apos;ll reply within 24 hours, and your money stays held until it&apos;s sorted.
           </p>
@@ -173,7 +192,9 @@ export function OrderJourney({ placed }: { placed?: OrderView | null }) {
         )}
       </section>
 
-      <section aria-labelledby="items-h" className="mt-5">
+      {placed && parcels.length > 0 && <OrderParcels order={placed} parcels={parcels} shops={shops} reviewed={reviewed} />}
+
+      <section aria-labelledby="items-h" className={parcels.length > 0 ? "hidden" : "mt-5"}>
         <h2 id="items-h" className="mb-3 px-1 text-[15px] font-bold">
           In this order
         </h2>
@@ -227,5 +248,57 @@ export function OrderJourney({ placed }: { placed?: OrderView | null }) {
         </div>
       </Sheet>
     </div>
+  );
+}
+
+const STAGES = ["Paid", "Shipped", "Delivered"] as const;
+
+/** A real order's progress, from its parcels: packing, on the way, delivered. */
+function ParcelProgress({ parcels, eta, from, to, toCode }: { parcels: ShipmentView[]; eta: string; from: string; to: string; toCode: string }) {
+  const settled = parcels.every((p) => p.status === "delivered" || p.status === "refunded");
+  const moving = parcels.some((p) => p.status === "shipped" || p.status === "delivered");
+  const stage = settled ? 2 : moving ? 1 : 0;
+  const disputed = parcels.some((p) => p.status === "disputed");
+  const sent = parcels.find((p) => p.tracking);
+  const headline = settled ? "Delivered" : eta;
+  const status = disputed ? "Problem reported · payment held" : settled ? "Every parcel arrived" : moving ? `${parcels.filter((p) => p.tracking).length} of ${parcels.length} shipped` : "The shops are packing";
+
+  return (
+    <section aria-label="Delivery" className="glass relative overflow-hidden rounded-[30px] p-5">
+      <p className="text-xs font-semibold text-ink-2">{settled ? "Status" : "Arriving"}</p>
+      <p className="font-display text-[34px] leading-tight font-extrabold tracking-[-0.03em]">{headline}</p>
+      <p className="mt-1 flex items-center gap-2 text-sm">
+        <span className={`size-2.5 rounded-full ${disputed ? "bg-save" : "bg-positive"}`} />
+        <b className="font-semibold">{status}</b>
+      </p>
+      <div className="mt-6">
+        <div className="flex justify-between text-xs font-semibold">
+          <span className="flex items-center gap-1.5">
+            <Flag code="CN" className="size-4" />
+            {from}
+          </span>
+          <span className="flex items-center gap-1.5">
+            {to}
+            <Flag code={toCode} className="size-4" />
+          </span>
+        </div>
+        <div className="relative mt-3 h-1 rounded-full bg-white/10" role="progressbar" aria-label="Delivery" aria-valuenow={stage * 50} aria-valuemin={0} aria-valuemax={100}>
+          <span className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-accent to-accent-light" style={{ width: `${stage * 50}%` }} />
+        </div>
+        <ol className="mt-2 flex justify-between text-[11px] font-semibold">
+          {STAGES.map((label, i) => (
+            <li key={label} className={i <= stage ? "text-ink" : "text-ink-3"}>
+              {label}
+            </li>
+          ))}
+        </ol>
+        {sent && (
+          <p className="mt-3 flex items-center justify-between text-xs text-ink-2">
+            <span>{sent.carrier}</span>
+            <span className="font-mono">{sent.tracking}</span>
+          </p>
+        )}
+      </div>
+    </section>
   );
 }

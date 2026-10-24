@@ -130,6 +130,27 @@ export async function updateStorefrontAction(input: z.input<typeof Storefront>):
   return { ok: true };
 }
 
+/** The shop sent its parcel. */
+export async function shipAction(orderId: string, carrier: string, tracking: string): Promise<{ ok: true } | Failure> {
+  const s = await shop();
+  if (!s.allowed) return s.error;
+  const p = z.object({ orderId: z.uuid(), carrier: text(40), tracking: text(60) }).safeParse({ orderId, carrier, tracking });
+  if (!p.success) return fail("invalid", "Add the carrier and tracking number.");
+  const r = await s.app.fulfilment.ship(s.sellerId, p.data.orderId, { carrier: p.data.carrier, tracking: p.data.tracking });
+  return r.ok ? { ok: true } : fail(r.error.code, r.error.message);
+}
+
+/** Withdraw part or all of the available balance to the shop's wallet. */
+export async function requestPayoutAction(dollarsAmount: number): Promise<{ ok: true } | Failure> {
+  const s = await shop();
+  if (!s.allowed) return s.error;
+  const p = z.number().positive().max(10_000_000).safeParse(dollarsAmount);
+  if (!p.success) return fail("invalid", "Enter an amount.");
+  if (s.role !== "owner") return fail("forbidden", "Only the shop's owner can withdraw.");
+  const r = await s.app.escrow.requestPayout(s.sellerId, money.fromDollars(p.data));
+  return r.ok ? { ok: true } : fail(r.error.code, r.error.message);
+}
+
 export async function answerQuestionAction(questionId: string, answer: string): Promise<{ ok: true } | Failure> {
   const s = await shop();
   if (!s.allowed) return s.error;

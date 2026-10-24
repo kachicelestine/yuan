@@ -7,32 +7,48 @@ import { useState } from "react";
 import { Icon } from "@/components/icon";
 import { REASON_LABELS, type ModerationItemView, type PendingVideoView } from "@/modules/content";
 import type { ApplicationView } from "@/modules/merchants";
+import type { DisputeView } from "@/modules/ordering";
+import type { DisbursementView } from "@/modules/payments";
+import { Disputes, SendMoney } from "./admin-money";
 import { approveVideoAction, resolveAction } from "@/server/actions/admin";
 
-type Tab = "sellers" | "videos" | "reports";
+type Tab = "sellers" | "videos" | "reports" | "disputes" | "money";
 
 /** Three queues: seller applications, uploads waiting for approval, and reports. */
-export function AdminConsole({ applications, videos, reports }: { applications: ApplicationView[]; videos: PendingVideoView[]; reports: ModerationItemView[] }) {
-  const [tab, setTab] = useState<Tab>(applications.length ? "sellers" : videos.length ? "videos" : "reports");
+type Props = {
+  applications: ApplicationView[];
+  videos: PendingVideoView[];
+  reports: ModerationItemView[];
+  disputes: DisputeView[];
+  transfers: DisbursementView[];
+  explorer: string;
+};
+
+export function AdminConsole({ applications, videos, reports, disputes, transfers, explorer }: Props) {
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: "sellers", label: "Sellers", count: applications.length },
     { id: "videos", label: "Videos", count: videos.length },
     { id: "reports", label: "Reports", count: reports.length },
+    { id: "disputes", label: "Disputes", count: disputes.length },
+    { id: "money", label: "Send", count: transfers.length },
   ];
+  const [tab, setTab] = useState<Tab>(tabs.find((t) => t.count > 0)?.id ?? "sellers");
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="tablist" aria-label="Queues" className="glass grid grid-cols-3 rounded-full p-1">
+      <div role="tablist" aria-label="Queues" className="glass grid grid-cols-5 rounded-full p-1">
         {tabs.map((t) => (
-          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={`h-9 rounded-full text-[13px] font-semibold ${tab === t.id ? "bg-white/15 text-ink" : "text-ink-2"}`}>
+          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={`relative h-9 rounded-full text-[12.5px] font-semibold ${tab === t.id ? "bg-white/15 text-ink" : "text-ink-2"}`}>
             {t.label}
-            {t.count > 0 && <span className="ml-1 rounded-full bg-accent px-1.5 text-[10px] font-bold text-white">{t.count}</span>}
+            {t.count > 0 && <span className="absolute -top-1 -right-0.5 rounded-full bg-accent px-1.5 text-[10px] font-bold text-white">{t.count}</span>}
           </button>
         ))}
       </div>
       {tab === "sellers" && <Applications list={applications} />}
       {tab === "videos" && <PendingVideos list={videos} />}
       {tab === "reports" && <Reports list={reports} />}
+      {tab === "disputes" && <Disputes list={disputes} />}
+      {tab === "money" && <SendMoney list={transfers} explorer={explorer} />}
     </div>
   );
 }

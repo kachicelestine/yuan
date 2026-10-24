@@ -63,6 +63,8 @@ const schema = z
     ENCODE_THREADS: z.coerce.number().int().min(1).max(16).default(1),
     /** Hold new uploads for a moderator before they're public. Default: on in production. */
     CONTENT_PREMODERATION: optional(z.stringbool()),
+    /** Share of each sale the platform keeps when Protect releases it, e.g. 0.06 for 6%. */
+    PLATFORM_COMMISSION: z.coerce.number().min(0).max(0.5).default(0.06),
     /** Comma-separated emails of people who can open the admin console (they sign in with that email). */
     ADMIN_EMAILS: z
       .string()
