@@ -1,8 +1,10 @@
-import { sql } from "drizzle-orm";
-import { bigint, boolean, check, date, index, integer, jsonb, pgSchema, primaryKey, smallint, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { sql, type SQL } from "drizzle-orm";
+import { bigint, boolean, check, customType, date, index, integer, jsonb, pgSchema, primaryKey, smallint, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import type { Rendition, Spot } from "../domain/video";
 
 export const contentSchema = pgSchema("content");
+
+const tsvector = customType<{ data: string }>({ dataType: () => "tsvector" });
 
 export const videoStatus = contentSchema.enum("video_status", ["processing", "review", "ready", "failed", "removed"]);
 export const targetType = contentSchema.enum("target_type", ["video", "note"]);
@@ -38,8 +40,11 @@ export const videos = contentSchema.table(
     encodeAttempts: integer().notNull().default(0),
     encodeAfter: timestamp({ withTimezone: true }),
     encodeError: text(),
+    /** Caption first, then place, for search. */
+    search: tsvector().generatedAlwaysAs((): SQL => sql`setweight(to_tsvector('english', ${videos.caption}), 'A') || setweight(to_tsvector('english', ${videos.place}), 'C')`),
   },
   (t) => [
+    index("videos_search_idx").using("gin", t.search),
     index("videos_ready_idx").on(t.publishedAt).where(sql`${t.status} = 'ready'`),
     index("videos_encode_idx").on(t.createdAt).where(sql`${t.status} = 'processing'`),
     index("videos_author_idx").on(t.authorId, t.createdAt),

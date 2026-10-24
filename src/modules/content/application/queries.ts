@@ -51,6 +51,18 @@ export function makeContentQueries({ videos, comments, notes, reviews, questions
       return videoViews(await videos.listReady({ sellerIds, offset, limit }));
     },
 
+    /** Who posted each video, for those posted by a person rather than a shop. */
+    async authorsOf(ids: readonly string[]): Promise<Map<string, string>> {
+      if (!ids.length) return new Map();
+      return new Map((await videos.findMany(ids)).flatMap((v): [string, string][] => (v.authorId ? [[v.id, v.authorId]] : [])));
+    },
+
+    /** Videos for a search: by their own words, or showing products that matched it. */
+    async searchVideos(text: string, productSlugs: readonly string[], limit = 30): Promise<VideoView[]> {
+      if (!text.trim() && !productSlugs.length) return [];
+      return videoViews(await videos.search(text, productSlugs, limit));
+    },
+
     async videosForSeller(sellerId: string, limit = 24): Promise<VideoView[]> {
       return videoViews(await videos.listReady({ sellerId, limit }));
     },

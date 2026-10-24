@@ -33,6 +33,19 @@ describe("content on the server", () => {
     expect(first.topComments[0]).toMatchObject({ name: expect.any(String), ago: expect.stringMatching(/^\d+[mhdw]$|^now$/) });
   });
 
+  it("searches videos by caption and by the products they show", async () => {
+    const { content } = app();
+    const byCaption = await content.searchVideos("turbine", []);
+    expect(byCaption.map((v) => v.productSlug)).toContain("wind-turbine-600w");
+    const byProduct = await content.searchVideos("zzz", ["power-bank-20k"]);
+    expect(byProduct.map((v) => v.productSlug)).toEqual(["power-bank-20k"]);
+    expect(await content.searchVideos("", [])).toEqual([]);
+    // Words in the caption rank above videos that only show a matching product.
+    const mixed = await content.searchVideos("lantern", ["solar-panel-450w-bifacial"]);
+    expect(mixed[0].productSlug).toBe("lanterns-silk-set");
+    expect(mixed.map((v) => v.productSlug)).toContain("solar-panel-450w-bifacial");
+  });
+
   it("drops unknown ids and keeps the order asked for", async () => {
     const { content } = app();
     const order = await content.feedOrder();

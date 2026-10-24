@@ -10,23 +10,9 @@ import { useMoney } from "@/components/price";
 import { ProductCard } from "@/components/product/product-card";
 import { useStore } from "@/components/providers";
 import { Sheet, type Detent } from "@/components/sheet";
-import { useProductSearch } from "./use-product-search";
+import { useProductSearch, useSearchAll } from "./use-product-search";
 import { brand } from "@/config/brand";
-import {
-  auctionRoom,
-  getProduct,
-  getSeller,
-  getSellerProfile,
-  liveRoom,
-  productsBySeller,
-  searchSellers,
-  searchVideos,
-  trendingSearches,
-  understand,
-  type CategoryId,
-  type ProductFilters,
-  type ProductSort,
-} from "@/lib/catalog";
+import { trendingSearches, understand, type CategoryId, type ProductFilters, type ProductSort } from "@/lib/catalog";
 import { compact } from "@/lib/format";
 import { capDensity } from "@/lib/images";
 import { useStored } from "@/lib/use-stored";
@@ -44,10 +30,7 @@ const sorts: { id: ProductSort; label: string }[] = [
   { id: "price-desc", label: "Price, high to low" },
 ];
 
-const rooms = [
-  { href: `/live/${liveRoom.id}`, title: liveRoom.title, host: liveRoom.hostName, sellerId: liveRoom.sellerId, image: liveRoom.image, viewers: liveRoom.viewers, tag: "Live shopping" },
-  { href: "/live/auction", title: "Porcelain auction, lot 7", host: auctionRoom.hostName, sellerId: auctionRoom.sellerId, image: auctionRoom.image, viewers: 2140, tag: "Live auction" },
-];
+const KIND_LABEL = { show: "Live shopping", tour: "Factory tour", auction: "Live auction" } as const;
 
 type Category = { id: CategoryId; label: string; image: string };
 
@@ -80,9 +63,7 @@ export function SearchScreen({ categories, initialQuery = "", initialSnap = fals
   const filtered = Object.values(filters).some((v) => (Array.isArray(v) ? v.length : v !== undefined && v !== false));
   const searching = q !== "" || filtered;
   const { products, loading } = useProductSearch(terms, effective, sort);
-  const videos = useMemo(() => (terms ? searchVideos(terms) : []), [terms]);
-  const factories = useMemo(() => (terms ? searchSellers(terms) : []), [terms]);
-  const live = rooms.filter((r) => !q || [r.title, r.host, getSeller(r.sellerId)?.name ?? ""].join(" ").toLowerCase().includes(q.toLowerCase()));
+  const { videos, shops: factories, live, loading: finding } = useSearchAll(terms);
   const filterCount = Object.values(filters).reduce<number>((n, v) => n + (Array.isArray(v) ? v.length : v !== undefined && v !== false ? 1 : 0), 0);
 
   function run(text: string) {
@@ -238,91 +219,104 @@ export function SearchScreen({ categories, initialQuery = "", initialSnap = fals
           ) : (
             <NoResults query={q} onPick={run} />
           )
+        ) : finding && !(tab === "videos" ? videos : tab === "factories" ? factories : live).length ? (
+          <ul aria-busy="true" aria-label="Searching" className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+            {Array.from({ length: 4 }, (_, i) => (
+              <li key={i} className={`skeleton rounded-[22px] ${tab === "videos" ? "aspect-[9/16]" : "aspect-[4/3]"}`} />
+            ))}
+          </ul>
         ) : tab === "videos" ? (
           videos.length ? (
-            <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
-              {videos.map((v) => {
-                const product = getProduct(v.productSlug);
-                return (
-                  <li key={v.id}>
-                    <Link href={`/?v=${v.id}`} data-tone={v.tone} className="relative block aspect-[9/16] overflow-hidden rounded-[22px] bg-surface">
-                      <Image src={v.image} alt="" fill sizes={capDensity("(min-width: 1024px) 20vw, 50vw")} className="object-cover" />
-                      <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                      <span className="absolute top-2 left-2 flex items-center gap-1 text-xs font-bold text-legible">
-                        <Icon name="play" filled className="size-3.5" />
-                        {compact(v.likes)}
-                      </span>
-                      <span className="absolute inset-x-2.5 bottom-2.5 line-clamp-2 text-[13px] leading-snug font-semibold text-legible">{product?.title}</span>
-                    </Link>
-                  </li>
-                );
-              })}
+            <ul aria-busy={finding} className={`grid grid-cols-2 gap-2.5 transition-opacity sm:grid-cols-3 lg:grid-cols-5 ${finding ? "opacity-60" : ""}`}>
+              {videos.map((v) => (
+                <li key={v.id}>
+                  <Link href={`/?v=${v.id}`} data-tone={v.tone} className="relative block aspect-[9/16] overflow-hidden rounded-[22px] bg-surface">
+                    <Image src={v.image} alt="" fill sizes={capDensity("(min-width: 1024px) 20vw, 50vw")} className="object-cover" />
+                    <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                    <span className="absolute top-2 left-2 flex items-center gap-1 text-xs font-bold text-legible">
+                      <Icon name="play" filled className="size-3.5" />
+                      {compact(v.views || v.likes)}
+                    </span>
+                    <span className="absolute inset-x-2.5 bottom-2.5 text-legible">
+                      <span className="line-clamp-2 text-[13px] leading-snug font-semibold">{v.title}</span>
+                      {v.sellerName && <span className="mt-0.5 block truncate text-[11px] font-semibold text-white/75">{v.sellerName}</span>}
+                    </span>
+                  </Link>
+                </li>
+              ))}
             </ul>
           ) : (
             <NoResults query={q} onPick={run} />
           )
         ) : tab === "factories" ? (
           factories.length ? (
-            <ul className="grid gap-2.5 lg:grid-cols-2">
-              {factories.map((s) => {
-                const profile = getSellerProfile(s.id);
-                const items = productsBySeller(s.id).slice(0, 3);
-                return (
-                  <li key={s.id}>
-                    <Link href={`/s/${s.id}`} className="glass flex items-center gap-3 rounded-[24px] p-3">
-                      <Image src={s.avatar} alt="" width={52} height={52} sizes="52px" className="size-[52px] shrink-0 rounded-2xl object-cover" />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-1.5 text-[15px] font-semibold">
-                          <span className="truncate">{s.name}</span>
-                          {s.verified && <VerifiedBadge />}
-                        </span>
-                        <span className="block truncate text-xs text-ink-2">
-                          {s.kind} · {s.city}
-                        </span>
-                        {profile && (
-                          <span className="mt-1 flex items-center gap-2 text-[11px] text-ink-2">
-                            <span className="flex items-center gap-0.5">
-                              <Icon name="star" filled className="size-3 text-save" />
-                              {profile.rating}
-                            </span>
-                            <span>{compact(profile.followers)} followers</span>
-                            <span>Replies in {profile.responseHours} h</span>
+            <ul aria-busy={finding} className={`grid gap-2.5 transition-opacity lg:grid-cols-2 ${finding ? "opacity-60" : ""}`}>
+              {factories.map((s) => (
+                <li key={s.id}>
+                  <Link href={`/s/${s.id}`} className="glass flex items-center gap-3 rounded-[24px] p-3">
+                    <Image src={s.avatar} alt="" width={52} height={52} sizes="52px" className="size-[52px] shrink-0 rounded-2xl object-cover" />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-1.5 text-[15px] font-semibold">
+                        <span className="truncate">{s.name}</span>
+                        {s.verified && <VerifiedBadge />}
+                      </span>
+                      <span className="block truncate text-xs text-ink-2">
+                        <span className="capitalize">{s.kind}</span> · {s.city}
+                        {s.matching > 0 && ` · ${s.matching} matching`}
+                      </span>
+                      <span className="mt-1 flex items-center gap-2 text-[11px] text-ink-2">
+                        {s.rating > 0 && (
+                          <span className="flex items-center gap-0.5">
+                            <Icon name="star" filled className="size-3 text-save" />
+                            {s.rating}
                           </span>
                         )}
+                        {s.followers > 0 && <span>{compact(s.followers)} followers</span>}
+                        {s.responseHours !== null && <span>Replies in {s.responseHours} h</span>}
                       </span>
-                      <span className="hidden gap-1.5 sm:flex">
-                        {items.map((p) => (
-                          <Image key={p.slug} src={p.images[0]} alt="" width={48} height={48} sizes="48px" className="size-12 rounded-xl object-cover" />
-                        ))}
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
+                    </span>
+                    <span className="hidden gap-1.5 sm:flex">
+                      {s.preview.map((src) => (
+                        <Image key={src} src={src} alt="" width={48} height={48} sizes="48px" className="size-12 rounded-xl object-cover" />
+                      ))}
+                    </span>
+                  </Link>
+                </li>
+              ))}
             </ul>
           ) : (
             <NoResults query={q} onPick={run} />
           )
         ) : (
-          <ul className="grid gap-2.5 sm:grid-cols-2">
+          <ul aria-busy={finding} className={`grid gap-2.5 transition-opacity sm:grid-cols-2 ${finding ? "opacity-60" : ""}`}>
             {live.map((r) => (
-              <li key={r.href}>
-                <Link href={r.href} className="relative block aspect-[4/5] overflow-hidden rounded-[26px] sm:aspect-[4/3]">
-                  <Image src={r.image} alt="" fill sizes={capDensity("(min-width: 640px) 50vw, 100vw")} className="object-cover" />
+              <li key={r.id}>
+                <Link href={`/live/${r.id}`} className="relative block aspect-[4/5] overflow-hidden rounded-[26px] sm:aspect-[4/3]">
+                  <Image src={r.coverUrl} alt="" fill sizes={capDensity("(min-width: 640px) 50vw, 100vw")} className="object-cover" />
                   <span className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-black/30" />
                   <span className="absolute top-3 left-3 flex items-center gap-2">
-                    <span className="flex h-6 items-center gap-1.5 rounded-full bg-live px-2 text-[10.5px] font-extrabold tracking-[0.08em]">
-                      <span className="size-1.5 rounded-full bg-white" />
-                      LIVE
-                    </span>
-                    <span className="glass flex h-6 items-center gap-1 rounded-full px-2 text-[11px] font-semibold">
-                      <Icon name="eye" className="size-3.5" />
-                      {compact(r.viewers)}
-                    </span>
+                    {r.status === "live" ? (
+                      <span className="flex h-6 items-center gap-1.5 rounded-full bg-live px-2 text-[10.5px] font-extrabold tracking-[0.08em]">
+                        <span className="size-1.5 rounded-full bg-white" />
+                        LIVE
+                      </span>
+                    ) : (
+                      <span className="glass flex h-6 items-center gap-1 rounded-full px-2 text-[11px] font-semibold">
+                        <Icon name="clock" className="size-3.5" />
+                        {new Date(r.scheduledFor).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}
+                      </span>
+                    )}
+                    {r.status === "live" && r.peakViewers > 0 && (
+                      <span className="glass flex h-6 items-center gap-1 rounded-full px-2 text-[11px] font-semibold">
+                        <Icon name="eye" className="size-3.5" />
+                        {compact(r.peakViewers)}
+                      </span>
+                    )}
                   </span>
                   <span className="absolute inset-x-3.5 bottom-3.5">
                     <span className="block text-xs font-semibold text-white/80">
-                      {r.tag} · {r.host}, {getSeller(r.sellerId)?.name}
+                      {KIND_LABEL[r.kind]} · {r.hostName}
+                      {r.sellerName && `, ${r.sellerName}`}
                     </span>
                     <span className="block font-display text-xl font-bold text-legible">{r.title}</span>
                   </span>

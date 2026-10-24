@@ -1,0 +1,2 @@
+ALTER TABLE "content"."videos" ADD COLUMN "search" "tsvector" GENERATED ALWAYS AS (setweight(to_tsvector('english', "content"."videos"."caption"), 'A') || setweight(to_tsvector('english', "content"."videos"."place"), 'C')) STORED;--> statement-breakpoint
+CREATE INDEX "videos_search_idx" ON "content"."videos" USING gin ("search");

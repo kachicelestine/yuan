@@ -4,6 +4,7 @@ import { StoreProvider } from "@/components/providers";
 import { AppShellExtras } from "@/components/shell/app-shell-extras";
 import { CommandPaletteLoader } from "@/components/shell/command-palette-loader";
 import { FlyToBag } from "@/components/shell/fly-to-bag";
+import { ReferralCapture } from "@/components/shell/referral-capture";
 import { brand } from "@/config/brand";
 import { packMarkets } from "@/lib/markets-wire";
 import { getMarkets } from "@/server/markets";
@@ -50,6 +51,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <FlyToBag />
           <AppShellExtras />
           <CommandPaletteLoader />
+          <ReferralCapture />
         </StoreProvider>
       </body>
     </html>

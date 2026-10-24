@@ -35,7 +35,7 @@ async function SellBody() {
       </SellFrame>
     );
   }
-  const [page, listings, orders, questions, available, payouts, wallet] = await Promise.all([
+  const [page, listings, orders, questions, available, payouts, wallet, program] = await Promise.all([
     app.catalog.getSeller(shop.sellerId),
     app.selling.listings(shop.sellerId),
     app.sellerOrders.list(shop.sellerId),
@@ -43,15 +43,18 @@ async function SellBody() {
     app.escrow.available(shop.sellerId),
     app.escrow.payouts(shop.sellerId),
     app.onboarding.payoutWallet(shop.sellerId),
+    app.affiliates.shopProgram(shop.sellerId),
   ]);
   // What Protect still holds for parcels not yet confirmed, as it will reach the shop.
   const held = orders.filter((o) => o.shipment && ["awaiting_shipment", "shipped", "disputed"].includes(o.shipment.status)).reduce((n, o) => n + o.shipment!.amount, 0);
   const money = {
     available: available / 100,
-    inProtect: Math.round(held * (1 - serverEnv.PLATFORM_COMMISSION) * 100) / 100,
+    // Less what creators will earn on the referred orders among them.
+    inProtect: Math.max(0, Math.round((held * (1 - serverEnv.PLATFORM_COMMISSION) - program.pending) * 100) / 100),
     commission: serverEnv.PLATFORM_COMMISSION,
     payouts,
     wallet,
+    program,
     explorer: serverEnv.PAYMENTS_BASE_CHAIN === "base" ? "https://basescan.org" : "https://sepolia.basescan.org",
   };
   if (!page) redirect("/me");

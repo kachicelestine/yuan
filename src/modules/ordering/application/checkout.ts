@@ -14,6 +14,8 @@ export type CheckoutRequest = Readonly<{
   payDutiesNow: boolean;
   couponId: string | null;
   rail: string;
+  /** Creator code from the buyer's last referral link, if any. */
+  referral?: string | null;
 }>;
 
 export type CheckoutResult = Readonly<{ orderId: string; orderNumber: string; invoiceId: string; pricing: Pricing }>;
@@ -90,6 +92,7 @@ export function makeCheckout(deps: CheckoutDeps) {
       lines: priced.map((p) => p.line),
       pricing,
       at: deps.clock.now(),
+      referral: req.referral ?? null,
     });
     if (!placed.ok) return placed;
     const { order, event } = placed.value;

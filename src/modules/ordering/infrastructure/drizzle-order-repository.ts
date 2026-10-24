@@ -48,6 +48,7 @@ export class DrizzleOrderRepository implements OrderRepository {
       shippingMethod: o.shippingMethod,
       placedAt: o.placedAt,
       paidAt: o.paidAt,
+      referral: o.referral,
       pricing: {
         subtotal: cents(o.subtotalCents),
         discount: cents(o.discountCents),
@@ -101,6 +102,7 @@ export class DrizzleOrderRepository implements OrderRepository {
       totalCents: p.total,
       parcels: p.parcels,
       couponId: p.couponId,
+      referral: o.referral,
       placedAt: o.placedAt,
       paidAt: o.paidAt,
     });

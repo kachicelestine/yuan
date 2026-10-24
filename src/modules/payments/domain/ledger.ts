@@ -6,6 +6,7 @@ import { domainError, err, money, ok, type Cents, type DomainError, type Result 
  *   treasury:<rail>   stablecoins the platform holds on a network
  *   escrow:<orderId>  a buyer's payment held by Protect until delivery
  *   seller:<sellerId> what a seller has earned and can withdraw
+ *   creator:<accountId> what a creator has earned from referred orders
  */
 export type LedgerEntry = Readonly<{ account: string; amount: Cents }>;
 export type Journal = Readonly<{ id: string; reference: string; memo: string; entries: readonly LedgerEntry[]; at: Date }>;
@@ -14,6 +15,7 @@ export const accounts = {
   treasury: (rail: string) => `treasury:${rail}`,
   escrow: (orderId: string) => `escrow:${orderId}`,
   seller: (sellerId: string) => `seller:${sellerId}`,
+  creator: (accountId: string) => `creator:${accountId}`,
 };
 
 export function journal(props: Journal): Result<Journal, DomainError<"unbalanced_journal">> {
@@ -53,18 +55,31 @@ export const platform = {
 /** Commission on an amount, rounded to the cent. */
 export const commissionOn = (amount: Cents, rate: number) => money.cents(Math.round(amount * rate));
 
-/** A shop's parcel was delivered: its share leaves escrow, less the platform's commission. */
-export function sellerRelease(props: { id: string; orderId: string; sellerId: string; amount: Cents; commissionRate: number; at: Date }) {
+/**
+ * A shop's parcel was delivered: its share leaves escrow, less the platform's commission
+ * and, when a creator referred the order, the creator's commission (which the shop pays).
+ */
+export function sellerRelease(props: {
+  id: string;
+  orderId: string;
+  sellerId: string;
+  amount: Cents;
+  commissionRate: number;
+  affiliate?: { creatorId: string; amount: Cents } | null;
+  at: Date;
+}) {
   const fee = commissionOn(props.amount, props.commissionRate);
+  const referral = props.affiliate ? money.cents(Math.max(0, Math.min(props.affiliate.amount, props.amount - fee))) : money.cents(0);
   return journal({
     id: props.id,
     reference: `release:${props.orderId}:${props.sellerId}`,
-    memo: "Protect released to the shop",
+    memo: referral > 0 ? "Protect released to the shop and its creator" : "Protect released to the shop",
     at: props.at,
     entries: [
       { account: accounts.escrow(props.orderId), amount: props.amount },
-      { account: accounts.seller(props.sellerId), amount: money.cents(-(props.amount - fee)) },
+      { account: accounts.seller(props.sellerId), amount: money.cents(-(props.amount - fee - referral)) },
       ...(fee > 0 ? [{ account: platform.commission, amount: money.cents(-fee) }] : []),
+      ...(referral > 0 && props.affiliate ? [{ account: accounts.creator(props.affiliate.creatorId), amount: money.cents(-referral) }] : []),
     ],
   });
 }
@@ -103,22 +118,22 @@ export function orderSettled(props: { id: string; orderId: string; remainder: Ce
   });
 }
 
-/** A payout is requested: the amount moves out of the shop's balance while it's sent. */
-export function payoutRequested(props: { id: string; payoutId: string; sellerId: string; amount: Cents; at: Date }) {
+/** A payout is requested: the amount moves out of the balance (a shop's or a creator's) while it's sent. */
+export function payoutRequested(props: { id: string; payoutId: string; account: string; amount: Cents; at: Date }) {
   return journal({
     id: props.id,
     reference: `payout:${props.payoutId}`,
     memo: "Payout requested",
     at: props.at,
     entries: [
-      { account: accounts.seller(props.sellerId), amount: props.amount },
+      { account: props.account, amount: props.amount },
       { account: platform.payoutsPending, amount: money.cents(-props.amount) },
     ],
   });
 }
 
-/** A payout was cancelled: the amount returns to the shop's balance. */
-export function payoutCancelled(props: { id: string; payoutId: string; sellerId: string; amount: Cents; at: Date }) {
+/** A payout was cancelled: the amount returns to the balance it came from. */
+export function payoutCancelled(props: { id: string; payoutId: string; account: string; amount: Cents; at: Date }) {
   return journal({
     id: props.id,
     reference: `payout-cancelled:${props.payoutId}`,
@@ -126,20 +141,20 @@ export function payoutCancelled(props: { id: string; payoutId: string; sellerId:
     at: props.at,
     entries: [
       { account: platform.payoutsPending, amount: props.amount },
-      { account: accounts.seller(props.sellerId), amount: money.cents(-props.amount) },
+      { account: props.account, amount: money.cents(-props.amount) },
     ],
   });
 }
 
-/** Money left the treasury on-chain (a payout or a refund). */
-export function disbursed(props: { id: string; disbursementId: string; kind: "payout" | "refund"; rail: string; amount: Cents; at: Date }) {
+/** Money left the treasury on-chain (a payout to a shop or creator, or a refund). */
+export function disbursed(props: { id: string; disbursementId: string; kind: "payout" | "creator" | "refund"; rail: string; amount: Cents; at: Date }) {
   return journal({
     id: props.id,
     reference: `sent:${props.disbursementId}`,
-    memo: props.kind === "payout" ? "Payout sent" : "Refund sent",
+    memo: props.kind === "refund" ? "Refund sent" : "Payout sent",
     at: props.at,
     entries: [
-      { account: props.kind === "payout" ? platform.payoutsPending : platform.refundsPending, amount: props.amount },
+      { account: props.kind === "refund" ? platform.refundsPending : platform.payoutsPending, amount: props.amount },
       { account: accounts.treasury(props.rail), amount: money.cents(-props.amount) },
     ],
   });

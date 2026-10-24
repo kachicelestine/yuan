@@ -7,7 +7,8 @@ import { Icon, type IconName } from "@/components/icon";
 import { Flag } from "@/components/market/flag";
 import { useStore } from "@/components/providers";
 import { brand } from "@/config/brand";
-import { categories, searchProducts, searchSellers } from "@/lib/catalog";
+import { useProductSearch, useSearchAll } from "@/components/search/use-product-search";
+import { categories } from "@/lib/catalog";
 import { isPaletteShortcut } from "./palette-shortcut";
 
 type Command = { id: string; group: string; label: string; hint?: string; icon?: IconName; image?: string; flag?: string; href?: string; market?: string; glass?: number };
@@ -31,6 +32,8 @@ const pages: { label: string; href: string; icon: IconName; hint?: string }[] = 
   { label: "Business and bulk", href: "/business", icon: "factory" },
   { label: "Me", href: "/me", icon: "user" },
 ];
+
+const NO_FILTERS = {};
 
 const glassLevels = [
   { label: "Clear", value: 10 },
@@ -97,6 +100,9 @@ export function CommandPalette({ openOnMount = false }: { openOnMount?: boolean 
   }
 
   const q = query.trim();
+  // Products and shops come from the server search, debounced as you type.
+  const { products } = useProductSearch(q, NO_FILTERS, "best", q !== "");
+  const { shops } = useSearchAll(q);
   const commands: Command[] = [];
   if (q) {
     commands.push({ id: "ask", group: "Ask", label: `Ask ${brand.name}: “${q}”`, icon: "sparkle", hint: "Agent", href: `/ask?q=${encodeURIComponent(q)}` });
@@ -104,8 +110,8 @@ export function CommandPalette({ openOnMount = false }: { openOnMount?: boolean 
   }
   for (const p of pages) if (!q || fuzzy(p.label, q)) commands.push({ id: p.href, group: "Go to", label: p.label, icon: p.icon, href: p.href });
   if (q) {
-    for (const p of searchProducts(q).slice(0, 5)) commands.push({ id: `p-${p.slug}`, group: "Products", label: p.title, image: p.images[0], href: `/p/${p.slug}` });
-    for (const s of searchSellers(q).slice(0, 3)) commands.push({ id: `s-${s.id}`, group: "Sellers", label: s.name, hint: s.city, image: s.avatar, href: `/s/${s.id}` });
+    for (const p of products.slice(0, 5)) commands.push({ id: `p-${p.slug}`, group: "Products", label: p.title, image: p.images[0], href: `/p/${p.slug}` });
+    for (const s of shops.slice(0, 3)) commands.push({ id: `s-${s.id}`, group: "Sellers", label: s.name, hint: s.city, image: s.avatar, href: `/s/${s.id}` });
     for (const c of categories.filter((c) => fuzzy(c.label, q)).slice(0, 3)) commands.push({ id: `c-${c.id}`, group: "Categories", label: c.label, image: c.image, href: `/c/${c.id}` });
     for (const m of markets.filter((m) => m.name.toLowerCase().includes(q.toLowerCase()) || m.currency.toLowerCase() === q.toLowerCase()).slice(0, 3))
       commands.push({ id: `m-${m.code}`, group: "Settings", label: `Ship to ${m.name}`, hint: m.currency, flag: m.code, market: m.code });

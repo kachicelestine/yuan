@@ -27,6 +27,8 @@ export const orders = orderingSchema.table(
     totalCents: integer().notNull(),
     parcels: integer().notNull(),
     couponId: text(),
+    /** Creator code the buyer arrived through. */
+    referral: text(),
     placedAt: timestamp({ withTimezone: true }).notNull(),
     paidAt: timestamp({ withTimezone: true }),
   },

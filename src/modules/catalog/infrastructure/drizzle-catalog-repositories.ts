@@ -9,7 +9,7 @@ import { appliedRatings, categories, products, sellers, type StoredOption } from
 
 const toCategory = (r: typeof categories.$inferSelect): Category => ({ ...r, id: r.id as CategoryId });
 
-const toSeller = (r: typeof sellers.$inferSelect): Seller => ({
+export const toSeller = (r: typeof sellers.$inferSelect): Seller => ({
   id: r.id as SellerId,
   name: r.name,
   kind: r.kind,

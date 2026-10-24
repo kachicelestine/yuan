@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { brand } from "@/config/brand";
 import { serverEnv } from "@/config/server-env";
-import { makeCatalogQueries, makeRatings, makeSearchProducts, makeSelling } from "@/modules/catalog";
+import { makeCatalogQueries, makeRatings, makeSearchProducts, makeSearchShops, makeSelling } from "@/modules/catalog";
 import { DrizzleCategoryRepository, DrizzleProductRepository, DrizzleSellerRepository } from "@/modules/catalog/infrastructure/drizzle-catalog-repositories";
 import { DrizzleProductSearch } from "@/modules/catalog/infrastructure/drizzle-product-search";
 import { makeContentQueries, makeInteractions, makeModeration, makeUploads, type VideoEncoder } from "@/modules/content";
@@ -42,13 +42,15 @@ import { makeCancelUnpaidOrder, makeCart, makeCheckout, makeFulfilment, makeGetO
 import { DrizzleCartRepository } from "@/modules/ordering/infrastructure/drizzle-cart-repository";
 import { DrizzleOrderRepository } from "@/modules/ordering/infrastructure/drizzle-order-repository";
 import { DrizzleShipmentRepository } from "@/modules/ordering/infrastructure/drizzle-shipment-repository";
-import { makeCheckInvoice, makeEscrow, makeRequestPayment, makeSyncInvoices, type PaymentNetwork } from "@/modules/payments";
+import { makeCheckInvoice, makeEscrow, makeRequestPayment, makeSyncInvoices, type PaymentNetwork, type RailId } from "@/modules/payments";
 import { BaseUsdcNetwork } from "@/modules/payments/infrastructure/base-usdc-network";
 import { DrizzleDisbursementRepository, DrizzleInvoiceRepository, DrizzleLedger } from "@/modules/payments/infrastructure/drizzle-payments-repositories";
 import { makeNotifications } from "@/modules/notifications";
 import { DrizzleNotificationRepository } from "@/modules/notifications/infrastructure/drizzle-notifications-repository";
 import { ConsoleEmail, ResendEmail } from "@/modules/notifications/infrastructure/email";
 import { RailRouter, SimulatedNetwork } from "@/modules/payments/infrastructure/networks";
+import { SolanaUsdcNetwork } from "@/modules/payments/infrastructure/solana-usdc-network";
+import { TronUsdtNetwork } from "@/modules/payments/infrastructure/tron-usdt-network";
 import type { Database } from "@/shared/infrastructure/database";
 import { OutboxDispatcher, OutboxEventLog } from "@/shared/infrastructure/outbox";
 import { PostgresRateLimiter } from "@/shared/infrastructure/rate-limit";
@@ -58,7 +60,9 @@ import { unitOfWork } from "@/shared/infrastructure/unit-of-work";
 import { newId, systemClock, type Clock, type ObjectStorage } from "@/shared/kernel";
 import { CatalogProductDirectory } from "./adapters/content-products";
 import { WalletCoupons } from "./adapters/coupons";
-import { IdentityEmails, MerchantWallets, OrderingPurchases, OrderingTotals } from "./adapters/fulfilment";
+import { IdentityEmails, MerchantWallets, OrderingPurchases, OrderingReferrals, OrderingTotals } from "./adapters/fulfilment";
+import { makeAffiliates } from "@/modules/affiliates";
+import { affiliatesRepos, DrizzleCommissionRepository } from "@/modules/affiliates/infrastructure/drizzle-affiliates-repositories";
 import { CatalogForLive } from "./adapters/live";
 import { CatalogShops } from "./adapters/shops";
 import { MarketDestinations } from "./adapters/destinations";
@@ -84,8 +88,13 @@ function paymentNetwork(db: Database): Payments {
     const simulator = new SimulatedNetwork(db);
     return { network: simulator, simulator };
   }
-  const base = new BaseUsdcNetwork({ rpcUrl: serverEnv.PAYMENTS_BASE_RPC_URL!, treasury: serverEnv.PAYMENTS_BASE_ADDRESS!, chain: serverEnv.PAYMENTS_BASE_CHAIN });
-  return { network: new RailRouter({ "usdc-base": base }), simulator: null };
+  // Each rail with a treasury address is offered at checkout (the env check requires one).
+  const e = serverEnv;
+  const byRail: Partial<Record<RailId, PaymentNetwork>> = {};
+  if (e.PAYMENTS_BASE_ADDRESS) byRail["usdc-base"] = new BaseUsdcNetwork({ rpcUrl: e.PAYMENTS_BASE_RPC_URL!, treasury: e.PAYMENTS_BASE_ADDRESS, chain: e.PAYMENTS_BASE_CHAIN });
+  if (e.PAYMENTS_SOLANA_ADDRESS) byRail["usdc-solana"] = new SolanaUsdcNetwork({ rpcUrl: e.PAYMENTS_SOLANA_RPC_URL!, treasury: e.PAYMENTS_SOLANA_ADDRESS, cluster: e.PAYMENTS_SOLANA_CLUSTER });
+  if (e.PAYMENTS_TRON_ADDRESS) byRail["usdt-tron"] = new TronUsdtNetwork({ treasury: e.PAYMENTS_TRON_ADDRESS, network: e.PAYMENTS_TRON_NETWORK, apiUrl: e.PAYMENTS_TRON_API_URL, apiKey: e.PAYMENTS_TRON_API_KEY });
+  return { network: new RailRouter(byRail), simulator: null };
 }
 
 type Media = { storage: ObjectStorage; privateStorage: ObjectStorage; encoder: VideoEncoder; premoderated: boolean };
@@ -135,6 +144,7 @@ export function wire(db: Database, options: WireOptions = {}) {
   const countries = new DrizzleCountryRepository(db);
   const sellers = new DrizzleSellerRepository(db);
   const products = new DrizzleProductRepository(db);
+  const productSearch = new DrizzleProductSearch(db);
   const pricing = new CatalogPricing(products);
   const { network, simulator } = options.payments ?? paymentNetwork(db);
 
@@ -181,6 +191,16 @@ export function wire(db: Database, options: WireOptions = {}) {
       shops: new CatalogShops(new DrizzleSellerRepository(tx)),
       events: new OutboxEventLog(tx, () => clock.now()),
     })),
+    clock,
+    newId: () => newId(),
+  });
+
+  const affiliates = makeAffiliates({
+    ...affiliatesRepos(db),
+    orders: new OrderingReferrals(new DrizzleOrderRepository(db)),
+    members: { runsShop: async (accountId: string, sellerId: string) => (await onboarding.members(sellerId)).includes(accountId) },
+    // A commission's new state and its event commit together.
+    uow: unitOfWork(db, (tx) => ({ commissions: new DrizzleCommissionRepository(tx), events: new OutboxEventLog(tx, () => clock.now()) })),
     clock,
     newId: () => newId(),
   });
@@ -248,7 +268,8 @@ export function wire(db: Database, options: WireOptions = {}) {
     catalog: makeCatalogQueries({ categories: new DrizzleCategoryRepository(db), sellers, products, clock }),
     ratings: makeRatings({ products }),
     selling: makeSelling({ products, categories: new DrizzleCategoryRepository(db), sellers, photos: storage, clock, newId: () => newId() }),
-    searchProducts: makeSearchProducts({ search: new DrizzleProductSearch(db), sellers, clock }),
+    searchProducts: makeSearchProducts({ search: productSearch, sellers, clock }),
+    searchShops: makeSearchShops({ search: productSearch }),
     engagement,
     content: makeContentQueries({ ...content, clock }),
     interactions: makeInteractions({
@@ -285,6 +306,7 @@ export function wire(db: Database, options: WireOptions = {}) {
     cart: makeCart({ carts: new DrizzleCartRepository(db), catalog: pricing }),
 
     live,
+    affiliates,
     /** Live updates for viewers connected to this process (the stream route subscribes). */
     liveBus: bus,
     checkout: makeCheckout({
@@ -317,7 +339,12 @@ export function wire(db: Database, options: WireOptions = {}) {
       disbursements: new DrizzleDisbursementRepository(db),
       invoices: new DrizzleInvoiceRepository(db),
       orders: new OrderingTotals(new DrizzleOrderRepository(db)),
-      wallets: new MerchantWallets(() => onboarding),
+      wallets: new MerchantWallets(
+        () => onboarding,
+        () => affiliates,
+      ),
+      // A creator who referred the order is paid out of the shop's release.
+      referrals: { forRelease: (orderId: string, sellerId: string) => affiliates.forRelease(orderId, sellerId) },
       // A transfer's record, its journal and its event commit together.
       uow: unitOfWork(db, (tx) => ({ ledger: new DrizzleLedger(tx), disbursements: new DrizzleDisbursementRepository(tx), events: new OutboxEventLog(tx, () => clock.now()) })),
       clock,

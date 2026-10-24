@@ -14,6 +14,9 @@ function forms(word: string) {
 
 const lexemes = (phrase: string) => phrase.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
 
+/** The words of a search that narrow it, lower-cased (e.g. to match tags exactly). */
+export const searchWords = (text: string) => lexemes(text).filter((w) => !STOPWORDS.has(w));
+
 /**
  * Builds a Postgres `to_tsquery` string from free text:
  * every word must match (&), a word's synonyms widen it (|), multi-word synonyms
@@ -22,7 +25,7 @@ const lexemes = (phrase: string) => phrase.toLowerCase().split(/[^a-z0-9]+/).fil
  * operators, and is always sent as a bound parameter.
  */
 export function toTsQuery(text: string, synonyms: Readonly<Record<string, readonly string[]>> = {}): string | null {
-  const words = lexemes(text).filter((w) => !STOPWORDS.has(w));
+  const words = searchWords(text);
   if (!words.length) return null;
   return words
     .map((word, i) => {

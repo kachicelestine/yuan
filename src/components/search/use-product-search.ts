@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Product, ProductFilters, ProductSort } from "@/lib/catalog";
+import type { SearchAll } from "@/lib/types";
 
 /** The query string for GET /api/search. Sorted keys keep equal searches equal. */
 export function searchParamsFor(text: string, f: ProductFilters, sort: ProductSort) {
@@ -28,11 +29,12 @@ type State = { key: string; products: Product[]; failed: boolean };
  * debounced and cancelled when the query changes; the last results stay on screen
  * while the next ones load, so the grid never flashes empty.
  */
-export function useProductSearch(text: string, filters: ProductFilters, sort: ProductSort) {
-  const key = searchParamsFor(text, filters, sort);
+export function useProductSearch(text: string, filters: ProductFilters, sort: ProductSort, enabled = true) {
+  const key = enabled ? searchParamsFor(text, filters, sort) : null;
   const [state, setState] = useState<State | null>(null);
 
   useEffect(() => {
+    if (key === null) return;
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
@@ -50,5 +52,35 @@ export function useProductSearch(text: string, filters: ProductFilters, sort: Pr
     };
   }, [key]);
 
+  if (key === null) return { products: [], loading: false, failed: false };
   return { products: state?.products ?? [], loading: state?.key !== key, failed: state?.key === key && state.failed };
+}
+
+const NOTHING: SearchAll = { videos: [], shops: [], live: [] };
+
+/** Videos, shops and live rooms for a search (GET /api/search/all), debounced like products. */
+export function useSearchAll(text: string) {
+  const key = text.trim();
+  const [state, setState] = useState<{ key: string; result: SearchAll } | null>(null);
+
+  useEffect(() => {
+    if (!key) return;
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/search/all?q=${encodeURIComponent(key)}`, { signal: controller.signal });
+        if (!res.ok) throw new Error(`search ${res.status}`);
+        setState({ key, result: (await res.json()) as SearchAll });
+      } catch {
+        if (!controller.signal.aborted) setState((s) => ({ key, result: s?.result ?? NOTHING }));
+      }
+    }, 220);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [key]);
+
+  if (!key) return { ...NOTHING, loading: false };
+  return { ...(state?.result ?? NOTHING), loading: state?.key !== key };
 }

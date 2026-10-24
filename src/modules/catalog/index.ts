@@ -1,5 +1,5 @@
 // Public surface of the catalog context.
-export { FAST_DAYS, makeSearchProducts, PRODUCT_SORTS, type ProductSearch, type ProductSort, type SearchCriteria } from "./application/search";
+export { FAST_DAYS, makeSearchProducts, makeSearchShops, PRODUCT_SORTS, type ProductSearch, type ProductSort, type SearchCriteria, type ShopHit, type ShopResult, type ShopSearch } from "./application/search";
 export { centsOrNull, makeSelling, slugify, type ListingInput, type ListingView, type Selling, type SellingDeps, type SellingError, type StorefrontInput } from "./application/selling";
 export { makeRatings } from "./application/ratings";
 export { makeCatalogQueries, type CatalogDeps, type CatalogQueries, type SellerPage } from "./application/queries";

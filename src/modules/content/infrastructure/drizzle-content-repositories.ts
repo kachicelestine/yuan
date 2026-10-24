@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import type { Database } from "@/shared/infrastructure/database";
+import { searchWords, toTsQuery } from "@/shared/infrastructure/ts-query";
 import type { Report, ReportReason, ReportStatus, ReportTarget } from "../domain/moderation";
 import type { Comment, LikeTarget, Note, Question, Review, TargetType } from "../domain/posts";
 import type { CommentRepository, LikeRepository, NoteRepository, QuestionRepository, ReportedItem, ReportRepository, ReviewRepository, VideoRepository, VideoStats, WatchTally } from "../domain/repositories";
@@ -12,6 +13,7 @@ const toVideo = (r: typeof videos.$inferSelect): Video => {
   delete v.encodeAttempts;
   delete v.encodeAfter;
   delete v.encodeError;
+  delete v.search;
   return v as Video;
 };
 
@@ -57,6 +59,31 @@ export class DrizzleVideoRepository implements VideoRepository {
       .limit(filter.limit)
       .offset(filter.offset ?? 0);
     return rows.map(toVideo);
+  }
+
+  async search(text: string, productSlugs: readonly string[], limit: number) {
+    const tsq = toTsQuery(text);
+    const words = searchWords(text);
+    const slugs = [...productSlugs];
+    const array = (items: string[]) => sql`array[${sql.join(items.map((i) => sql`${i}`), sql`, `)}]::text[]`;
+    const query = tsq ? sql`to_tsquery('english', ${tsq})` : null;
+    const matches = [
+      query ? sql`${videos.search} @@ ${query}` : undefined,
+      words.length ? sql`${videos.tags} && ${array(words)}` : undefined,
+      slugs.length ? inArray(videos.productSlug, slugs) : undefined,
+      slugs.length ? sql`${videos.alsoSlugs} && ${array(slugs)}` : undefined,
+    ].filter((m) => m !== undefined);
+    if (!matches.length) return [];
+    // Videos whose own words match come first, then by likes; the products they show count too.
+    const own = query ? sql`ts_rank(${videos.search}, ${query})` : sql`0`;
+    const rows = await this.db
+      .select({ video: videos })
+      .from(videos)
+      .leftJoin(videoStats, eq(videoStats.videoId, videos.id))
+      .where(and(eq(videos.status, "ready"), sql`(${sql.join(matches, sql` or `)})`))
+      .orderBy(desc(own), sql`${videoStats.likes} desc nulls last`, desc(videos.publishedAt), asc(videos.id))
+      .limit(limit);
+    return rows.map((r) => toVideo(r.video));
   }
 
   async stats(ids: readonly string[]) {

@@ -1,6 +1,7 @@
 // Domain types shared by fixtures, the query layer and the UI.
-import type { ProductView, SellerView } from "@/modules/catalog";
+import type { ProductView, SellerView, ShopResult } from "@/modules/catalog";
 import type { CommentView, NoteView, QuestionView, ReviewView, VideoView } from "@/modules/content";
+import type { ShowView } from "@/modules/live";
 
 /** A category slug. Categories live in the database now, so this is open-ended. */
 export type CategoryId = string;
@@ -56,6 +57,8 @@ export type FeedItem = {
   related: { fromSeller: Product[]; similar: Product[]; category: string };
   /** The video's product first, then everything else tagged in it. */
   look: Product[];
+  /** The creator code of the person who posted it: shopping from their video credits them. */
+  ref?: string;
 };
 
 /** A page of the feed and where the next one starts (null at the end). */
@@ -249,3 +252,11 @@ export type LiveRoomData = {
 export type LiveShow = { id: string; sellerId: string; hostName: string; title: string; image: string; inHours: number; kind: LiveKind };
 
 export type LiveReplay = { id: string; sellerId: string; title: string; image: string; minutes: number; views: number; products: number };
+
+/** What a search finds besides products (GET /api/search/all). */
+export type VideoHit = { id: string; image: string; tone: "light" | "dark"; likes: number; views: number; title: string; sellerName: string };
+export type LiveHit = Pick<ShowView, "id" | "title" | "hostName" | "kind" | "coverUrl" | "place" | "peakViewers" | "scheduledFor"> & {
+  status: "live" | "scheduled";
+  sellerName: string;
+};
+export type SearchAll = { videos: VideoHit[]; shops: ShopResult[]; live: LiveHit[] };

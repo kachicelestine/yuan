@@ -33,6 +33,10 @@ export const LIMITS = {
   feed: [240, 60],
   /** Watch beacons, per IP. */
   events: [120, 60],
+  /** Creator link clicks, per IP. */
+  ref: [30, 60],
+  /** Shop ads clicks, per IP. */
+  "ads.click": [120, 60],
 } as const satisfies Record<string, readonly [number, number]>;
 
 export type LimitName = keyof typeof LIMITS;

@@ -1,3 +1,4 @@
+import type { Affiliates, OrderSource } from "@/modules/affiliates";
 import type { PurchaseDirectory } from "@/modules/content";
 import type { AccountRepository } from "@/modules/identity/domain/repositories";
 import type { Onboarding } from "@/modules/merchants";
@@ -5,6 +6,7 @@ import type { EmailDirectory } from "@/modules/notifications";
 import type { OrderRepository } from "@/modules/ordering";
 import type { ShipmentRepository } from "@/modules/ordering/domain/repositories";
 import type { OrderTotals, PayoutWallets } from "@/modules/payments";
+import { cents } from "@/shared/kernel/money";
 
 // Small read-only bridges between contexts, so none of them reads another's tables.
 
@@ -34,12 +36,37 @@ export class OrderingPurchases implements PurchaseDirectory {
   }
 }
 
-/** Payouts go to the wallet the shop gave when it applied. */
+/** Shops are paid at the wallet they gave when they applied; creators at the one in their hub. */
 export class MerchantWallets implements PayoutWallets {
-  constructor(private readonly onboarding: () => Onboarding) {}
+  constructor(
+    private readonly onboarding: () => Onboarding,
+    private readonly affiliates: () => Affiliates,
+  ) {}
 
   forSeller(sellerId: string) {
     return this.onboarding().payoutWallet(sellerId);
+  }
+
+  forCreator(accountId: string) {
+    return this.affiliates().walletOf(accountId);
+  }
+}
+
+/** Affiliates sees who bought, through which creator code, and what each shop sold. */
+export class OrderingReferrals implements OrderSource {
+  constructor(private readonly orders: OrderRepository) {}
+
+  async find(orderId: string) {
+    const o = await this.orders.findById(orderId);
+    if (!o) return null;
+    const shops = new Map<string, { sellerId: string; amount: number; slugs: string[] }>();
+    for (const l of o.lines) {
+      const shop = shops.get(l.sellerId) ?? { sellerId: l.sellerId, amount: 0, slugs: [] };
+      shop.amount += l.unitPrice * l.qty;
+      if (!shop.slugs.includes(l.slug)) shop.slugs.push(l.slug);
+      shops.set(l.sellerId, shop);
+    }
+    return { buyerId: o.buyerId, referral: o.referral, shops: [...shops.values()].map((s) => ({ ...s, amount: cents(s.amount) })) };
   }
 }
 

@@ -4,8 +4,9 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Icon } from "@/components/icon";
 import { brand } from "@/config/brand";
+import { PROGRAM_RATES, type ShopProgramView } from "@/modules/affiliates";
 import type { DisbursementView } from "@/modules/payments";
-import { requestPayoutAction } from "@/server/actions/shop";
+import { requestPayoutAction, setCreatorRateAction } from "@/server/actions/shop";
 
 export type ShopMoney = {
   /** Withdrawable now, in dollars. */
@@ -15,12 +16,73 @@ export type ShopMoney = {
   commission: number;
   payouts: DisbursementView[];
   wallet: string | null;
+  /** The shop's creator programme: its rate and what creators have earned from it. */
+  program: ShopProgramView;
   /** Block explorer for transaction receipts (mainnet or testnet). */
   explorer: string;
 };
 
 const usd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const STATUS = { requested: "On its way", sent: "Sent", cancelled: "Cancelled" } as const;
+
+/** How much the shop pays creators whose links bring in orders, and what that has brought. */
+function CreatorProgram({ program }: { program: ShopProgramView }) {
+  const router = useRouter();
+  const [rate, setRate] = useState(program.rate);
+  const [error, setError] = useState<string | null>(null);
+
+  async function choose(next: number) {
+    const before = rate;
+    setRate(next);
+    setError(null);
+    const r = await setCreatorRateAction(next);
+    if (!r.ok) {
+      setRate(before);
+      return setError(r.message);
+    }
+    router.refresh();
+  }
+
+  return (
+    <div className="glass flex flex-col gap-2.5 rounded-[22px] p-4">
+      <div>
+        <p className="text-[15px] font-bold">Creator programme</p>
+        <p className="text-xs text-ink-2">Creators share your products and earn this much of each order they bring in. You only pay when the parcel arrives.</p>
+      </div>
+      <div role="radiogroup" aria-label="Creator commission" className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1">
+        {PROGRAM_RATES.map((r) => (
+          <button
+            key={r}
+            type="button"
+            role="radio"
+            aria-checked={rate === r}
+            onClick={() => void choose(r)}
+            className={`h-9 shrink-0 rounded-full px-3.5 text-[13px] font-semibold ${rate === r ? "bg-white text-black" : "glass-inset text-ink-2"}`}
+          >
+            {r === 0 ? "Off" : `${Math.round(r * 100)}%`}
+          </button>
+        ))}
+      </div>
+      {error && (
+        <p role="alert" className="text-xs font-semibold text-like">
+          {error}
+        </p>
+      )}
+      <dl className="grid grid-cols-3 gap-2 text-center">
+        {[
+          ["Creators", String(program.creators)],
+          ["Orders", String(program.orders)],
+          ["Paid to them", usd(program.paid)],
+        ].map(([label, value]) => (
+          <div key={label} className="glass-inset rounded-2xl p-2.5">
+            <dt className="text-[11px] text-ink-2">{label}</dt>
+            <dd className="font-display text-base font-bold">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
 
 /** What the shop has earned, what's still held, and withdrawals to its wallet. */
 export function SellerMoney({ money }: { money: ShopMoney }) {
@@ -52,8 +114,11 @@ export function SellerMoney({ money }: { money: ShopMoney }) {
         </div>
       </div>
       <p className="px-1 text-xs text-ink-3">
-        Each parcel is paid to you when the buyer confirms it arrived (or 21 days after you ship it), less {Math.round(money.commission * 1000) / 10}% {brand.name} commission.
+        Each parcel is paid to you when the buyer confirms it arrived (or 21 days after you ship it), less {Math.round(money.commission * 1000) / 10}% {brand.name} commission
+        {money.program.rate > 0 && <>, and {Math.round(money.program.rate * 100)}% to the creator when one brought the order in</>}.
       </p>
+
+      <CreatorProgram program={money.program} />
 
       <div className="glass flex flex-col gap-2.5 rounded-[22px] p-4">
         <p className="text-[15px] font-bold">Withdraw to your wallet</p>

@@ -29,6 +29,8 @@ export interface DisbursementRepository {
   txRecorded(txHash: string): Promise<boolean>;
   /** A shop's payouts, newest first. */
   payoutsFor(sellerId: string, limit: number): Promise<Disbursement[]>;
+  /** A creator's payouts, newest first. */
+  creatorPayoutsFor(accountId: string, limit: number): Promise<Disbursement[]>;
 }
 
 /**

@@ -99,6 +99,20 @@
       "when": 1792881857032,
       "tag": "0013_live",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792883963267,
+      "tag": "0014_video_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1792885253050,
+      "tag": "0015_affiliates",
+      "breakpoints": true
     }
   ]
 }

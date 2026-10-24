@@ -30,6 +30,8 @@ export type Order = Readonly<{
   pricing: Pricing;
   placedAt: Date;
   paidAt: Date | null;
+  /** The creator code the buyer arrived through, if any (affiliates decides what it earns). */
+  referral: string | null;
 }>;
 
 export type OrderPlaced = Readonly<{ type: "OrderPlaced"; orderId: string; total: Cents; at: Date }>;
@@ -59,12 +61,14 @@ export function placeOrder(props: {
   lines: readonly OrderLine[];
   pricing: Pricing;
   at: Date;
+  referral?: string | null;
 }): Result<{ order: Order; event: OrderPlaced }, OrderError> {
   if (props.lines.length === 0) return err(domainError("empty_order", "An order needs at least one item."));
   if (props.lines.some((l) => !Number.isInteger(l.qty) || l.qty < 1 || l.qty > MAX_QTY)) {
     return err(domainError("invalid_quantity", `Quantities must be whole numbers from 1 to ${MAX_QTY}.`));
   }
-  const order: Order = { ...props, status: "awaiting_payment", placedAt: props.at, paidAt: null };
+  const { referral = null, ...rest } = props;
+  const order: Order = { ...rest, referral, status: "awaiting_payment", placedAt: props.at, paidAt: null };
   return ok({ order, event: { type: "OrderPlaced", orderId: order.id, total: order.pricing.total, at: props.at } });
 }
 

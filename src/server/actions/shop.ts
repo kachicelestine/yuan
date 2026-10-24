@@ -151,6 +151,15 @@ export async function requestPayoutAction(dollarsAmount: number): Promise<{ ok: 
   return r.ok ? { ok: true } : fail(r.error.code, r.error.message);
 }
 
+/** The share of each order the shop pays creators who bring it in (0 leaves the programme). */
+export async function setCreatorRateAction(rate: number): Promise<{ ok: true } | Failure> {
+  const s = await shop();
+  if (!s.allowed) return s.error;
+  if (s.role !== "owner") return fail("forbidden", "Only the shop's owner can change this.");
+  const r = await s.app.affiliates.setRate(s.sellerId, z.number().catch(-1).parse(rate));
+  return r.ok ? { ok: true } : fail(r.error.code, r.error.message);
+}
+
 export async function answerQuestionAction(questionId: string, answer: string): Promise<{ ok: true } | Failure> {
   const s = await shop();
   if (!s.allowed) return s.error;

@@ -28,8 +28,10 @@ export function formatMoney(amount: number, currency: string) {
 export function compact(n: number) {
   if (n < 1000) return String(n);
   if (n < 10_000) return n.toLocaleString("en-US");
-  const k = n / 1000;
-  return `${k >= 100 ? Math.round(k) : k.toFixed(1).replace(/\.0$/, "")}K`;
+  const short = (x: number) => (x >= 100 ? String(Math.round(x)) : x.toFixed(1).replace(/\.0$/, ""));
+  // 999,500 and up would round to "1000K".
+  if (n >= 999_500) return `${short(n / 1_000_000)}M`;
+  return `${short(n / 1000)}K`;
 }
 
 export function clock(totalSeconds: number) {

@@ -155,6 +155,17 @@ export class DrizzleDisbursementRepository implements DisbursementRepository {
     return (await this.db.select().from(disbursements).where(eq(disbursements.status, "requested")).orderBy(asc(disbursements.requestedAt)).limit(limit)).map(toDisbursement);
   }
 
+  async creatorPayoutsFor(accountId: string, limit: number) {
+    return (
+      await this.db
+        .select()
+        .from(disbursements)
+        .where(and(eq(disbursements.kind, "creator"), eq(disbursements.accountId, accountId)))
+        .orderBy(desc(disbursements.requestedAt))
+        .limit(limit)
+    ).map(toDisbursement);
+  }
+
   async payoutsFor(sellerId: string, limit: number) {
     return (
       await this.db

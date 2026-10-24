@@ -4,7 +4,7 @@ import { openDatabase, type Database } from "@/shared/infrastructure/database";
 import { fixedClock } from "@/shared/kernel";
 import { cents } from "@/shared/kernel/money";
 import { makeCatalogQueries } from "../application/queries";
-import { makeSearchProducts, type SearchCriteria } from "../application/search";
+import { makeSearchProducts, makeSearchShops, type SearchCriteria } from "../application/search";
 import { DrizzleProductSearch } from "./drizzle-product-search";
 import { DrizzleCategoryRepository, DrizzleProductRepository, DrizzleSellerRepository } from "./drizzle-catalog-repositories";
 import { seedCatalog } from "./seed";
@@ -101,6 +101,30 @@ describe("catalog on Postgres", () => {
     it("carries the seller summary for cards", async () => {
       const [first] = await find({ text: "earbuds" });
       expect(first.seller?.name).toBeTruthy();
+    });
+  });
+
+  describe("shop search", () => {
+    const shops = (text: string) => makeSearchShops({ search: new DrizzleProductSearch(db) })(text, 20);
+
+    it("puts a shop named like the search first, with photos of what it sells", async () => {
+      const [first] = await shops("sunvolt");
+      expect(first.id).toBe("sunvolt");
+      expect(first.preview.length).toBeGreaterThan(0);
+      expect(first.preview.length).toBeLessThanOrEqual(3);
+    });
+
+    it("finds shops through the listings that match, most matches first", async () => {
+      const found = await shops("solar");
+      expect(found.length).toBeGreaterThan(0);
+      expect(found.every((s) => s.matching > 0 || s.name.toLowerCase().includes("sol"))).toBe(true);
+      const counts = found.filter((s) => s.matching > 0).map((s) => s.matching);
+      expect(counts).toEqual([...counts].sort((a, b) => b - a));
+    });
+
+    it("finds nothing for stopwords or an empty search", async () => {
+      expect(await shops("")).toEqual([]);
+      expect(await shops("the best")).toEqual([]);
     });
   });
 });

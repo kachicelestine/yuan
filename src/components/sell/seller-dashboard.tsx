@@ -59,7 +59,7 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold">{seller.name}</p>
           <p className="text-xs text-ink-2">
-            {listings.filter((l) => l.status === "active").length} live · {paid.length} paid orders · {money(paid.reduce((n, o) => n + o.subtotal, 0))} sold
+            {listings.filter((l) => l.status === "active").length} live · {paid.length} paid {paid.length === 1 ? "order" : "orders"} · {money(paid.reduce((n, o) => n + o.subtotal, 0))} sold
           </p>
         </div>
         <Link href="/sell/live" className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-live/90 px-3.5 text-[13px] font-bold">

@@ -65,7 +65,7 @@ export const simulatedTransfers = paymentsSchema.table("simulated_transfers", {
   at: timestamp({ withTimezone: true }).notNull(),
 });
 
-export const disbursementKind = paymentsSchema.enum("disbursement_kind", ["payout", "refund"]);
+export const disbursementKind = paymentsSchema.enum("disbursement_kind", ["payout", "refund", "creator"]);
 export const disbursementStatus = paymentsSchema.enum("disbursement_status", ["requested", "sent", "cancelled"]);
 
 /** Payouts to shops and refunds to buyers, sent from the treasury by a person for now. */
@@ -74,7 +74,7 @@ export const disbursements = paymentsSchema.table(
   {
     id: uuid().primaryKey(),
     kind: disbursementKind().notNull(),
-    sellerId: text().notNull(),
+    sellerId: text(),
     orderId: uuid(),
     accountId: uuid(),
     amountCents: bigint({ mode: "number" }).notNull(),
@@ -89,6 +89,9 @@ export const disbursements = paymentsSchema.table(
   (t) => [
     index("disbursements_pending_idx").on(t.requestedAt).where(sql`${t.status} = 'requested'`),
     index("disbursements_seller_idx").on(t.sellerId, t.requestedAt),
+    index("disbursements_account_idx").on(t.accountId, t.requestedAt),
+    // Compared as text: a migration can't use an enum value it adds in the same transaction.
+    check("disbursements_payee", sql`(${t.kind}::text = 'creator' and ${t.accountId} is not null) or (${t.kind}::text <> 'creator' and ${t.sellerId} is not null)`),
     // One refund per shop per order, however often the event is delivered.
     uniqueIndex("disbursements_refund_uq").on(t.orderId, t.sellerId).where(sql`${t.kind} = 'refund'`),
     uniqueIndex("disbursements_tx_uq").on(t.txHash),

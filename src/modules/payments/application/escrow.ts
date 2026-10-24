@@ -1,5 +1,5 @@
 import { domainError, err, money, ok, type Cents, type Clock, type DomainError, type EventLog, type Result } from "@/shared/kernel";
-import { cancelPayout, markSent, requestPayout, requestRefund, type Disbursement, type DisbursementError, type DisbursementSent } from "../domain/disbursement";
+import { cancelPayout, markSent, requestCreatorPayout, requestPayout, requestRefund, type Disbursement, type DisbursementError, type DisbursementSent } from "../domain/disbursement";
 import { accounts, disbursed, orderSettled, payoutCancelled, payoutRequested, refundOwed, sellerRelease } from "../domain/ledger";
 import type { DisbursementRepository, InvoiceRepository, Ledger } from "../domain/ports";
 import type { RailId } from "../domain/rails";
@@ -10,9 +10,15 @@ export interface OrderTotals {
   find(orderId: string): Promise<{ buyerId: string; subtotal: Cents; discount: Cents } | null>;
 }
 
-/** Where a shop wants its money (merchants owns the payout wallet). */
+/** Where a shop or creator wants its money (merchants and affiliates own the wallets). */
 export interface PayoutWallets {
   forSeller(sellerId: string): Promise<string | null>;
+  forCreator(accountId: string): Promise<string | null>;
+}
+
+/** What a released parcel owes the creator who referred the order (affiliates decides). */
+export interface Referrals {
+  forRelease(orderId: string, sellerId: string): Promise<{ creatorId: string; amount: Cents } | null>;
 }
 
 export type EscrowScope = { ledger: Ledger; disbursements: DisbursementRepository; events: EventLog };
@@ -23,6 +29,7 @@ export type EscrowDeps = {
   invoices: InvoiceRepository;
   orders: OrderTotals;
   wallets: PayoutWallets;
+  referrals?: Referrals;
   uow: { run<T>(work: (scope: EscrowScope) => Promise<T>): Promise<T> };
   clock: Clock;
   newId: () => string;
@@ -37,7 +44,9 @@ export type EscrowError = DisbursementError | DomainError<"not_found">;
 export type DisbursementView = {
   id: string;
   kind: Disbursement["kind"];
-  sellerId: string;
+  sellerId: string | null;
+  /** Creator payouts: the creator. */
+  accountId: string | null;
   orderId: string | null;
   amount: number;
   address: string | null;
@@ -54,6 +63,7 @@ const toView = (d: Disbursement): DisbursementView => ({
   id: d.id,
   kind: d.kind,
   sellerId: d.sellerId,
+  accountId: d.kind === "creator" ? d.accountId : null,
   orderId: d.orderId,
   amount: d.amount / 100,
   address: d.address,
@@ -70,17 +80,31 @@ const toView = (d: Disbursement): DisbursementView => ({
  * Every step is a ledger journal with a reference unique to its cause, so an event
  * delivered twice posts once.
  */
-export function makeEscrow({ ledger, disbursements, invoices, orders, wallets, uow, clock, newId, commissionRate, payoutRail }: EscrowDeps) {
-  /** A shop's withdrawable balance: what the ledger owes it. */
-  // 0 - x rather than -x, so an empty balance is 0, not -0.
-  const available = async (sellerId: string) => money.cents(0 - (await ledger.balance(accounts.seller(sellerId))));
+export function makeEscrow({ ledger, disbursements, invoices, orders, wallets, referrals, uow, clock, newId, commissionRate, payoutRail }: EscrowDeps) {
+  // What the ledger owes an account. 0 - x rather than -x, so an empty balance is 0, not -0.
+  const owed = async (account: string) => money.cents(0 - (await ledger.balance(account)));
+  /** A shop's withdrawable balance. */
+  const available = (sellerId: string) => owed(accounts.seller(sellerId));
+  /** A creator's withdrawable earnings. */
+  const creatorAvailable = (accountId: string) => owed(accounts.creator(accountId));
+
+  async function savePayout(d: Disbursement, account: string) {
+    const j = payoutRequested({ id: newId(), payoutId: d.id, account, amount: d.amount, at: clock.now() });
+    if (!j.ok) throw new Error(j.error.message);
+    await uow.run(async (s) => {
+      await s.disbursements.save(d);
+      await s.ledger.post(j.value);
+    });
+  }
 
   return {
     available,
+    creatorAvailable,
 
-    /** ShipmentDelivered: the shop's share leaves escrow. */
+    /** ShipmentDelivered: the shop's share leaves escrow (and the creator's, if one referred the order). */
     async release(e: { orderId: string; sellerId: string; amount: Cents }): Promise<boolean> {
-      const j = sellerRelease({ id: newId(), ...e, commissionRate, at: clock.now() });
+      const affiliate = referrals ? await referrals.forRelease(e.orderId, e.sellerId) : null;
+      const j = sellerRelease({ id: newId(), ...e, commissionRate, affiliate, at: clock.now() });
       if (!j.ok) throw new Error(j.error.message);
       return ledger.postOnce(j.value);
     },
@@ -115,17 +139,24 @@ export function makeEscrow({ ledger, disbursements, invoices, orders, wallets, u
       const [balance, wallet] = await Promise.all([available(sellerId), wallets.forSeller(sellerId)]);
       const d = requestPayout({ id: newId(), sellerId, amount, available: balance, address: wallet ?? "", at: clock.now() });
       if (!d.ok) return d;
-      const j = payoutRequested({ id: newId(), payoutId: d.value.id, sellerId, amount, at: clock.now() });
-      if (!j.ok) throw new Error(j.error.message);
-      await uow.run(async (s) => {
-        await s.disbursements.save(d.value);
-        await s.ledger.post(j.value);
-      });
+      await savePayout(d.value, accounts.seller(sellerId));
+      return ok(toView(d.value));
+    },
+
+    async requestCreatorPayout(accountId: string, amount: Cents): Promise<Result<DisbursementView, EscrowError>> {
+      const [balance, wallet] = await Promise.all([creatorAvailable(accountId), wallets.forCreator(accountId)]);
+      const d = requestCreatorPayout({ id: newId(), accountId, amount, available: balance, address: wallet ?? "", at: clock.now() });
+      if (!d.ok) return d;
+      await savePayout(d.value, accounts.creator(accountId));
       return ok(toView(d.value));
     },
 
     async payouts(sellerId: string, limit = 20): Promise<DisbursementView[]> {
       return (await disbursements.payoutsFor(sellerId, limit)).map(toView);
+    },
+
+    async creatorPayouts(accountId: string, limit = 20): Promise<DisbursementView[]> {
+      return (await disbursements.creatorPayoutsFor(accountId, limit)).map(toView);
     },
 
     /** The queue of money to send, with the buyer's payment for refunds. */
@@ -159,7 +190,8 @@ export function makeEscrow({ ledger, disbursements, invoices, orders, wallets, u
       if (!d) return err(domainError("not_found", "No such payout."));
       const done = cancelPayout(d, note, by, clock.now());
       if (!done.ok) return done;
-      const j = payoutCancelled({ id: newId(), payoutId: d.id, sellerId: d.sellerId, amount: d.amount, at: clock.now() });
+      const account = d.kind === "creator" ? accounts.creator(d.accountId!) : accounts.seller(d.sellerId!);
+      const j = payoutCancelled({ id: newId(), payoutId: d.id, account, amount: d.amount, at: clock.now() });
       if (!j.ok) throw new Error(j.error.message);
       await uow.run(async (s) => {
         await s.disbursements.save(done.value);

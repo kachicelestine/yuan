@@ -33,6 +33,10 @@ async function assemble(videos: VideoView[]): Promise<FeedItem[]> {
   ]);
   const byShop = new Map(shopIds.map((id, i) => [id, shopLists[i]]));
   const byCategory = new Map(categoryIds.map((id, i) => [id, categoryLists[i]]));
+  // Videos people posted (not shops) carry the poster's creator code.
+  const app = await services();
+  const authors = await app.content.authorsOf(videos.map((v) => v.id));
+  const codes = await app.affiliates.codesFor([...new Set(authors.values())]);
 
   return videos.flatMap((video) => {
     const product = productBySlug.get(video.productSlug);
@@ -44,7 +48,9 @@ async function assemble(videos: VideoView[]): Promise<FeedItem[]> {
       category: categories.find((c) => c.id === product.category)?.label ?? "",
     };
     const look = [product, ...(video.also ?? []).flatMap((slug) => productBySlug.get(slug) ?? [])];
-    return [{ video, product, seller, related, look }];
+    const author = authors.get(video.id);
+    const ref = author ? codes.get(author) : undefined;
+    return [{ video, product, seller, related, look, ...(ref ? { ref } : {}) }];
   });
 }
 

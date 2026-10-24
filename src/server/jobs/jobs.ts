@@ -47,6 +47,8 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
       if (!order) return;
       // Live prices and auction wins behind this order are used up.
       await app.live.useHolds(order.buyerId, [...new Set(order.lines.map((l) => l.slug))]);
+      // A creator link behind it earns a commission per shop, settled at delivery.
+      await app.affiliates.attribute(orderId);
       for (const parcel of await app.fulfilment.forOrder(orderId)) {
         await notify(await shopPeople(parcel.sellerId), { kind: "order_paid", title: `New order ${order.number}`, body: `${usd(parcel.amount * 100)} paid and held by Protect. Ship it to ${order.country} and add the tracking number.`, link: "/sell?tab=orders", email: true }, `${id}:${parcel.sellerId}`);
       }
@@ -59,11 +61,13 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
     ShipmentDelivered: async ({ id, payload }) => {
       const p = payload as { orderId: string; sellerId: string; amount: number };
       await app.escrow.release({ orderId: p.orderId, sellerId: p.sellerId, amount: cents(p.amount) });
+      await app.affiliates.settle(p.orderId, p.sellerId, "earned");
       await notify(await shopPeople(p.sellerId), { kind: "funds_released", title: "Delivered: payment released", body: `${usd(p.amount)} (before commission) is in your balance.`, link: "/sell?tab=money", email: false }, id);
     },
     ShipmentRefunded: async ({ id, payload }) => {
       const p = payload as { orderId: string; sellerId: string; amount: number };
       await app.escrow.refund({ orderId: p.orderId, sellerId: p.sellerId, amount: cents(p.amount) });
+      await app.affiliates.settle(p.orderId, p.sellerId, "void");
       const order = await app.getOrder.internal(p.orderId);
       if (order) await notify([order.buyerId], { kind: "refund_approved", title: "Refund approved", body: `${usd(p.amount)} is on its way back to you.`, link: `/orders/${order.number}`, email: true }, id);
       await notify(await shopPeople(p.sellerId), { kind: "refund_approved", title: "A parcel was refunded", body: `A dispute on order ${order?.number ?? ""} was decided for the buyer.`, link: "/sell?tab=orders", email: true }, `${id}:shop`);
@@ -77,9 +81,15 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
       await app.escrow.settle({ orderId: (payload as { orderId: string }).orderId });
     },
     DisbursementSent: async ({ id, payload }) => {
-      const p = payload as { kind: "payout" | "refund"; sellerId: string; accountId: string | null; amount: number };
-      if (p.kind === "payout") await notify(await shopPeople(p.sellerId), { kind: "payout_sent", title: `${usd(p.amount)} sent to your wallet`, body: "Your payout is on Base. It shows in your wallet within a minute.", link: "/sell?tab=money", email: true }, id);
+      const p = payload as { kind: "payout" | "creator" | "refund"; sellerId: string; accountId: string | null; amount: number };
+      if (p.kind === "creator" && p.accountId) await notify([p.accountId], { kind: "payout_sent", title: `${usd(p.amount)} sent to your wallet`, body: "Your creator earnings are on Base. They show in your wallet within a minute.", link: "/creator", email: true }, id);
+      else if (p.kind === "payout") await notify(await shopPeople(p.sellerId), { kind: "payout_sent", title: `${usd(p.amount)} sent to your wallet`, body: "Your payout is on Base. It shows in your wallet within a minute.", link: "/sell?tab=money", email: true }, id);
       else if (p.accountId) await notify([p.accountId], { kind: "refund_sent", title: `${usd(p.amount)} refunded`, body: "Your refund has been sent to your wallet.", link: "/me", email: true }, id);
+    },
+
+    CommissionEarned: async ({ id, payload }) => {
+      const p = payload as { creatorId: string; amount: number };
+      await notify([p.creatorId], { kind: "commission", title: `You earned ${usd(p.amount)}`, body: "An order from your link was delivered. It's in your creator balance.", link: "/creator", email: false }, id);
     },
 
     // ── Live ──────────────────────────────────────────────────────────────────

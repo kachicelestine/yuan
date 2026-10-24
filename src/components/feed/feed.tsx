@@ -7,6 +7,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icon";
 import { useStore } from "@/components/providers";
 import { useChrome } from "@/components/shell/chrome";
+import { sendReferral } from "@/components/shell/referral-capture";
 import { Sheet, type Detent } from "@/components/sheet";
 import { haptic } from "@/lib/feedback";
 import type { FeedPage } from "@/lib/types";
@@ -61,6 +62,8 @@ export function Feed({ first }: { first: FeedPage }) {
   const [likedBefore, setLikedBefore] = useState<Set<string>>(() => new Set());
   const [liked, setLiked] = useState<Record<string, boolean>>({});
   const checkedLikes = useRef(new Set<string>());
+  /** Creator videos already credited this visit. */
+  const credited = useRef(new Set<string>());
   // Shared with storefronts, so following a seller anywhere shows up everywhere.
   const [following, setFollowing] = useStored<string[]>("app.following", []);
   const followKey = [...following].sort().join(",");
@@ -211,6 +214,11 @@ export function Feed({ first }: { first: FeedPage }) {
   }
 
   function openSheet(slug: string | null = null) {
+    // Shopping from a creator's video credits them, once per video.
+    if (current?.ref && !credited.current.has(current.video.id)) {
+      credited.current.add(current.video.id);
+      void sendReferral(current.ref, `/p/${slug ?? current.product.slug}`);
+    }
     setTab("shop");
     setFocus(slug);
     setSheet("half");

@@ -21,6 +21,16 @@ const schema = z
     PAYMENTS_BASE_RPC_URL: optional(z.url()),
     /** Which Base network the RPC and USDC contract are on. */
     PAYMENTS_BASE_CHAIN: z.enum(["base", "base-sepolia"]).default("base-sepolia"),
+    /** A Solana JSON-RPC endpoint (Helius, QuickNode, Triton…; the public one is rate-limited). */
+    PAYMENTS_SOLANA_RPC_URL: optional(z.url()),
+    /** Which Solana cluster the RPC and USDC mint are on. */
+    PAYMENTS_SOLANA_CLUSTER: z.enum(["mainnet", "devnet"]).default("devnet"),
+    /** Which Tron network the treasury and USDT contract are on. */
+    PAYMENTS_TRON_NETWORK: z.enum(["mainnet", "nile"]).default("nile"),
+    /** TronGrid (or a compatible API). Defaults to TronGrid for PAYMENTS_TRON_NETWORK. */
+    PAYMENTS_TRON_API_URL: optional(z.url()),
+    /** TronGrid API key: without one, requests are heavily rate-limited. */
+    PAYMENTS_TRON_API_KEY: optional(z.string().min(8)),
     /** Keys the sign-in code hashes. 32+ random characters; changing it voids codes in flight. */
     AUTH_SECRET: optional(z.string().min(32, "must be at least 32 characters")),
     /** Show sign-in codes on screen instead of emailing them. Local development only. */
@@ -95,12 +105,15 @@ const schema = z
         if (!env[key]) ctx.addIssue({ code: "custom", path: [key], message: "required when STORAGE=r2" });
       }
     }
-    // Base is the only rail with an on-chain verifier so far.
-    if (env.PAYMENTS_MODE === "onchain" && !env.PAYMENTS_BASE_ADDRESS) {
-      ctx.addIssue({ code: "custom", path: ["PAYMENTS_BASE_ADDRESS"], message: "onchain payments need a Base treasury address" });
+    // Each rail is offered when its treasury address is set.
+    if (env.PAYMENTS_MODE === "onchain" && !env.PAYMENTS_BASE_ADDRESS && !env.PAYMENTS_SOLANA_ADDRESS && !env.PAYMENTS_TRON_ADDRESS) {
+      ctx.addIssue({ code: "custom", path: ["PAYMENTS_BASE_ADDRESS"], message: "onchain payments need at least one treasury address (Base, Solana or Tron)" });
     }
     if (env.PAYMENTS_MODE === "onchain" && env.PAYMENTS_BASE_ADDRESS && !env.PAYMENTS_BASE_RPC_URL) {
       ctx.addIssue({ code: "custom", path: ["PAYMENTS_BASE_RPC_URL"], message: "required when PAYMENTS_BASE_ADDRESS is set" });
+    }
+    if (env.PAYMENTS_MODE === "onchain" && env.PAYMENTS_SOLANA_ADDRESS && !env.PAYMENTS_SOLANA_RPC_URL) {
+      ctx.addIssue({ code: "custom", path: ["PAYMENTS_SOLANA_RPC_URL"], message: "required when PAYMENTS_SOLANA_ADDRESS is set" });
     }
   });
 

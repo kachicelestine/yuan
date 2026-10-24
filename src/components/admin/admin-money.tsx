@@ -137,7 +137,7 @@ export function SendMoney({ list, explorer }: { list: DisbursementView[]; explor
         <li key={d.id} className="glass flex flex-col gap-2 rounded-[22px] p-4">
           <p className="flex items-center justify-between gap-2 text-sm">
             <span>
-              <b className="font-semibold">{d.kind === "payout" ? "Payout" : "Refund"}</b> · {d.sellerId} · {day(d.requestedAt)}
+              <b className="font-semibold">{d.kind === "payout" ? "Payout" : d.kind === "creator" ? "Creator payout" : "Refund"}</b> · {d.sellerId ?? `creator ${d.accountId?.slice(0, 8)}`} · {day(d.requestedAt)}
             </span>
             <span className="font-display text-base font-bold">{usd(d.amount)}</span>
           </p>
@@ -167,7 +167,7 @@ export function SendMoney({ list, explorer }: { list: DisbursementView[]; explor
             <button type="button" disabled={busy === d.id || (tx[d.id] ?? "").length < 66} onClick={() => sent(d)} className="h-10 flex-1 rounded-full bg-accent text-sm font-bold disabled:opacity-40">
               Mark as sent
             </button>
-            {d.kind === "payout" && !(d.id in cancelling) && (
+            {d.kind !== "refund" && !(d.id in cancelling) && (
               <button type="button" disabled={busy === d.id} onClick={() => setCancelling((c) => ({ ...c, [d.id]: "" }))} className="h-10 rounded-full px-4 text-sm font-semibold text-ink-2">
                 Cancel
               </button>

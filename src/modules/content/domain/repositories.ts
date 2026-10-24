@@ -16,6 +16,8 @@ export interface VideoRepository {
   listByStatus(status: Video["status"], limit: number): Promise<Video[]>;
   /** Published videos, newest first. */
   listReady(filter: { sellerId?: string; sellerIds?: readonly string[]; category?: string; limit: number; offset?: number }): Promise<Video[]>;
+  /** Published videos whose caption, place or tags match, or that show one of these products. */
+  search(text: string, productSlugs: readonly string[], limit: number): Promise<Video[]>;
   stats(ids: readonly string[]): Promise<Map<string, VideoStats>>;
   /** Adds (or subtracts) to counters; never goes below zero. False when there's no such video. */
   bump(id: string, delta: Partial<VideoStats>): Promise<boolean>;
