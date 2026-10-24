@@ -5,34 +5,66 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icon";
+import { useStore } from "@/components/providers";
 import { useChrome } from "@/components/shell/chrome";
 import { Sheet, type Detent } from "@/components/sheet";
 import { haptic } from "@/lib/feedback";
+import type { FeedPage } from "@/lib/types";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { useStored } from "@/lib/use-stored";
+import { reactAction } from "@/server/actions/content";
 import { useFeedPrefs, weight } from "./feed-prefs";
 import { FeedSlide, type FeedItem } from "./feed-slide";
 import { FeedSwitcher, type FeedKind } from "./feed-switcher";
 import type { PanelTab } from "./product-panel";
 import { ProductPeek } from "./product-peek";
+import { useWatchBeacons } from "./use-watch-beacons";
 
 // The shop panel (four tabs of product detail) isn't needed to watch the feed: on phones it
 // opens in a sheet on tap. Its code loads on demand, warmed once the page is idle.
 const ProductPanel = dynamic(() => import("./product-panel").then((m) => m.ProductPanel), { ssr: false });
 const warmPanel = () => import("./product-panel");
 
+/** Fetch the next page once the viewer is this many slides from the end. */
+const PREFETCH_AHEAD = 3;
+
+async function fetchPage(query: string): Promise<FeedPage | null> {
+  try {
+    const res = await fetch(`/api/feed?${query}`);
+    return res.ok ? ((await res.json()) as FeedPage) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Appends items, skipping any already loaded (pages are cut from an order that can refresh). */
+function merge(list: FeedItem[], more: FeedItem[]) {
+  const have = new Set(list.map((item) => item.video.id));
+  return [...list, ...more.filter((item) => !have.has(item.video.id))];
+}
+
 // Phones: the video has the screen to itself. A feed switcher and search sit on top; the
 // product peek docks beside the minimized tab bar and opens the shop sheet, which holds
 // every action. Desktop: the same tabs live in a panel beside the player.
-export function Feed({ items: all }: { items: FeedItem[] }) {
+export function Feed({ first }: { first: FeedPage }) {
   const scroller = useRef<HTMLDivElement>(null);
   // Desktop shows the panel beside the video; phones never build that copy.
   const wide = useMediaQuery("(min-width: 1280px)");
   const [feed, setFeed] = useState<FeedKind>("foryou");
   const [active, setActive] = useState(0);
+  // For You arrives with the page and grows as you swipe; Following loads when opened.
+  const [forYou, setForYou] = useState<FeedPage>(first);
+  const [followed, setFollowed] = useState<(FeedPage & { key: string }) | null>(null);
+  const loading = useRef(false);
+  const { account } = useStore();
+  // Your own likes: what the server says (so counts don't double up) and what you've changed since.
+  const [likedBefore, setLikedBefore] = useState<Set<string>>(() => new Set());
   const [liked, setLiked] = useState<Record<string, boolean>>({});
+  const checkedLikes = useRef(new Set<string>());
   // Shared with storefronts, so following a seller anywhere shows up everywhere.
   const [following, setFollowing] = useStored<string[]>("app.following", []);
+  const followKey = [...following].sort().join(",");
+  const all = feed === "foryou" ? forYou.items : followed?.key === followKey ? followed.items : [];
   const [hidden, setHidden] = useState<string[]>([]);
   const [burst, setBurst] = useState<{ id: string; x: number; y: number } | null>(null);
   const [sheet, setSheet] = useState<Detent>("closed");
@@ -48,10 +80,62 @@ export function Feed({ items: all }: { items: FeedItem[] }) {
 
   const allowed = (item: FeedItem) => !hidden.includes(item.video.id) && !prefs.muted.includes(item.seller.id) && (feed === "foryou" || following.includes(item.seller.id));
   const ahead = all.filter((item) => !seen.includes(item.video.id)).sort((a, b) => weight(a, prefs) - weight(b, prefs));
-  const items = [...seen.map((id) => all.find((item) => item.video.id === id)!), ...ahead].filter(allowed);
+  const items = [...seen.flatMap((id) => all.find((item) => item.video.id === id) ?? []), ...ahead].filter(allowed);
   const index = Math.min(active, items.length - 1);
   // Undefined only when the Following feed is empty.
   const current = items[index] as FeedItem | undefined;
+  useWatchBeacons(current?.video.id);
+
+  const isLiked = (id: string) => liked[id] ?? likedBefore.has(id);
+  /** The count without your earlier like, plus your like now. */
+  const likeCount = (item: FeedItem) => item.video.likes - (likedBefore.has(item.video.id) ? 1 : 0) + (isLiked(item.video.id) ? 1 : 0);
+
+  function setLike(id: string, on: boolean) {
+    if (isLiked(id) === on) return;
+    setLiked((prev) => ({ ...prev, [id]: on }));
+    // Signed out, a like stays on this screen; signed in, the account keeps it.
+    if (!account) return;
+    void reactAction({ target: "video", id, on }).then((r) => {
+      if (!r.ok) setLiked((prev) => ({ ...prev, [id]: !on }));
+    });
+  }
+
+  // Fetch the next page before the viewer reaches the end.
+  const source = feed === "foryou" ? forYou : followed;
+  const nearEnd = index >= items.length - PREFETCH_AHEAD;
+  useEffect(() => {
+    if (!nearEnd || !source || source.next === null || loading.current) return;
+    loading.current = true;
+    const query = feed === "foryou" ? `offset=${source.next}` : `following=${encodeURIComponent(followKey)}&offset=${source.next}`;
+    void fetchPage(query).then((page) => {
+      loading.current = false;
+      if (!page) return;
+      if (feed === "foryou") setForYou((f) => ({ items: merge(f.items, page.items), next: page.next }));
+      else setFollowed((f) => (f && f.key === followKey ? { ...f, items: merge(f.items, page.items), next: page.next } : f));
+    });
+  }, [nearEnd, source, feed, followKey]);
+
+  // Following loads when opened, and again if the list of shops changed since.
+  useEffect(() => {
+    // Nobody followed: the empty state shows without asking the server.
+    if (feed !== "following" || !followKey || followed?.key === followKey) return;
+    void fetchPage(`following=${encodeURIComponent(followKey)}`).then((page) => setFollowed({ items: page?.items ?? [], next: page?.next ?? null, key: followKey }));
+  }, [feed, followKey, followed?.key]);
+
+  // Signed in: which loaded videos you liked before, asked once per video.
+  const loadedIds = [...forYou.items, ...(followed?.items ?? [])].map((item) => item.video.id).join(",");
+  useEffect(() => {
+    if (!account) return;
+    const ids = loadedIds.split(",").filter((id) => id && !checkedLikes.current.has(id));
+    if (!ids.length) return;
+    for (const id of ids) checkedLikes.current.add(id);
+    void fetch(`/api/me/likes?target=video&ids=${ids.map(encodeURIComponent).join(",")}`)
+      .then((res) => (res.ok ? (res.json() as Promise<{ ids: string[] }>) : { ids: [] }))
+      .then(({ ids: mine }) => {
+        if (mine.length) setLikedBefore((prev) => new Set([...prev, ...mine]));
+      })
+      .catch(() => {});
+  }, [account, loadedIds]);
 
   useEffect(() => {
     const idle = "requestIdleCallback" in window ? requestIdleCallback(() => void warmPanel(), { timeout: 6000 }) : undefined;
@@ -71,16 +155,23 @@ export function Feed({ items: all }: { items: FeedItem[] }) {
     };
   }, [tone]);
 
-  // Deep links (/?v=v-solar) open the feed at that video, e.g. from search results.
+  // Deep links (/?v=v-solar) open the feed on that video, e.g. from search results or a
+  // shared link. It moves to the front; one that isn't loaded yet is fetched first.
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("v");
-    const at = id ? all.findIndex((item) => item.video.id === id) : -1;
-    const el = scroller.current;
-    if (at <= 0 || !el) return;
-    // Pin everything up to the linked video so a stored preference can't reorder it away.
-    setSeen(all.slice(0, at + 1).map((item) => item.video.id));
-    el.scrollTo({ top: at * el.clientHeight });
-  }, [all]);
+    if (!id || id === first.items[0]?.video.id) return;
+    const pin = (item: FeedItem) => {
+      setForYou((f) => ({ ...f, items: [item, ...f.items.filter((i) => i.video.id !== id)] }));
+      setSeen([id]);
+      scroller.current?.scrollTo({ top: 0 });
+    };
+    const loaded = first.items.find((item) => item.video.id === id);
+    if (loaded) pin(loaded);
+    else
+      void fetchPage(`ids=${encodeURIComponent(id)}`).then((page) => {
+        if (page?.items[0]) pin(page.items[0]);
+      });
+  }, [first]);
 
   useEffect(() => {
     if (!burst) return;
@@ -117,16 +208,15 @@ export function Feed({ items: all }: { items: FeedItem[] }) {
     setSheet("half");
   }
 
-  const toggle = (setter: typeof setLiked, key: string) => setter((prev) => ({ ...prev, [key]: !prev[key] }));
-
   const panel = current && {
     item: current,
     tab,
     onTab: setTab,
     focus,
     onFocus: setFocus,
-    liked: !!liked[current.video.id],
-    onLike: () => toggle(setLiked, current.video.id),
+    liked: isLiked(current.video.id),
+    likes: likeCount(current),
+    onLike: () => setLike(current.video.id, !isLiked(current.video.id)),
     followed: following.includes(current.seller.id),
     onFollow: () =>
       setFollowing(following.includes(current.seller.id) ? following.filter((id) => id !== current.seller.id) : [...following, current.seller.id]),
@@ -172,7 +262,7 @@ export function Feed({ items: all }: { items: FeedItem[] }) {
                   showProgress={i === index && !navExpanded}
                   burst={burst?.id === item.video.id ? burst : null}
                   onDoubleTap={(x, y) => {
-                    setLiked((prev) => ({ ...prev, [item.video.id]: true }));
+                    setLike(item.video.id, true);
                     setBurst({ id: item.video.id, x, y });
                     haptic(8);
                   }}

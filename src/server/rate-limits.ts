@@ -17,6 +17,14 @@ export const LIMITS = {
   "account.write": [120, 60],
   /** Searches, per IP. */
   search: [120, 60],
+  /** Likes, votes and shares, per account (or IP for shares). */
+  "content.react": [300, 60],
+  /** Comments and questions, per account. */
+  "content.post": [20, 10 * 60],
+  /** Feed pages, per IP. */
+  feed: [240, 60],
+  /** Watch beacons, per IP. */
+  events: [120, 60],
 } as const satisfies Record<string, readonly [number, number]>;
 
 export type LimitName = keyof typeof LIMITS;

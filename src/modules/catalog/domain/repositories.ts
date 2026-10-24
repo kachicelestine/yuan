@@ -16,6 +16,7 @@ export interface SellerRepository {
 /** Read side of products. Only active listings come back unless noted. */
 export interface ProductRepository {
   findBySlug(slug: string): Promise<Product | null>;
+  findBySlugs(slugs: readonly string[]): Promise<Product[]>;
   list(filter?: { categoryId?: CategoryId; sellerId?: SellerId; limit?: number }): Promise<Product[]>;
   /** Every active product's slug, for static generation. */
   slugs(): Promise<string[]>;

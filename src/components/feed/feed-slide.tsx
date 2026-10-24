@@ -4,18 +4,10 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icon";
 import { useMoney } from "@/components/price";
-import type { Product, Seller, Video } from "@/lib/catalog";
+import type { FeedItem } from "@/lib/types";
 import { ClipPlayer } from "./clip-player";
 
-export type FeedItem = {
-  video: Video;
-  product: Product;
-  seller: Seller;
-  /** Picked on the server for the sheet's More tab. */
-  related: { fromSeller: Product[]; similar: Product[]; category: string };
-  /** The video's product first, then everything else tagged in it. */
-  look: Product[];
-};
+export type { FeedItem };
 
 type Props = {
   item: FeedItem;

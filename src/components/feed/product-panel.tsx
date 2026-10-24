@@ -29,6 +29,8 @@ type Props = {
   focus: string | null;
   onFocus: (slug: string) => void;
   liked: boolean;
+  /** Likes on the video, counting yours. */
+  likes: number;
   onLike: () => void;
   followed: boolean;
   onFollow: () => void;
@@ -42,7 +44,7 @@ type Props = {
  * on the product), Social (likes, comments, the creator), Details and More. The phone
  * sheet and the desktop side panel both render this.
  */
-export function ProductPanel({ item, tab, onTab, focus, onFocus, liked, onLike, followed, onFollow, onNotInterested, onClose }: Props) {
+export function ProductPanel({ item, tab, onTab, focus, onFocus, liked, likes, onLike, followed, onFollow, onNotInterested, onClose }: Props) {
   const money = useMoney();
   const { video, seller } = item;
   const product = item.look.find((p) => p.slug === focus) ?? item.product;
@@ -130,6 +132,7 @@ export function ProductPanel({ item, tab, onTab, focus, onFocus, liked, onLike, 
           video={video}
           seller={seller}
           liked={liked}
+          likes={likes}
           onLike={onLike}
           followed={followed}
           onFollow={onFollow}

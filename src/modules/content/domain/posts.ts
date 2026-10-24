@@ -1,0 +1,103 @@
+import { domainError, err, ok, type DomainError, type Result } from "@/shared/kernel";
+
+/** What a comment is attached to. */
+export type TargetType = "video" | "note";
+/** What a like (or a "useful" vote) is attached to. One per person per target. */
+export type LikeTarget = TargetType | "comment" | "question" | "review";
+
+export type Comment = Readonly<{
+  id: string;
+  targetType: TargetType;
+  targetId: string;
+  /** Null for comments loaded from seed data. */
+  authorId: string | null;
+  authorName: string;
+  authorAvatar: string;
+  text: string;
+  likes: number;
+  /** Written by the seller whose product the video shows. */
+  bySeller: boolean;
+  createdAt: Date;
+}>;
+
+/** A Discover note: an experience-first post that can link a product. */
+export type Note = Readonly<{
+  id: string;
+  authorId: string | null;
+  authorName: string;
+  authorAvatar: string;
+  title: string;
+  imageUrl: string;
+  /** Height hint in the waterfall. */
+  ratio: "tall" | "square" | "wide";
+  productSlug: string | null;
+  category: string;
+  live: boolean;
+  video: boolean;
+  likes: number;
+  createdAt: Date;
+}>;
+
+export type Review = Readonly<{
+  id: string;
+  productSlug: string;
+  sellerId: string;
+  /** The order that proves the purchase; null for seed reviews. */
+  orderId: string | null;
+  authorId: string | null;
+  authorName: string;
+  authorAvatar: string;
+  country: string;
+  rating: number;
+  text: string;
+  /** Set when `text` is a machine translation of `original`. */
+  translatedFrom: string | null;
+  original: string | null;
+  photos: readonly string[];
+  option: string | null;
+  helpful: number;
+  sellerReply: string | null;
+  createdAt: Date;
+}>;
+
+export type Question = Readonly<{
+  id: string;
+  productSlug: string;
+  askerId: string | null;
+  askerName: string;
+  question: string;
+  answer: string | null;
+  answeredBy: "seller" | "buyer" | null;
+  votes: number;
+  createdAt: Date;
+}>;
+
+export type PostError = DomainError<"invalid_text" | "invalid_rating">;
+
+const clean = (text: string) => text.replace(/\s+/g, " ").trim();
+
+export function writeComment(props: Omit<Comment, "likes" | "text"> & { text: string }): Result<Comment, PostError> {
+  const text = clean(props.text);
+  if (!text || text.length > 500) return err(domainError("invalid_text", "Comments are 1 to 500 characters."));
+  return ok({ ...props, text, likes: 0 });
+}
+
+export function writeReview(props: Omit<Review, "helpful" | "sellerReply" | "translatedFrom" | "original" | "text"> & { text: string }): Result<Review, PostError> {
+  const text = props.text.trim();
+  if (!Number.isInteger(props.rating) || props.rating < 1 || props.rating > 5) return err(domainError("invalid_rating", "Pick 1 to 5 stars."));
+  if (text.length < 10 || text.length > 2000) return err(domainError("invalid_text", "Reviews are 10 to 2,000 characters."));
+  return ok({ ...props, text, photos: props.photos.slice(0, 6), helpful: 0, sellerReply: null, translatedFrom: null, original: null });
+}
+
+export function askQuestion(props: Omit<Question, "answer" | "answeredBy" | "votes" | "question"> & { question: string }): Result<Question, PostError> {
+  const question = clean(props.question);
+  if (question.length < 5 || question.length > 300) return err(domainError("invalid_text", "Questions are 5 to 300 characters."));
+  return ok({ ...props, question, answer: null, answeredBy: null, votes: 0 });
+}
+
+/** Star counts (5★ first) and the average, from individual ratings. */
+export function summarise(ratings: readonly number[]) {
+  const stars = [5, 4, 3, 2, 1].map((s) => ratings.filter((r) => r === s).length);
+  const average = ratings.length ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10 : 0;
+  return { count: ratings.length, average, stars };
+}

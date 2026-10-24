@@ -15,9 +15,9 @@ import { RatingSummary, ReviewList } from "@/components/reviews/reviews";
 import { ShareButton } from "@/components/share/share-sheet";
 import { CompareButton } from "@/components/compare/compare";
 import { GiftButton } from "@/components/gift/gift-sheet";
-// Reviews and Q&A still come from fixtures until the content module lands.
-import { questionsFor, reviewSummary, reviewsFor } from "@/lib/catalog";
+import { reviewSummary } from "@/lib/catalog";
 import { getCategory, getProduct, getProductSlugs, getProducts, getSellerPage, getSimilarProducts } from "@/server/catalog";
+import { getProductQuestions, getProductReviews } from "@/server/content";
 
 export async function generateStaticParams() {
   return (await getProductSlugs()).map((slug) => ({ slug }));
@@ -43,17 +43,17 @@ async function ProductBody({ params }: { params: PageProps<"/p/[slug]">["params"
   const { slug } = await params;
   const product = await getProduct(slug);
   if (!product) notFound();
-  const [page, category, sellerProducts, similar] = await Promise.all([
+  const [page, category, sellerProducts, similar, reviews, questions] = await Promise.all([
     getSellerPage(product.sellerId),
     getCategory(product.category),
     getProducts({ seller: product.sellerId }),
     getSimilarProducts(product.slug, 8),
+    getProductReviews(product.slug),
+    getProductQuestions(product.slug),
   ]);
   const seller = page?.seller;
   const profile = page?.storefront;
   const more = sellerProducts.filter((p) => p.slug !== product.slug).slice(0, 4);
-  const reviews = reviewsFor(product.slug);
-  const questions = questionsFor(product.slug);
 
   return (
     <div className="pb-36 lg:pb-16">
@@ -156,7 +156,7 @@ async function ProductBody({ params }: { params: PageProps<"/p/[slug]">["params"
               </dl>
             </section>
             {product.price !== undefined && <PriceHistory product={product} />}
-            {seller && <Questions questions={questions} sellerName={seller.name} replyHours={profile?.responseHours ?? 4} />}
+            {seller && <Questions productSlug={product.slug} questions={questions} sellerName={seller.name} replyHours={profile?.responseHours ?? 4} />}
           </div>
 
           <div className="flex flex-col gap-10">

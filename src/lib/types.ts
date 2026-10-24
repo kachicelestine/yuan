@@ -1,5 +1,6 @@
 // Domain types shared by fixtures, the query layer and the UI.
-import type { ProductView } from "@/modules/catalog";
+import type { ProductView, SellerView } from "@/modules/catalog";
+import type { CommentView, NoteView, QuestionView, ReviewView, VideoView } from "@/modules/content";
 
 /** A category slug. Categories live in the database now, so this is open-ended. */
 export type CategoryId = string;
@@ -37,53 +38,31 @@ export type Tier = { min: number; price: number };
  */
 export type Product = Omit<ProductView, "id" | "leadTime" | "seller"> & Partial<Pick<ProductView, "id" | "leadTime" | "seller">>;
 
-export type Comment = {
-  name: string;
-  avatar: string;
-  text: string;
-  likes: number;
-  ago: string;
-  /** Written by the seller of the product in the video. */
-  seller?: boolean;
+/** A comment under a video (see the content module). Fixtures leave out the id and time. */
+export type Comment = Omit<CommentView, "id" | "at"> & Partial<Pick<CommentView, "id" | "at">>;
+
+/**
+ * A shoppable video as the UI sees it. Database-backed screens get the content module's
+ * VideoView; design-phase fixtures fit the same shape without renditions or view counts.
+ */
+export type Video = Omit<VideoView, "renditions" | "views" | "topComments"> & Partial<Pick<VideoView, "renditions" | "views">> & { topComments: Comment[] };
+
+/** One slide of the feed: the video, what it sells, and what the shop sheet shows beside it. */
+export type FeedItem = {
+  video: Video;
+  product: Product;
+  seller: SellerView;
+  /** Picked on the server for the sheet's More tab. */
+  related: { fromSeller: Product[]; similar: Product[]; category: string };
+  /** The video's product first, then everything else tagged in it. */
+  look: Product[];
 };
 
-export type Video = {
-  id: string;
-  sellerId: string;
-  productSlug: string;
-  /** More products tagged in the same video (shop the look). */
-  also?: string[];
-  /** A real clip (Mixkit, free licence) that plays over the still once the slide is active. */
-  clip?: string;
-  /** Where each tagged product sits in the frame, as percentages of a 9:19.5 crop. */
-  spots?: { slug: string; x: number; y: number }[];
-  image: string;
-  /** Media is bright under the controls, so glass should darken to stay legible. */
-  tone: "light" | "dark";
-  caption: string;
-  tags: string[];
-  place: string;
-  likes: number;
-  comments: number;
-  saves: number;
-  shares: number;
-  topComments: Comment[];
-};
+/** A page of the feed and where the next one starts (null at the end). */
+export type FeedPage = { items: FeedItem[]; next: number | null };
 
-export type Note = {
-  id: string;
-  title: string;
-  image: string;
-  /** Rendered height in the waterfall, as a 3:4-ish ratio hint. */
-  ratio: "tall" | "square" | "wide";
-  authorName: string;
-  authorAvatar: string;
-  likes: number;
-  productSlug?: string;
-  live?: boolean;
-  video?: boolean;
-  category: CategoryId;
-};
+/** A Discover note (see the content module). */
+export type Note = NoteView;
 
 export type LiveItem = { slug: string; livePrice: number; status: "on-air" | "shown" | "next" };
 
@@ -99,35 +78,11 @@ export type { MarketView as Market } from "@/modules/markets";
 /** A Snap to search sample photo and the matches a vision model would return for it. */
 export type SnapSample = { id: string; label: string; image: string; guess: string; matches: [slug: string, score: number][] };
 
-export type Review = {
-  id: string;
-  productSlug: string;
-  author: string;
-  avatar: string;
-  /** Market code of the buyer's country. */
-  country: string;
-  rating: number;
-  text: string;
-  /** Set when the review was machine-translated; `original` keeps the buyer's words. */
-  translatedFrom?: string;
-  original?: string;
-  photos?: string[];
-  option?: string;
-  date: string;
-  helpful: number;
-  sellerReply?: string;
-};
+/** A product review (see the content module). Fixtures don't say whether it's tied to an order. */
+export type Review = Omit<ReviewView, "verified"> & Partial<Pick<ReviewView, "verified">>;
 
-export type Question = {
-  id: string;
-  productSlug: string;
-  question: string;
-  answer: string;
-  answeredBy: "seller" | "buyer";
-  asker: string;
-  votes: number;
-};
-
+/** A buyer's question about a product; the answer is null until someone replies. */
+export type Question = QuestionView;
 
 export type ChatMessage = {
   id: string;

@@ -5,10 +5,9 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { CategoryShelf } from "@/components/category/category-shelf";
 import { Icon, VerifiedBadge } from "@/components/icon";
-// Videos and notes still come from fixtures until the content module lands.
-import { notesInCategory, videosInCategory } from "@/lib/catalog";
 import { compact, plural } from "@/lib/format";
 import { getCategories, getCategory, getProducts, getSellersInCategory } from "@/server/catalog";
+import { getCategoryVideos, getNotes } from "@/server/content";
 
 export async function generateStaticParams() {
   return (await getCategories()).map((c) => ({ id: c.id }));
@@ -33,9 +32,12 @@ async function CategoryBody({ params }: { params: PageProps<"/c/[id]">["params"]
   const { id } = await params;
   const category = await getCategory(id);
   if (!category) notFound();
-  const [items, factories] = await Promise.all([getProducts({ category: category.id }), getSellersInCategory(category.id)]);
-  const videos = videosInCategory(category.id);
-  const notes = notesInCategory(category.id);
+  const [items, factories, videos, notes] = await Promise.all([
+    getProducts({ category: category.id }),
+    getSellersInCategory(category.id),
+    getCategoryVideos(category.id),
+    getNotes(category.id),
+  ]);
 
   return (
     <div className="mx-auto max-w-[1200px] pb-36 lg:px-6 lg:pt-6 lg:pb-16">

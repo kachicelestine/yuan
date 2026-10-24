@@ -121,6 +121,11 @@ export class DrizzleProductRepository implements ProductRepository {
     return r ? toProduct(r) : null;
   }
 
+  async findBySlugs(slugs: readonly string[]) {
+    if (!slugs.length) return [];
+    return (await this.db.select().from(products).where(and(inArray(products.slug, [...slugs]), eq(products.status, "active")))).map(toProduct);
+  }
+
   async list(filter: { categoryId?: CategoryId; sellerId?: SellerId; limit?: number } = {}) {
     const where: SQL[] = [eq(products.status, "active")];
     if (filter.categoryId) where.push(eq(products.categoryId, filter.categoryId));

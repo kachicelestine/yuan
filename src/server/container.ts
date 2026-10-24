@@ -4,6 +4,15 @@ import { serverEnv } from "@/config/server-env";
 import { makeCatalogQueries, makeSearchProducts } from "@/modules/catalog";
 import { DrizzleCategoryRepository, DrizzleProductRepository, DrizzleSellerRepository } from "@/modules/catalog/infrastructure/drizzle-catalog-repositories";
 import { DrizzleProductSearch } from "@/modules/catalog/infrastructure/drizzle-product-search";
+import { makeContentQueries, makeInteractions } from "@/modules/content";
+import {
+  DrizzleCommentRepository,
+  DrizzleLikeRepository,
+  DrizzleNoteRepository,
+  DrizzleQuestionRepository,
+  DrizzleReviewRepository,
+  DrizzleVideoRepository,
+} from "@/modules/content/infrastructure/drizzle-content-repositories";
 import { makeEngagement } from "@/modules/engagement";
 import {
   DrizzleClaimRepository,
@@ -31,6 +40,7 @@ import { OutboxDispatcher, OutboxEventLog } from "@/shared/infrastructure/outbox
 import { PostgresRateLimiter } from "@/shared/infrastructure/rate-limit";
 import { unitOfWork } from "@/shared/infrastructure/unit-of-work";
 import { newId, systemClock, type Clock } from "@/shared/kernel";
+import { CatalogProductDirectory } from "./adapters/content-products";
 import { WalletCoupons } from "./adapters/coupons";
 import { MarketDestinations } from "./adapters/destinations";
 import { CatalogPricing } from "./adapters/order-catalog";
@@ -94,6 +104,16 @@ export function wire(db: Database, options: WireOptions = {}) {
     newId: () => newId(),
   });
 
+  const contentRepos = (tx: Database) => ({
+    videos: new DrizzleVideoRepository(tx),
+    comments: new DrizzleCommentRepository(tx),
+    notes: new DrizzleNoteRepository(tx),
+    reviews: new DrizzleReviewRepository(tx),
+    questions: new DrizzleQuestionRepository(tx),
+    likes: new DrizzleLikeRepository(tx),
+  });
+  const content = contentRepos(db);
+
   const checkInvoice = makeCheckInvoice({
     network,
     invoices: new DrizzleInvoiceRepository(db),
@@ -140,6 +160,16 @@ export function wire(db: Database, options: WireOptions = {}) {
     catalog: makeCatalogQueries({ categories: new DrizzleCategoryRepository(db), sellers, products, clock }),
     searchProducts: makeSearchProducts({ search: new DrizzleProductSearch(db), sellers, clock }),
     engagement,
+    content: makeContentQueries({ ...content, clock }),
+    interactions: makeInteractions({
+      videos: content.videos,
+      likes: content.likes,
+      products: new CatalogProductDirectory(products),
+      // A like and its counter, or a comment and the video's count, move together.
+      uow: unitOfWork(db, (tx) => ({ ...contentRepos(tx), events: new OutboxEventLog(tx, () => clock.now()) })),
+      clock,
+      newId: () => newId(),
+    }),
     cart: makeCart({ carts: new DrizzleCartRepository(db), catalog: pricing }),
 
     checkout: makeCheckout({

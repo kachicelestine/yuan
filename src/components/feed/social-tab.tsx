@@ -4,13 +4,17 @@ import Image from "next/image";
 import Link from "next/link";
 import { useId, useState } from "react";
 import { Icon, VerifiedBadge, type IconName } from "@/components/icon";
+import { useStore } from "@/components/providers";
 import type { Comment, Seller, Video } from "@/lib/catalog";
 import { compact } from "@/lib/format";
+import { postCommentAction, reactAction, shareAction } from "@/server/actions/content";
 
 type Props = {
   video: Video;
   seller: Seller;
   liked: boolean;
+  /** Likes on the video, counting yours. */
+  likes: number;
   onLike: () => void;
   followed: boolean;
   onFollow: () => void;
@@ -21,37 +25,69 @@ type Props = {
 };
 
 /** Social: reactions, the creator, and the conversation under the video. */
-export function SocialTab({ video, seller, liked, onLike, followed, onFollow, draft, onDraft, composer, onReply }: Props) {
+export function SocialTab({ video, seller, liked, likes, onLike, followed, onFollow, draft, onDraft, composer, onReply }: Props) {
   const id = useId();
-  const [posted, setPosted] = useState<{ key: string; comment: Comment }[]>([]);
+  const { account } = useStore();
+  const [posted, setPosted] = useState<Comment[]>([]);
+  // The top few arrive with the video; "View all" swaps in the whole thread, newest first.
+  const [thread, setThread] = useState<{ comments: Comment[]; more: boolean } | null>(null);
+  const [loadingThread, setLoadingThread] = useState(false);
   const [hearts, setHearts] = useState<Record<string, boolean>>({});
   const [shared, setShared] = useState(false);
-  const comments = [...posted, ...video.topComments.map((comment, i) => ({ key: `top-${i}`, comment }))];
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const shown = thread ? thread.comments : video.topComments;
+  const mine = new Set(posted.map((c) => c.id));
+  const comments = [...posted, ...shown.filter((c) => !c.id || !mine.has(c.id))].map((comment, i) => ({ key: comment.id ?? `top-${i}`, comment }));
   const total = video.comments + posted.length;
 
+  async function loadThread(before?: string) {
+    setLoadingThread(true);
+    try {
+      const res = await fetch(`/api/videos/${encodeURIComponent(video.id)}/comments${before ? `?before=${encodeURIComponent(before)}` : ""}`);
+      if (!res.ok) return;
+      const { comments: page } = (await res.json()) as { comments: Comment[] };
+      setThread((t) => ({ comments: [...(before && t ? t.comments : []), ...page], more: page.length >= 30 }));
+    } finally {
+      setLoadingThread(false);
+    }
+  }
+
   async function share() {
-    const url = `${location.origin}/p/${video.productSlug}`;
+    const url = `${location.origin}/?v=${encodeURIComponent(video.id)}`;
     try {
       if (navigator.share) await navigator.share({ text: video.caption, url });
       else await navigator.clipboard.writeText(url);
+      if (!shared) void shareAction(video.id);
       setShared(true);
     } catch {
       // Dismissed share sheet or blocked clipboard: nothing to undo.
     }
   }
 
-  function post(event: React.FormEvent) {
+  async function post(event: React.FormEvent) {
     event.preventDefault();
     const text = draft.trim();
-    if (!text) return;
-    setPosted((list) => [{ key: `mine-${list.length}`, comment: { name: "You", avatar: "", text, likes: 0, ago: "now" } }, ...list]);
+    if (!text || sending) return;
+    setError(null);
+    setSending(true);
+    const r = await postCommentAction(video.id, text);
+    setSending(false);
+    if (!r.ok) return setError(r.message);
+    setPosted((list) => [{ ...r.comment, name: "You" }, ...list]);
     onDraft("");
+  }
+
+  function heart(key: string, comment: Comment) {
+    const on = !hearts[key];
+    setHearts((prev) => ({ ...prev, [key]: on }));
+    if (account && comment.id) void reactAction({ target: "comment", id: comment.id, on });
   }
 
   return (
     <div className="flex min-h-full flex-col gap-4 px-4 pt-1">
       <div className="grid grid-cols-3 gap-2">
-        <Stat icon="heart" label="Like" count={compact(video.likes + (liked ? 1 : 0))} pressed={liked} tone="text-like" onClick={onLike} />
+        <Stat icon="heart" label="Like" count={compact(likes)} pressed={liked} tone="text-like" onClick={onLike} />
         <Stat icon="comment" label="Comment" count={compact(total)} onClick={() => composer.current?.focus()} />
         <Stat icon="share" label={shared ? "Shared" : "Share"} count={compact(video.shares + (shared ? 1 : 0))} onClick={share} />
       </div>
@@ -109,7 +145,7 @@ export function SocialTab({ video, seller, liked, onLike, followed, onFollow, dr
                 </div>
                 <button
                   type="button"
-                  onClick={() => setHearts((prev) => ({ ...prev, [key]: !prev[key] }))}
+                  onClick={() => heart(key, comment)}
                   aria-pressed={on}
                   aria-label={`Like comment from ${comment.name}`}
                   className={`flex w-9 shrink-0 flex-col items-center gap-0.5 pt-1 text-[11px] font-semibold ${on ? "text-like" : "text-ink-3"}`}
@@ -121,9 +157,32 @@ export function SocialTab({ video, seller, liked, onLike, followed, onFollow, dr
             );
           })}
         </ul>
+        {(thread ? thread.more : total > shown.length + posted.length) && (
+          <button
+            type="button"
+            disabled={loadingThread}
+            onClick={() => void loadThread(thread?.comments.at(-1)?.at)}
+            className="glass-inset mt-1 h-10 w-full rounded-full text-[13px] font-semibold text-ink-2 disabled:opacity-60"
+          >
+            {loadingThread ? "Loading…" : thread ? "More comments" : `View all ${total.toLocaleString("en-US")} comments`}
+          </button>
+        )}
       </section>
 
-      <form onSubmit={post} className="edge-bottom pb-safe sticky bottom-0 -mx-4 mt-auto flex items-center gap-2 px-4 pt-5">
+      <form onSubmit={post} className="edge-bottom pb-safe sticky bottom-0 -mx-4 mt-auto flex flex-wrap items-center gap-2 px-4 pt-5">
+        {!account && (
+          <p className="w-full text-xs text-ink-2">
+            <Link href="/signin?next=/" className="font-semibold text-ink underline underline-offset-2">
+              Sign in
+            </Link>{" "}
+            to comment.
+          </p>
+        )}
+        {error && (
+          <p role="alert" className="w-full text-xs text-like">
+            {error}
+          </p>
+        )}
         <label htmlFor={`${id}-say`} className="sr-only">
           Add a comment
         </label>
@@ -139,7 +198,7 @@ export function SocialTab({ video, seller, liked, onLike, followed, onFollow, dr
           autoComplete="off"
           className="glass-inset h-11 min-w-0 flex-1 rounded-full px-4 text-base outline-none placeholder:text-ink-3 focus-visible:shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.6)]"
         />
-        <button type="submit" disabled={!draft.trim()} aria-label="Post comment" className="grid size-11 shrink-0 place-items-center rounded-full bg-accent transition-opacity disabled:opacity-40">
+        <button type="submit" disabled={!draft.trim() || sending || !account} aria-label="Post comment" className="grid size-11 shrink-0 place-items-center rounded-full bg-accent transition-opacity disabled:opacity-40">
           <Icon name="send" className="size-5" />
         </button>
       </form>

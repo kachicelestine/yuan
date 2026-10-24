@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { Storefront } from "@/components/store/storefront";
-// Reviews, videos and factory towns still come from fixtures until the content module lands.
-import { reviewSummary, reviewsForSeller, towns, videosForSeller } from "@/lib/catalog";
+// Factory towns are still editorial fixtures.
+import { reviewSummary, towns } from "@/lib/catalog";
 import { getProducts, getSellerPage, getSellers } from "@/server/catalog";
+import { getSellerReviews, getSellerVideos } from "@/server/content";
 
 export async function generateStaticParams() {
   return (await getSellers()).map((s) => ({ id: s.id }));
@@ -26,7 +27,7 @@ export default function StorePage({ params }: PageProps<"/s/[id]">) {
 
 async function StoreBody({ params }: { params: PageProps<"/s/[id]">["params"] }) {
   const { id } = await params;
-  const [page, listed] = await Promise.all([getSellerPage(id), getProducts({ seller: id })]);
+  const [page, listed, videos, reviews] = await Promise.all([getSellerPage(id), getProducts({ seller: id }), getSellerVideos(id), getSellerReviews(id)]);
   const seller = page?.seller;
   const profile = page?.storefront;
   if (!seller || !profile) notFound();
@@ -53,8 +54,8 @@ async function StoreBody({ params }: { params: PageProps<"/s/[id]">["params"] })
       seller={seller}
       profile={profile}
       products={products}
-      videos={videosForSeller(id).map((v) => ({ ...v, productTitle: title(v.productSlug) }))}
-      reviews={reviewsForSeller(id).map((r) => ({ ...r, productTitle: title(r.productSlug) }))}
+      videos={videos.map((v) => ({ ...v, productTitle: title(v.productSlug) }))}
+      reviews={reviews.map((r) => ({ ...r, productTitle: title(r.productSlug) }))}
       reviewCount={reviewCount}
       summary={summary}
       town={town && { id: town.id, name: town.name, speciality: town.speciality }}

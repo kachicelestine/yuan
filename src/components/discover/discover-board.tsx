@@ -5,9 +5,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { Icon, type IconName } from "@/components/icon";
 import { useMoney } from "@/components/price";
+import { useStore } from "@/components/providers";
 import type { CategoryId, Note, Product } from "@/lib/catalog";
 import { compact } from "@/lib/format";
 import { capDensity } from "@/lib/images";
+import { reactAction } from "@/server/actions/content";
 
 export type BoardNote = Note & { product?: Pick<Product, "slug" | "title" | "price"> };
 
@@ -24,6 +26,12 @@ export function DiscoverBoard({ notes, categories }: { notes: BoardNote[]; categ
   const money = useMoney();
   const [category, setCategory] = useState<CategoryId | "all">("all");
   const [liked, setLiked] = useState<Record<string, boolean>>({});
+  const { account } = useStore();
+  const like = (id: string) => {
+    const on = !liked[id];
+    setLiked((l) => ({ ...l, [id]: on }));
+    if (account) void reactAction({ target: "note", id, on });
+  };
 
   const visible = notes.filter((n) => category === "all" || n.category === category);
 
@@ -126,7 +134,7 @@ export function DiscoverBoard({ notes, categories }: { notes: BoardNote[]; categ
                   type="button"
                   aria-label="Like"
                   aria-pressed={on}
-                  onClick={() => setLiked((l) => ({ ...l, [note.id]: !l[note.id] }))}
+                  onClick={() => like(note.id)}
                   className={`flex h-11 items-center gap-1 px-1.5 text-xs ${on ? "text-like" : "text-ink-2"}`}
                 >
                   <Icon name="heart" filled={on} className={`size-[17px] ${on ? "motion-safe:animate-pop" : ""}`} />

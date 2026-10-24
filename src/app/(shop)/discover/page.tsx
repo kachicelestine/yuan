@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { DiscoverBoard, type BoardNote } from "@/components/discover/discover-board";
-// Notes still come from fixtures until the content module lands; products are live.
-import { notes } from "@/lib/catalog";
 import { getCategories, getProducts } from "@/server/catalog";
+import { getNotes } from "@/server/content";
 
 export const metadata: Metadata = { title: "Discover" };
 
 export default async function DiscoverPage() {
-  const [products, categories] = await Promise.all([getProducts(), getCategories()]);
+  const [products, categories, notes] = await Promise.all([getProducts(), getCategories(), getNotes()]);
   const board: BoardNote[] = notes.map((note) => {
     const product = note.productSlug ? products.find((p) => p.slug === note.productSlug) : undefined;
     return product ? { ...note, product: { slug: product.slug, title: product.title, price: product.price } } : note;

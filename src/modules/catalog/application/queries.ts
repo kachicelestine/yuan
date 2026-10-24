@@ -39,6 +39,12 @@ export function makeCatalogQueries({ categories, sellers, products, clock }: Cat
       return p && toProductView(p, clock.now(), (await sellers.findById(p.sellerId)) ?? undefined);
     },
 
+    /** Products in the order asked for; unknown slugs drop out. */
+    async getProductsBySlugs(slugs: readonly string[]): Promise<ProductView[]> {
+      const found = new Map((await products.findBySlugs(slugs)).map((p) => [p.slug, p]));
+      return view(slugs.flatMap((s) => found.get(s) ?? []));
+    },
+
     async listProducts(filter: { category?: string; seller?: string; limit?: number } = {}): Promise<ProductView[]> {
       return view(await products.list({ categoryId: filter.category as CategoryId | undefined, sellerId: filter.seller as SellerId | undefined, limit: filter.limit }));
     },

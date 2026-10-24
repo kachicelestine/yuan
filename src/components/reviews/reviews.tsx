@@ -8,6 +8,7 @@ import { Chip } from "@/components/search/filters-sheet";
 import { useStore } from "@/components/providers";
 import type { Review, ReviewSummary } from "@/lib/catalog";
 import { compact } from "@/lib/format";
+import { reactAction } from "@/server/actions/content";
 
 export function Stars({ value, className = "size-3.5" }: { value: number; className?: string }) {
   return (
@@ -103,7 +104,7 @@ export function ReviewList({ reviews, showProduct }: { reviews: (Review & { prod
 function ReviewCard({ review: r, productTitle }: { review: Review; productTitle?: string }) {
   const [original, setOriginal] = useState(false);
   const [helpful, setHelpful] = useState(false);
-  const { markets } = useStore();
+  const { markets, account } = useStore();
   const market = markets.find((m) => m.code === r.country);
 
   return (
@@ -151,7 +152,10 @@ function ReviewCard({ review: r, productTitle }: { review: Review; productTitle?
       <button
         type="button"
         aria-pressed={helpful}
-        onClick={() => setHelpful(!helpful)}
+        onClick={() => {
+          setHelpful(!helpful);
+          if (account) void reactAction({ target: "review", id: r.id, on: !helpful });
+        }}
         className={`mt-3 flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors ${helpful ? "bg-white text-black" : "bg-white/[0.07] text-ink-2"}`}
       >
         <Icon name="check" className="size-3.5" />
