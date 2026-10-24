@@ -1,4 +1,4 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Database } from "@/shared/infrastructure/database";
 import { cents } from "@/shared/kernel/money";
 import type { Order } from "../domain/order";
@@ -18,6 +18,17 @@ export class DrizzleOrderRepository implements OrderRepository {
 
   async listByBuyer(buyerId: string, limit: number) {
     const rows = await this.db.select().from(orders).where(eq(orders.buyerId, buyerId)).orderBy(desc(orders.placedAt)).limit(limit);
+    return Promise.all(rows.map((o) => this.withLines(o)));
+  }
+
+  async listBySeller(sellerId: string, statuses: readonly Order["status"][], limit: number) {
+    if (!statuses.length) return [];
+    const rows = await this.db
+      .select()
+      .from(orders)
+      .where(and(inArray(orders.status, [...statuses]), sql`exists (select 1 from ${orderLines} where ${orderLines.orderId} = ${orders.id} and ${orderLines.sellerId} = ${sellerId})`))
+      .orderBy(desc(orders.placedAt))
+      .limit(limit);
     return Promise.all(rows.map((o) => this.withLines(o)));
   }
 

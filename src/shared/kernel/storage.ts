@@ -12,12 +12,16 @@ export interface ObjectStorage {
   /** A URL the browser PUTs exactly `bytes` bytes of `contentType` to; anything else is refused. */
   signUpload(key: string, file: { contentType: string; bytes: number }, expiresInSeconds: number): Promise<SignedUpload>;
   head(key: string): Promise<StoredObject | null>;
+  /** The whole object in memory (photos; use `download` for video). Null when missing. */
+  read(key: string): Promise<Uint8Array | null>;
   /** Copies an object to a local file (for encoders that need one). */
   download(key: string, toPath: string): Promise<void>;
   upload(key: string, fromPath: string, contentType: string): Promise<void>;
   remove(key: string): Promise<void>;
-  /** Where people's browsers fetch the object from. */
+  /** Where people's browsers fetch the object from (public storage only). */
   publicUrl(key: string): string;
+  /** A short-lived link to one object, for files that are never public (identity documents). */
+  signDownload(key: string, expiresInSeconds: number): Promise<string>;
 }
 
 /** Keys are plain paths: lower-case letters, digits, "-", "_", "." and "/" (no "..", no leading "/"). */

@@ -7,6 +7,9 @@ export const contentSchema = pgSchema("content");
 export const videoStatus = contentSchema.enum("video_status", ["processing", "review", "ready", "failed", "removed"]);
 export const targetType = contentSchema.enum("target_type", ["video", "note"]);
 export const likeTarget = contentSchema.enum("like_target", ["video", "note", "comment", "question", "review"]);
+export const reportTarget = contentSchema.enum("report_target", ["video", "comment", "question", "review"]);
+export const reportReason = contentSchema.enum("report_reason", ["counterfeit", "misleading", "offensive", "spam", "unsafe", "other"]);
+export const reportStatus = contentSchema.enum("report_status", ["open", "actioned", "dismissed"]);
 export const tone = contentSchema.enum("tone", ["light", "dark"]);
 export const noteRatio = contentSchema.enum("note_ratio", ["tall", "square", "wide"]);
 
@@ -151,6 +154,7 @@ export const questions = contentSchema.table(
   {
     id: text().primaryKey(),
     productSlug: text().notNull(),
+    sellerId: text(),
     askerId: uuid(),
     askerName: text().notNull(),
     question: text().notNull(),
@@ -159,7 +163,10 @@ export const questions = contentSchema.table(
     votes: integer().notNull().default(0),
     createdAt: timestamp({ withTimezone: true }).notNull(),
   },
-  (t) => [index("questions_product_idx").on(t.productSlug, t.createdAt)],
+  (t) => [
+    index("questions_product_idx").on(t.productSlug, t.createdAt),
+    index("questions_inbox_idx").on(t.sellerId, t.createdAt).where(sql`${t.answer} is null`),
+  ],
 );
 
 export const likes = contentSchema.table(
@@ -171,4 +178,25 @@ export const likes = contentSchema.table(
     createdAt: timestamp({ withTimezone: true }).notNull(),
   },
   (t) => [primaryKey({ columns: [t.accountId, t.targetType, t.targetId] })],
+);
+
+export const reports = contentSchema.table(
+  "reports",
+  {
+    id: uuid().primaryKey(),
+    targetType: reportTarget().notNull(),
+    targetId: text().notNull(),
+    reporterId: uuid().notNull(),
+    reason: reportReason().notNull(),
+    note: text(),
+    status: reportStatus().notNull().default("open"),
+    createdAt: timestamp({ withTimezone: true }).notNull(),
+    resolvedAt: timestamp({ withTimezone: true }),
+    resolvedBy: uuid(),
+  },
+  (t) => [
+    // One open report per person per item: reporting twice doesn't count twice.
+    uniqueIndex("reports_once_uq").on(t.reporterId, t.targetType, t.targetId).where(sql`${t.status} = 'open'`),
+    index("reports_open_idx").on(t.targetType, t.targetId).where(sql`${t.status} = 'open'`),
+  ],
 );

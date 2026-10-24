@@ -2,6 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { cache } from "react";
 import type { AccountView, SignedIn } from "@/modules/identity";
+import { serverEnv } from "@/config/server-env";
 import { services } from "./container";
 
 // The cookie only carries a random token; the database decides whether it's still valid
@@ -32,4 +33,16 @@ export async function endSession() {
   const jar = await cookies();
   await (await services()).identity.signOut(jar.get(COOKIE)?.value);
   jar.delete(COOKIE);
+}
+
+/**
+ * Admins are the people whose sign-in email is in ADMIN_EMAILS. Email sign-in proves they
+ * own the address, so the list is all the configuration a small team needs.
+ */
+export const isAdmin = (account: AccountView | null) => !!account?.email && serverEnv.ADMIN_EMAILS.includes(account.email.toLowerCase());
+
+/** The signed-in admin, or null. */
+export async function currentAdmin() {
+  const account = await currentAccount();
+  return isAdmin(account) ? account : null;
 }

@@ -35,7 +35,18 @@ const levels = [
  * Your hub: orders on the way, money tools (rewards, coupons, watches), creator and business
  * modes, settings. `account` and `orders` come from the server; null while loading or signed out.
  */
-export function MeScreen({ account = null, orders = [] }: { account?: AccountView | null; orders?: OrderView[] }) {
+export function MeScreen({
+  account = null,
+  orders = [],
+  hasShop = false,
+  admin = false,
+}: {
+  account?: AccountView | null;
+  orders?: OrderView[];
+  /** Runs a shop: Sell opens the seller tools instead of the application. */
+  hasShop?: boolean;
+  admin?: boolean;
+}) {
   const money = useMoney();
   const router = useRouter();
   const [signingOut, startSignOut] = useTransition();
@@ -55,6 +66,8 @@ export function MeScreen({ account = null, orders = [] }: { account?: AccountVie
     { href: "#watches", label: "Watches", icon: "bell", note: `${watches.length} on` },
     { href: "/creator", label: "Creator", icon: "sparkle", note: "Earn" },
     { href: "/business", label: "Business", icon: "factory", note: "Bulk" },
+    { href: "/sell", label: hasShop ? "Your shop" : "Sell", icon: "store", note: hasShop ? "Listings, orders" : "Open a shop" },
+    ...(admin ? [{ href: "/admin", label: "Admin", icon: "shield" as IconName, note: "Reviews" }] : []),
   ];
 
   return (

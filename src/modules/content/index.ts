@@ -8,14 +8,17 @@ export {
   type Interactions,
   type InteractionScope,
   type ProductDirectory,
+  type QuestionAnswered,
   type QuestionAsked,
 } from "./application/interactions";
+export { makeModeration, type ContentRemoved, type Moderation, type ModerationDeps, type ModerationError, type ModerationItemView, type ModerationScope, type PendingVideoView } from "./application/moderation";
+export { REASON_LABELS, REPORT_REASONS, REPORT_TARGETS, fileReport, type Report, type ReportError, type ReportReason, type ReportStatus, type ReportTarget } from "./domain/moderation";
 export { ENCODE_ATTEMPTS, ENCODE_LEASE_MS, makeUploads, type EncodeError, type MyVideoView, type UploadDeps, type UploadError, type Uploads, type VideoEncoder } from "./application/uploads";
 export { FEED_CANDIDATES, makeContentQueries, TOP_COMMENTS, type ContentQueries, type ContentQueryDeps } from "./application/queries";
 export { ago, shortDate, type CommentView, type NoteView, type QuestionView, type ReviewView, type VideoView } from "./application/views";
-export { askQuestion, summarise, writeComment, writeReview, type Comment, type LikeTarget, type Note, type PostError, type Question, type Review, type TargetType } from "./domain/posts";
+export { answerQuestion, askQuestion, summarise, writeComment, writeReview, type Comment, type LikeTarget, type Note, type PostError, type Question, type Review, type TargetType } from "./domain/posts";
 export { EXPLORE_UNDER_VIEWS, engagements, rankFeed, score, type Candidate } from "./domain/ranking";
-export type { CommentRepository, LikeRepository, NoteRepository, QuestionRepository, ReviewRepository, VideoRepository, VideoStats, WatchTally } from "./domain/repositories";
+export type { CommentRepository, LikeRepository, NoteRepository, QuestionRepository, ReportedItem, ReportRepository, ReviewRepository, VideoRepository, VideoStats, WatchTally } from "./domain/repositories";
 export {
   approve,
   draftVideo,

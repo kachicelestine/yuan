@@ -3,7 +3,8 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { MeScreen } from "@/components/me/me-screen";
 import { services } from "@/server/container";
-import { currentAccount } from "@/server/session";
+import { currentAccount, isAdmin } from "@/server/session";
+import { myShops } from "@/server/shop";
 
 export const metadata: Metadata = { title: "Me" };
 
@@ -20,6 +21,6 @@ async function MeBody() {
   // Who's signed in, and their orders, are per request.
   await connection();
   const account = await currentAccount();
-  const orders = account ? await (await services()).getOrder.list(account.id) : [];
-  return <MeScreen account={account} orders={orders} />;
+  const [orders, shops] = account ? await Promise.all([(await services()).getOrder.list(account.id), myShops()]) : [[], []];
+  return <MeScreen account={account} orders={orders} hasShop={shops.length > 0} admin={isAdmin(account)} />;
 }

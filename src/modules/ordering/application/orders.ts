@@ -77,3 +77,40 @@ export function makeCancelUnpaidOrder(deps: { orders: OrderRepository; events: E
     return ok(r.value.order);
   };
 }
+
+/** An order as a shop sees it: only its own lines, and no buyer identity beyond the country. */
+export type SellerOrderView = {
+  id: string;
+  number: string;
+  status: OrderStatus;
+  country: string;
+  shippingMethod: string;
+  placedAt: string;
+  paidAt: string | null;
+  lines: OrderView["lines"];
+  /** What this shop's lines come to, in dollars, before platform fees. */
+  subtotal: number;
+};
+
+/** A shop's orders. Other shops' lines in the same order stay hidden. */
+export function makeSellerOrders(deps: { orders: OrderRepository }) {
+  return {
+    async list(sellerId: string, limit = 100): Promise<SellerOrderView[]> {
+      const list = await deps.orders.listBySeller(sellerId, ["paid", "awaiting_payment"], limit);
+      return list.map((o) => {
+        const lines = o.lines.filter((l) => l.sellerId === sellerId);
+        return {
+          id: o.id,
+          number: o.number,
+          status: o.status,
+          country: o.country,
+          shippingMethod: o.shippingMethod,
+          placedAt: o.placedAt.toISOString(),
+          paidAt: o.paidAt?.toISOString() ?? null,
+          lines: lines.map((l) => ({ slug: l.slug, title: l.title, image: l.image, option: l.option, unitPrice: l.unitPrice / 100, qty: l.qty })),
+          subtotal: lines.reduce((n, l) => n + l.unitPrice * l.qty, 0) / 100,
+        };
+      });
+    },
+  };
+}

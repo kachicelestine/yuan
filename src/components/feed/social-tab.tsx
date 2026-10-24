@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useId, useState } from "react";
 import { Icon, VerifiedBadge, type IconName } from "@/components/icon";
 import { useStore } from "@/components/providers";
+import { ReportForm } from "@/components/report/report-form";
 import type { Comment, Seller, Video } from "@/lib/catalog";
 import { compact } from "@/lib/format";
 import { postCommentAction, reactAction, shareAction } from "@/server/actions/content";
@@ -36,6 +37,7 @@ export function SocialTab({ video, seller, liked, likes, onLike, followed, onFol
   const [shared, setShared] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [reporting, setReporting] = useState<string | null>(null);
   const shown = thread ? thread.comments : video.topComments;
   const mine = new Set(posted.map((c) => c.id));
   const comments = [...posted, ...shown.filter((c) => !c.id || !mine.has(c.id))].map((comment, i) => ({ key: comment.id ?? `top-${i}`, comment }));
@@ -141,7 +143,17 @@ export function SocialTab({ video, seller, liked, likes, onLike, followed, onFol
                     <button type="button" onClick={() => onReply(comment.name)} className="py-1 font-semibold text-ink-2">
                       Reply
                     </button>
+                    {comment.id && !mine.has(comment.id) && (
+                      <button type="button" aria-expanded={reporting === comment.id} onClick={() => setReporting(reporting === comment.id ? null : comment.id!)} className="py-1 text-ink-3">
+                        Report
+                      </button>
+                    )}
                   </p>
+                  {reporting === comment.id && comment.id && (
+                    <div className="glass-inset -mx-1 mt-1 rounded-2xl">
+                      <ReportForm targetType="comment" targetId={comment.id} />
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"

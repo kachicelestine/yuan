@@ -114,6 +114,7 @@ export async function seedContent(db: Database) {
       questionFixtures.map((q, i) => ({
         id: q.id,
         productSlug: q.productSlug,
+        sellerId: productBySlug.get(q.productSlug)?.sellerId ?? null,
         askerId: null,
         askerName: q.asker,
         question: q.question,

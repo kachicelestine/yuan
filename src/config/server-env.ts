@@ -47,6 +47,10 @@ const schema = z
     STORAGE: z.enum(["local", "r2"]).default("local"),
     /** Folder for STORAGE=local. */
     MEDIA_DIR: z.string().min(1).default(".data/media"),
+    /** Folder for identity and business documents with STORAGE=local. Never served publicly. */
+    PRIVATE_DIR: z.string().min(1).default(".data/private"),
+    /** A second R2 bucket with no public domain, for identity and business documents. */
+    R2_PRIVATE_BUCKET: optional(z.string().regex(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/, "must be an R2 bucket name")),
     R2_ACCOUNT_ID: optional(z.string().regex(/^[a-f0-9]{32}$/, "must be the 32-character account id")),
     R2_ACCESS_KEY_ID: optional(z.string().min(16)),
     R2_SECRET_ACCESS_KEY: optional(z.string().min(32)),
@@ -59,6 +63,11 @@ const schema = z
     ENCODE_THREADS: z.coerce.number().int().min(1).max(16).default(1),
     /** Hold new uploads for a moderator before they're public. Default: on in production. */
     CONTENT_PREMODERATION: optional(z.stringbool()),
+    /** Comma-separated emails of people who can open the admin console (they sign in with that email). */
+    ADMIN_EMAILS: z
+      .string()
+      .default("")
+      .transform((v) => v.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean)),
   })
   .superRefine((env, ctx) => {
     // A production server with a real database is a real deployment.
@@ -76,7 +85,7 @@ const schema = z
       if (!env.RESEND_API_KEY || !env.EMAIL_FROM) ctx.addIssue({ code: "custom", path: ["RESEND_API_KEY"], message: "RESEND_API_KEY and EMAIL_FROM are required when taking real payments" });
     }
     if (env.STORAGE === "r2") {
-      for (const key of ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET", "MEDIA_PUBLIC_URL"] as const) {
+      for (const key of ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET", "R2_PRIVATE_BUCKET", "MEDIA_PUBLIC_URL"] as const) {
         if (!env[key]) ctx.addIssue({ code: "custom", path: [key], message: "required when STORAGE=r2" });
       }
     }

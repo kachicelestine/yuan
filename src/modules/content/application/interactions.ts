@@ -1,5 +1,5 @@
 import { domainError, err, ok, type Clock, type DomainError, type EventLog, type Result } from "@/shared/kernel";
-import { askQuestion, writeComment, type LikeTarget, type PostError } from "../domain/posts";
+import { answerQuestion, askQuestion, writeComment, type LikeTarget, type PostError } from "../domain/posts";
 import type { CommentRepository, LikeRepository, NoteRepository, QuestionRepository, ReviewRepository, VideoRepository, WatchTally } from "../domain/repositories";
 import { toCommentView, toQuestionView, type CommentView, type QuestionView } from "./views";
 
@@ -33,6 +33,8 @@ export type InteractionDeps = {
 
 export type CommentPosted = Readonly<{ type: "CommentPosted"; commentId: string; videoId: string; authorId: string; at: Date }>;
 export type QuestionAsked = Readonly<{ type: "QuestionAsked"; questionId: string; productSlug: string; sellerId: string; at: Date }>;
+
+export type QuestionAnswered = Readonly<{ type: "QuestionAnswered"; questionId: string; productSlug: string; askerId: string | null; at: Date }>;
 
 export type InteractionError = DomainError<"not_found"> | PostError;
 
@@ -118,7 +120,7 @@ export function makeInteractions({ videos, likes, products, uow, clock, newId }:
       const product = await products.find(productSlug);
       if (!product) return notFound("product");
       const at = clock.now();
-      const asked = askQuestion({ id: newId(), productSlug, askerId: actor.accountId, askerName: actor.name, question: text, createdAt: at });
+      const asked = askQuestion({ id: newId(), productSlug, sellerId: product.sellerId, askerId: actor.accountId, askerName: actor.name, question: text, createdAt: at });
       if (!asked.ok) return asked;
       const question = asked.value;
       // The seller hears about it through the outbox (notifications).
@@ -128,6 +130,20 @@ export function makeInteractions({ videos, likes, products, uow, clock, newId }:
         await s.events.record(productSlug, event);
       });
       return ok(toQuestionView(question));
+    },
+
+    /** A shop answers a question about one of its products. */
+    async answerQuestion(sellerId: string, questionId: string, text: string): Promise<Result<QuestionView, InteractionError>> {
+      const q = await uow.run((s) => s.questions.find(questionId));
+      if (!q || q.sellerId !== sellerId) return notFound("question");
+      const answered = answerQuestion(q, text);
+      if (!answered.ok) return answered;
+      const event: QuestionAnswered = { type: "QuestionAnswered", questionId, productSlug: q.productSlug, askerId: q.askerId, at: clock.now() };
+      await uow.run(async (s) => {
+        await s.questions.saveAnswer(answered.value);
+        await s.events.record(questionId, event);
+      });
+      return ok(toQuestionView(answered.value));
     },
 
     /** Counted, not attributed: anyone can share. */

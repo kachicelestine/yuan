@@ -27,7 +27,7 @@ describe("posting videos", () => {
     wire(db, {
       clock,
       payments: { network: new SimulatedNetwork(db), simulator: null },
-      media: { storage, encoder: options.encoder ?? new CopyEncoder(storage), premoderated: options.premoderated ?? false },
+      media: { storage, privateStorage: storage, encoder: options.encoder ?? new CopyEncoder(storage), premoderated: options.premoderated ?? false },
     });
   const actor = (accountId = newId()) => ({ accountId, name: "shopper-abc123", avatar: "" });
   const clip = new Uint8Array(2048).fill(7);

@@ -80,6 +80,11 @@ export function makeContentQueries({ videos, comments, notes, reviews, questions
     async questionsForProduct(slug: string, limit = 20): Promise<QuestionView[]> {
       return (await questions.forProduct(slug, limit)).map(toQuestionView);
     },
+
+    /** A shop's inbox of questions waiting for an answer. */
+    async unansweredQuestions(sellerId: string, limit = 50): Promise<(QuestionView & { at: string })[]> {
+      return (await questions.unansweredForSeller(sellerId, limit)).map((q) => ({ ...toQuestionView(q), at: q.createdAt.toISOString() }));
+    },
   };
 }
 

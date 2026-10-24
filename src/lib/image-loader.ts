@@ -5,6 +5,7 @@ import { CROP_PARAMS, defaultQuality } from "./image-config";
 type LoaderArgs = { src: string; width: number; quality?: number };
 
 const UNSPLASH = "https://images.unsplash.com/";
+const MEDIA = "/media/";
 
 /**
  * Photos are stored as full Unsplash URLs. Each srcset entry points at our own /img route,
@@ -13,6 +14,8 @@ const UNSPLASH = "https://images.unsplash.com/";
  * Other URLs pass through untouched.
  */
 export default function imageLoader({ src, width, quality }: LoaderArgs) {
+  // Photos people uploaded (stored under /media/…) are resized by /img/m.
+  if (src.startsWith(MEDIA) && !src.endsWith(".svg")) return `/img/m/${src.slice(MEDIA.length)}?w=${width}&q=${quality ?? defaultQuality(width)}`;
   if (!src.startsWith(UNSPLASH)) return src;
   const stored = new URL(src);
   const params = new URLSearchParams();

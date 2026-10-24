@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ReportForm } from "@/components/report/report-form";
 import { Icon } from "@/components/icon";
 import { ProductTile } from "@/components/product/product-tile";
 import { useStore } from "@/components/providers";
@@ -13,7 +14,7 @@ export function MoreTab({ item, followed, onNotInterested }: { item: FeedItem; f
   const { seller, related } = item;
   const { market } = useStore();
   const { prefs, cycle, lean, mute, reset } = useFeedPrefs();
-  const [reported, setReported] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const [tuning, setTuning] = useState(false);
   const topic = item.product.category;
   const way = prefs.more.includes(topic) ? "more" : prefs.less.includes(topic) ? "less" : null;
@@ -131,12 +132,11 @@ export function MoreTab({ item, followed, onNotInterested }: { item: FeedItem; f
             <span className="block text-xs text-ink-2">Hide this video and show fewer like it</span>
           </span>
         </button>
-        <button type="button" onClick={() => setReported(true)} disabled={reported} className="flex min-h-14 items-center gap-3 px-4 py-2.5 text-left">
+        <button type="button" aria-expanded={reporting} onClick={() => setReporting(!reporting)} className="flex min-h-14 items-center gap-3 px-4 py-2.5 text-left">
           <Icon name="flag" className="size-5 text-like" />
-          <span className="text-[15px] font-semibold" aria-live="polite">
-            {reported ? "Reported. Thanks, we'll take a look." : "Report this video"}
-          </span>
+          <span className="text-[15px] font-semibold">Report this video</span>
         </button>
+        {reporting && <ReportForm targetType="video" targetId={item.video.id} />}
       </section>
     </div>
   );

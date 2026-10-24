@@ -20,12 +20,13 @@ visitors ─▶ Cloudflare (DNS, CDN, WAF, R2) ◀── tunnel (outbound) ─�
 ### 2. Cloudflare
 
 1. **Tunnel:** Zero Trust → Networks → Tunnels → *Create a tunnel* → Cloudflared. Name it `lychee` and copy the **token** (the long string after `--token`). Add a public hostname: your domain (and `www`) → service `http://app:3000`.
-2. **R2:** create two buckets, `lychee-backups` and `lychee-media`. Then R2 → *Manage API tokens* → create a token with **Object Read & Write** on both. Note the access key ID, secret and account ID (they go in `.env` twice: `R2_*` for videos, `RCLONE_CONFIG_R2_*` for backups).
+2. **R2:** create three buckets: `lychee-backups`, `lychee-media` and `lychee-private` (seller identity documents; never give it a public domain). Then R2 → *Manage API tokens* → create a token with **Object Read & Write** on all three. Note the access key ID, secret and account ID (they go in `.env` twice: `R2_*` for videos, `RCLONE_CONFIG_R2_*` for backups).
    - On `lychee-media` → Settings → **Custom domain**: `media.<your domain>` (this is `MEDIA_PUBLIC_URL`; R2 serves it with no egress fees).
    - On `lychee-media` → Settings → **CORS policy**, so browsers can upload straight to the bucket:
      ```json
      [{ "AllowedOrigins": ["https://<your domain>"], "AllowedMethods": ["PUT"], "AllowedHeaders": ["content-type"], "MaxAgeSeconds": 3600 }]
      ```
+   - On `lychee-private` → the same CORS policy (sellers upload documents straight to it), and **no** custom domain or public access.
 3. **Speed and security:** SSL/TLS → Always Use HTTPS **on**; Speed → Brotli **on**; Security → Bot Fight Mode **on**.
 
 ### 3. The server
@@ -87,4 +88,4 @@ GitHub → Settings → Secrets: `DEPLOY_HOST`, `DEPLOY_USER` (`ubuntu`), `DEPLO
 - **Deploys restart the app** for a few seconds. Two instances behind the tunnel (stage 1) remove that gap. `deploymentId` already makes open pages reload cleanly across versions.
 - **Backups are nightly** (up to 24 h of data at risk). Stage 1 adds continuous WAL archiving to R2.
 - **Videos are encoded on the same server** (ffmpeg, one at a time, `ENCODE_THREADS` cores). A minute of phone video takes roughly a minute on 2 OCPUs. When uploads outgrow that, run the `worker` profile on a second free instance with `JOBS=off` on the app, or move encoding to a managed service behind the same `VideoEncoder` port.
-- **Moderation:** with `CONTENT_PREMODERATION=true`, new uploads wait in "review"; the admin queue to approve them comes with seller tools (phase C).
+- **Moderation:** with `CONTENT_PREMODERATION=true`, new uploads wait in "review" until someone in `ADMIN_EMAILS` approves them at `/admin`, where seller applications and reports also queue.

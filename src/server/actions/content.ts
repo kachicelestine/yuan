@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import type { CommentView, LikeTarget, QuestionView } from "@/modules/content";
+import { REPORT_REASONS, REPORT_TARGETS, type CommentView, type LikeTarget, type QuestionView } from "@/modules/content";
 import { actorFor } from "../actor";
 import { services } from "../container";
 import { allow, clientIp, RATE_LIMITED } from "../rate-limits";
@@ -64,4 +64,22 @@ export async function shareAction(videoId: string): Promise<{ ok: boolean }> {
   const v = id.safeParse(videoId);
   if (!v.success || !(await allow("content.react", await clientIp()))) return { ok: false };
   return { ok: await (await services()).interactions.share(v.data) };
+}
+
+const Report = z.object({
+  targetType: z.enum(REPORT_TARGETS),
+  targetId: z.string().min(1).max(64),
+  reason: z.enum(REPORT_REASONS),
+  note: z.string().max(1000).nullable(),
+});
+
+/** Flags a video, comment, question or review for a moderator. */
+export async function reportAction(input: z.input<typeof Report>): Promise<{ ok: true } | Failure> {
+  const account = await currentAccount();
+  if (!account) return fail("signed_out", "Sign in to report.");
+  if (!(await allow("content.post", account.id))) return RATE_LIMITED;
+  const parsed = Report.safeParse(input);
+  if (!parsed.success) return fail("invalid", "Pick what's wrong.");
+  const r = await (await services()).moderation.report(account.id, parsed.data);
+  return r.ok ? { ok: true } : fail(r.error.code, r.error.message);
 }

@@ -1,9 +1,10 @@
-import { and, asc, desc, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import type { Database } from "@/shared/infrastructure/database";
+import type { Report, ReportReason, ReportStatus, ReportTarget } from "../domain/moderation";
 import type { Comment, LikeTarget, Note, Question, Review, TargetType } from "../domain/posts";
-import type { CommentRepository, LikeRepository, NoteRepository, QuestionRepository, ReviewRepository, VideoRepository, VideoStats, WatchTally } from "../domain/repositories";
+import type { CommentRepository, LikeRepository, NoteRepository, QuestionRepository, ReportedItem, ReportRepository, ReviewRepository, VideoRepository, VideoStats, WatchTally } from "../domain/repositories";
 import type { Video } from "../domain/video";
-import { comments, likes, notes, questions, reviews, videoDaily, videos, videoStats } from "./schema";
+import { comments, likes, notes, questions, reports, reviews, videoDaily, videos, videoStats } from "./schema";
 
 /** The row without its encoding-queue bookkeeping, which only the queue methods touch. */
 const toVideo = (r: typeof videos.$inferSelect): Video => {
@@ -33,6 +34,10 @@ export class DrizzleVideoRepository implements VideoRepository {
       await tx.insert(videos).values(row).onConflictDoUpdate({ target: videos.id, set: row });
       await tx.insert(videoStats).values({ videoId: v.id }).onConflictDoNothing();
     });
+  }
+
+  async listByStatus(status: Video["status"], limit: number) {
+    return (await this.db.select().from(videos).where(eq(videos.status, status)).orderBy(asc(videos.createdAt)).limit(limit)).map(toVideo);
   }
 
   async listReady(filter: { sellerId?: string; sellerIds?: readonly string[]; category?: string; limit: number; offset?: number }) {
@@ -151,6 +156,11 @@ export class DrizzleCommentRepository implements CommentRepository {
     await this.db.insert(comments).values(c);
   }
 
+  async remove(id: string) {
+    const [r] = await this.db.delete(comments).where(eq(comments.id, id)).returning();
+    return r ? toComment(r) : null;
+  }
+
   async bumpLikes(id: string, delta: number) {
     const rows = await this.db.update(comments).set({ likes: sql`greatest(0, ${comments.likes} + ${delta})` }).where(eq(comments.id, id)).returning({ id: comments.id });
     return rows.length > 0;
@@ -235,8 +245,18 @@ export class DrizzleReviewRepository implements ReviewRepository {
     return Boolean(r);
   }
 
+  async find(id: string) {
+    const [r] = await this.db.select().from(reviews).where(eq(reviews.id, id)).limit(1);
+    return r ? toReview(r) : null;
+  }
+
   async add(review: Review) {
     await this.db.insert(reviews).values({ ...review, photos: [...review.photos] });
+  }
+
+  async remove(id: string) {
+    const [r] = await this.db.delete(reviews).where(eq(reviews.id, id)).returning();
+    return r ? toReview(r) : null;
   }
 
   async bumpHelpful(id: string, delta: number) {
@@ -258,8 +278,32 @@ export class DrizzleQuestionRepository implements QuestionRepository {
     return rows as Question[];
   }
 
+  async find(id: string) {
+    const [r] = await this.db.select().from(questions).where(eq(questions.id, id)).limit(1);
+    return (r as Question | undefined) ?? null;
+  }
+
+  async unansweredForSeller(sellerId: string, limit: number) {
+    const rows = await this.db
+      .select()
+      .from(questions)
+      .where(and(eq(questions.sellerId, sellerId), isNull(questions.answer)))
+      .orderBy(asc(questions.createdAt))
+      .limit(limit);
+    return rows as Question[];
+  }
+
   async add(q: Question) {
     await this.db.insert(questions).values(q);
+  }
+
+  async remove(id: string) {
+    const [r] = await this.db.delete(questions).where(eq(questions.id, id)).returning();
+    return (r as Question | undefined) ?? null;
+  }
+
+  async saveAnswer(q: Question) {
+    await this.db.update(questions).set({ answer: q.answer, answeredBy: q.answeredBy }).where(and(eq(questions.id, q.id), isNull(questions.answer)));
   }
 
   async bumpVotes(id: string, delta: number) {
@@ -290,5 +334,42 @@ export class DrizzleLikeRepository implements LikeRepository {
       .from(likes)
       .where(and(eq(likes.accountId, accountId), eq(likes.targetType, targetType), inArray(likes.targetId, [...targetIds])));
     return new Set(rows.map((r) => r.id));
+  }
+}
+
+export class DrizzleReportRepository implements ReportRepository {
+  constructor(private readonly db: Database) {}
+
+  async add(r: Report) {
+    const rows = await this.db.insert(reports).values(r).onConflictDoNothing().returning({ id: reports.id });
+    return rows.length > 0;
+  }
+
+  async openItems(limit: number): Promise<ReportedItem[]> {
+    const rows = await this.db
+      .select({
+        targetType: reports.targetType,
+        targetId: reports.targetId,
+        count: sql<number>`count(*)::int`,
+        // Cast: drivers return arrays of custom enums as raw "{a,b}" text.
+        reasons: sql<ReportReason[]>`array_agg(distinct ${reports.reason}::text)`,
+        notes: sql<(string | null)[]>`array_agg(${reports.note} order by ${reports.createdAt})`,
+        firstAt: sql<Date>`min(${reports.createdAt})`,
+      })
+      .from(reports)
+      .where(eq(reports.status, "open"))
+      .groupBy(reports.targetType, reports.targetId)
+      .orderBy(sql`count(*) desc`, sql`min(${reports.createdAt})`)
+      .limit(limit);
+    return rows.map((r) => ({ ...r, notes: r.notes.filter((n): n is string => !!n), firstAt: new Date(r.firstAt) }));
+  }
+
+  async resolve(targetType: ReportTarget, targetId: string, status: Exclude<ReportStatus, "open">, by: string | null, at: Date) {
+    const rows = await this.db
+      .update(reports)
+      .set({ status, resolvedAt: at, resolvedBy: by })
+      .where(and(eq(reports.targetType, targetType), eq(reports.targetId, targetId), eq(reports.status, "open")))
+      .returning({ id: reports.id });
+    return rows.length;
   }
 }

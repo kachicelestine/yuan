@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, type SQL } from "drizzle-orm";
 import type { Database } from "@/shared/infrastructure/database";
 import { cents } from "@/shared/kernel/money";
 import type { Category, CategoryId } from "../domain/category";
@@ -107,6 +107,11 @@ export class DrizzleSellerRepository implements SellerRepository {
     if (!ids.length) return [];
     return (await this.db.select().from(sellers).where(inArray(sellers.id, [...ids]))).map(toSeller);
   }
+
+  async save(s: Seller) {
+    const row = { id: s.id, name: s.name, kind: s.kind, city: s.city, avatar: s.avatar, verified: s.verified, audited: s.audited, yearsInBusiness: s.yearsInBusiness, storefront: s.storefront };
+    await this.db.insert(sellers).values(row).onConflictDoUpdate({ target: sellers.id, set: row });
+  }
 }
 
 export class DrizzleProductRepository implements ProductRepository {
@@ -133,6 +138,19 @@ export class DrizzleProductRepository implements ProductRepository {
     // UUIDv7 ids sort by creation time, so this is "oldest listing first".
     const query = this.db.select().from(products).where(and(...where)).orderBy(asc(products.id));
     return (filter.limit ? await query.limit(filter.limit) : await query).map(toProduct);
+  }
+
+  async findById(id: string) {
+    const [r] = await this.db.select().from(products).where(eq(products.id, id)).limit(1);
+    return r ? toProduct(r) : null;
+  }
+
+  async listBySeller(sellerId: SellerId) {
+    return (await this.db.select().from(products).where(eq(products.sellerId, sellerId)).orderBy(desc(products.createdAt), desc(products.id))).map(toProduct);
+  }
+
+  async slugExists(slug: string) {
+    return (await this.db.select({ id: products.id }).from(products).where(eq(products.slug, slug)).limit(1)).length > 0;
   }
 
   async slugs() {

@@ -1,3 +1,4 @@
+import type { Report, ReportStatus, ReportReason, ReportTarget } from "./moderation";
 import type { Comment, LikeTarget, Note, Question, Review, TargetType } from "./posts";
 import type { Video } from "./video";
 
@@ -11,6 +12,8 @@ export interface VideoRepository {
   find(id: string): Promise<Video | null>;
   findMany(ids: readonly string[]): Promise<Video[]>;
   save(video: Video): Promise<void>;
+  /** Videos in one state, oldest first (moderation queues). */
+  listByStatus(status: Video["status"], limit: number): Promise<Video[]>;
   /** Published videos, newest first. */
   listReady(filter: { sellerId?: string; sellerIds?: readonly string[]; category?: string; limit: number; offset?: number }): Promise<Video[]>;
   stats(ids: readonly string[]): Promise<Map<string, VideoStats>>;
@@ -40,6 +43,8 @@ export interface CommentRepository {
   list(targetType: TargetType, targetId: string, limit: number, before?: Date): Promise<Comment[]>;
   /** False when there's no such comment. */
   bumpLikes(id: string, delta: number): Promise<boolean>;
+  /** Deletes a comment, returning what was removed. */
+  remove(id: string): Promise<Comment | null>;
 }
 
 export interface NoteRepository {
@@ -55,7 +60,9 @@ export interface ReviewRepository {
   /** Every rating for a product (for star counts), cheap to read. */
   ratings(slug: string): Promise<number[]>;
   exists(orderId: string, productSlug: string): Promise<boolean>;
+  find(id: string): Promise<Review | null>;
   add(review: Review): Promise<void>;
+  remove(id: string): Promise<Review | null>;
   /** False when there's no such review. */
   bumpHelpful(id: string, delta: number): Promise<boolean>;
 }
@@ -63,9 +70,28 @@ export interface ReviewRepository {
 export interface QuestionRepository {
   /** Answered questions, most useful first. Unanswered ones wait in the seller's inbox. */
   forProduct(slug: string, limit: number): Promise<Question[]>;
+  find(id: string): Promise<Question | null>;
+  /** Questions waiting for this shop's answer, oldest first. */
+  unansweredForSeller(sellerId: string, limit: number): Promise<Question[]>;
   add(question: Question): Promise<void>;
+  /** Writes the answer (the question itself never changes). */
+  saveAnswer(question: Question): Promise<void>;
+  remove(id: string): Promise<Question | null>;
   /** False when there's no such question. */
   bumpVotes(id: string, delta: number): Promise<boolean>;
+}
+
+/** Everything reported about one item, for the moderation queue. */
+export type ReportedItem = Readonly<{ targetType: ReportTarget; targetId: string; count: number; reasons: readonly ReportReason[]; notes: readonly string[]; firstAt: Date }>;
+
+export interface ReportRepository {
+  /** False when this person already has an open report on the item. */
+  add(report: Report): Promise<boolean>;
+  /** Items with open reports, most reported first. */
+  openItems(limit: number): Promise<ReportedItem[]>;
+  /** Closes every open report on an item. */
+  /** `by` is the moderator, or null when the system closes them (the item was already gone). */
+  resolve(targetType: ReportTarget, targetId: string, status: Exclude<ReportStatus, "open">, by: string | null, at: Date): Promise<number>;
 }
 
 /** Likes by people (one per person per target). */

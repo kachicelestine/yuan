@@ -2,16 +2,17 @@ import "server-only";
 import { spawnSync } from "node:child_process";
 import { brand } from "@/config/brand";
 import { serverEnv } from "@/config/server-env";
-import { makeCatalogQueries, makeSearchProducts } from "@/modules/catalog";
+import { makeCatalogQueries, makeSearchProducts, makeSelling } from "@/modules/catalog";
 import { DrizzleCategoryRepository, DrizzleProductRepository, DrizzleSellerRepository } from "@/modules/catalog/infrastructure/drizzle-catalog-repositories";
 import { DrizzleProductSearch } from "@/modules/catalog/infrastructure/drizzle-product-search";
-import { makeContentQueries, makeInteractions, makeUploads, type VideoEncoder } from "@/modules/content";
+import { makeContentQueries, makeInteractions, makeModeration, makeUploads, type VideoEncoder } from "@/modules/content";
 import { CopyEncoder } from "@/modules/content/infrastructure/copy-encoder";
 import {
   DrizzleCommentRepository,
   DrizzleLikeRepository,
   DrizzleNoteRepository,
   DrizzleQuestionRepository,
+  DrizzleReportRepository,
   DrizzleReviewRepository,
   DrizzleVideoRepository,
 } from "@/modules/content/infrastructure/drizzle-content-repositories";
@@ -29,9 +30,11 @@ import { makeIdentity } from "@/modules/identity";
 import { ConsoleMailer, NodeSecrets, ResendMailer, ViemVerifier } from "@/modules/identity/infrastructure/adapters";
 import { DrizzleAccountRepository, DrizzleChallengeRepository, DrizzleSessionRepository } from "@/modules/identity/infrastructure/drizzle-identity-repositories";
 import { makeListMarkets, makeRefreshRates } from "@/modules/markets";
+import { makeOnboarding } from "@/modules/merchants";
+import { DrizzleApplicationRepository, DrizzleMembershipRepository } from "@/modules/merchants/infrastructure/drizzle-merchants-repositories";
 import { DrizzleCountryRepository, DrizzleFxRateRepository } from "@/modules/markets/infrastructure/drizzle-markets-repository";
 import { OpenErApiRateSource } from "@/modules/markets/infrastructure/open-er-api-rate-source";
-import { makeCancelUnpaidOrder, makeCart, makeCheckout, makeGetOrder, makeMarkOrderPaid, orderNumber } from "@/modules/ordering";
+import { makeCancelUnpaidOrder, makeCart, makeCheckout, makeGetOrder, makeMarkOrderPaid, makeSellerOrders, orderNumber } from "@/modules/ordering";
 import { DrizzleCartRepository } from "@/modules/ordering/infrastructure/drizzle-cart-repository";
 import { DrizzleOrderRepository } from "@/modules/ordering/infrastructure/drizzle-order-repository";
 import { makeCheckInvoice, makeRequestPayment, makeSyncInvoices, type PaymentNetwork } from "@/modules/payments";
@@ -47,6 +50,7 @@ import { unitOfWork } from "@/shared/infrastructure/unit-of-work";
 import { newId, systemClock, type Clock, type ObjectStorage } from "@/shared/kernel";
 import { CatalogProductDirectory } from "./adapters/content-products";
 import { WalletCoupons } from "./adapters/coupons";
+import { CatalogShops } from "./adapters/shops";
 import { MarketDestinations } from "./adapters/destinations";
 import { CatalogPricing } from "./adapters/order-catalog";
 import { getDb } from "./db";
@@ -74,7 +78,7 @@ function paymentNetwork(db: Database): Payments {
   return { network: new RailRouter({ "usdc-base": base }), simulator: null };
 }
 
-type Media = { storage: ObjectStorage; encoder: VideoEncoder; premoderated: boolean };
+type Media = { storage: ObjectStorage; privateStorage: ObjectStorage; encoder: VideoEncoder; premoderated: boolean };
 
 let ffmpegFound: boolean | undefined;
 /** Whether ffmpeg is on this machine (checked once per process). */
@@ -82,19 +86,19 @@ const hasFfmpeg = () => (ffmpegFound ??= spawnSync("ffmpeg", ["-version"], { std
 
 /** Disk in development, R2 in production; ffmpeg when it's installed. */
 function media(): Media {
+  const r2 = (bucket: string, publicUrl: string) =>
+    new R2Storage({ accountId: serverEnv.R2_ACCOUNT_ID!, accessKeyId: serverEnv.R2_ACCESS_KEY_ID!, secretAccessKey: serverEnv.R2_SECRET_ACCESS_KEY!, bucket, publicUrl });
   const storage: ObjectStorage =
+    serverEnv.STORAGE === "r2" ? r2(serverEnv.R2_BUCKET!, serverEnv.MEDIA_PUBLIC_URL!) : new LocalStorage({ dir: serverEnv.MEDIA_DIR, baseUrl: "/media", secret: authSecret() });
+  // Identity documents live apart from public media, so no public route can ever serve them.
+  const privateStorage: ObjectStorage =
     serverEnv.STORAGE === "r2"
-      ? new R2Storage({
-          accountId: serverEnv.R2_ACCOUNT_ID!,
-          accessKeyId: serverEnv.R2_ACCESS_KEY_ID!,
-          secretAccessKey: serverEnv.R2_SECRET_ACCESS_KEY!,
-          bucket: serverEnv.R2_BUCKET!,
-          publicUrl: serverEnv.MEDIA_PUBLIC_URL!,
-        })
-      : new LocalStorage({ dir: serverEnv.MEDIA_DIR, baseUrl: "/media", secret: authSecret() });
+      ? r2(serverEnv.R2_PRIVATE_BUCKET!, "")
+      : new LocalStorage({ dir: serverEnv.PRIVATE_DIR, baseUrl: "", secret: authSecret(), uploadPath: "/api/storage/upload", downloadPath: "/api/storage/file" });
   const useFfmpeg = (serverEnv.VIDEO_ENCODER ?? (hasFfmpeg() ? "ffmpeg" : "copy")) === "ffmpeg";
   return {
     storage,
+    privateStorage,
     encoder: useFfmpeg ? new FfmpegEncoder({ storage, threads: serverEnv.ENCODE_THREADS }) : new CopyEncoder(storage),
     premoderated: serverEnv.CONTENT_PREMODERATION ?? serverEnv.NODE_ENV === "production",
   };
@@ -142,9 +146,10 @@ export function wire(db: Database, options: WireOptions = {}) {
     reviews: new DrizzleReviewRepository(tx),
     questions: new DrizzleQuestionRepository(tx),
     likes: new DrizzleLikeRepository(tx),
+    reports: new DrizzleReportRepository(tx),
   });
   const content = contentRepos(db);
-  const { storage, encoder, premoderated } = options.media ?? media();
+  const { storage, privateStorage, encoder, premoderated } = options.media ?? media();
 
   const checkInvoice = makeCheckInvoice({
     network,
@@ -190,6 +195,7 @@ export function wire(db: Database, options: WireOptions = {}) {
     }),
     listMarkets: makeListMarkets({ countries, fx: new DrizzleFxRateRepository(db) }),
     catalog: makeCatalogQueries({ categories: new DrizzleCategoryRepository(db), sellers, products, clock }),
+    selling: makeSelling({ products, categories: new DrizzleCategoryRepository(db), sellers, photos: storage, clock, newId: () => newId() }),
     searchProducts: makeSearchProducts({ search: new DrizzleProductSearch(db), sellers, clock }),
     engagement,
     content: makeContentQueries({ ...content, clock }),
@@ -212,7 +218,30 @@ export function wire(db: Database, options: WireOptions = {}) {
       newId: () => newId(),
       premoderated,
     }),
+    moderation: makeModeration({
+      ...content,
+      // A takedown, its counters, the closed reports and the event commit together.
+      uow: unitOfWork(db, (tx) => ({ ...contentRepos(tx), events: new OutboxEventLog(tx, () => clock.now()) })),
+      clock,
+      newId: () => newId(),
+    }),
     storage,
+    privateStorage,
+    onboarding: makeOnboarding({
+      applications: new DrizzleApplicationRepository(db),
+      memberships: new DrizzleMembershipRepository(db),
+      shops: new CatalogShops(sellers),
+      documents: privateStorage,
+      // Opening the shop, the owner's membership and the decision commit together.
+      uow: unitOfWork(db, (tx) => ({
+        applications: new DrizzleApplicationRepository(tx),
+        memberships: new DrizzleMembershipRepository(tx),
+        shops: new CatalogShops(new DrizzleSellerRepository(tx)),
+        events: new OutboxEventLog(tx, () => clock.now()),
+      })),
+      clock,
+      newId: () => newId(),
+    }),
     cart: makeCart({ carts: new DrizzleCartRepository(db), catalog: pricing }),
 
     checkout: makeCheckout({
@@ -231,6 +260,7 @@ export function wire(db: Database, options: WireOptions = {}) {
       newOrderNumber: () => orderNumber("LY", random),
     }),
     getOrder: makeGetOrder({ orders: new DrizzleOrderRepository(db) }),
+    sellerOrders: makeSellerOrders({ orders: new DrizzleOrderRepository(db) }),
 
     checkInvoice,
     syncInvoices: makeSyncInvoices({ invoices: new DrizzleInvoiceRepository(db), checkInvoice, clock }),

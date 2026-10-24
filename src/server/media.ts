@@ -3,6 +3,7 @@ import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { contentTypeOf, LocalStorage } from "@/shared/infrastructure/storage/local-storage";
+import { isStorageKey } from "@/shared/kernel";
 import { services } from "./container";
 
 // Uploads and files for STORAGE=local (development and single-server demos). With R2,
@@ -10,9 +11,10 @@ import { services } from "./container";
 
 const json = (status: number, body: Record<string, string>) => Response.json(body, { status });
 
-/** Saves a browser upload against its signed ticket. */
-export async function receiveUpload(request: Request) {
-  const { storage } = await services();
+/** Saves a browser upload against its signed ticket, into public media or private documents. */
+export async function receiveUpload(request: Request, into: "public" | "private" = "public") {
+  const app = await services();
+  const storage = into === "public" ? app.storage : app.privateStorage;
   if (!(storage instanceof LocalStorage)) return new Response(null, { status: 404 });
   const ticket = storage.verify(new URL(request.url).searchParams);
   if (!ticket) return json(403, { error: "invalid_ticket" });
@@ -28,10 +30,15 @@ export async function receiveUpload(request: Request) {
   return new Response(null, { status: 200 });
 }
 
-/** Serves a stored file, answering byte ranges (players use them to start fast and to seek). */
+/**
+ * Serves a stored file, answering byte ranges (players use them to start fast and to seek).
+ * With R2, /media/<key> links (how product photos are stored) redirect to the bucket's domain.
+ */
 export async function serveMedia(key: string, rangeHeader: string | null) {
   const { storage } = await services();
-  if (!(storage instanceof LocalStorage)) return new Response(null, { status: 404 });
+  if (!(storage instanceof LocalStorage)) {
+    return isStorageKey(key) ? Response.redirect(storage.publicUrl(key), 308) : new Response(null, { status: 404 });
+  }
   let file: string;
   let size: number;
   try {
@@ -59,5 +66,23 @@ export async function serveMedia(key: string, rangeHeader: string | null) {
   return new Response(Readable.toWeb(createReadStream(file, { start, end })) as ReadableStream, {
     status: 206,
     headers: { ...headers, "content-length": String(end - start + 1), "content-range": `bytes ${start}-${end}/${size}` },
+  });
+}
+
+/** Serves a private document behind a short-lived signed link (made only for reviewers). */
+export async function servePrivate(request: Request) {
+  const { privateStorage } = await services();
+  if (!(privateStorage instanceof LocalStorage)) return new Response(null, { status: 404 });
+  const key = privateStorage.verifyDownload(new URL(request.url).searchParams);
+  if (!key) return new Response("This link has expired.", { status: 403 });
+  let file: string;
+  try {
+    file = privateStorage.path(key);
+    await stat(file);
+  } catch {
+    return new Response(null, { status: 404 });
+  }
+  return new Response(Readable.toWeb(createReadStream(file)) as ReadableStream, {
+    headers: { "content-type": contentTypeOf(key), "cache-control": "private, no-store", "x-content-type-options": "nosniff", "content-disposition": "inline" },
   });
 }

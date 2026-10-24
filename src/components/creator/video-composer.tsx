@@ -8,6 +8,7 @@ import { useMoney } from "@/components/price";
 import { useStore } from "@/components/providers";
 import { useProductSearch } from "@/components/search/use-product-search";
 import type { Product } from "@/lib/catalog";
+import { uploadFile } from "@/lib/upload";
 import { publishVideoAction, startUploadAction } from "@/server/actions/uploads";
 
 // Same limits the server enforces (see the content module); checked here so people hear early.
@@ -17,19 +18,6 @@ const MAX_CAPTION = 2200;
 const MAX_PRODUCTS = 6;
 
 type Stage = { kind: "editing" } | { kind: "uploading"; progress: number } | { kind: "posting" } | { kind: "posted" } | { kind: "failed"; message: string };
-
-/** PUTs the file to its signed upload URL, reporting progress (fetch can't, XHR can). */
-function put(url: string, headers: Record<string, string>, file: File, onProgress: (fraction: number) => void) {
-  return new Promise<void>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", url);
-    for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
-    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
-    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status}).`)));
-    xhr.onerror = () => reject(new Error("The connection dropped during the upload."));
-    xhr.send(file);
-  });
-}
 
 /** Post a shoppable video: pick a clip, tag what's in it, write a caption, upload. */
 export function VideoComposer() {
@@ -70,7 +58,7 @@ export function VideoComposer() {
     const ticket = await startUploadAction({ contentType: file.type, bytes: file.size });
     if (!ticket.ok) return setStage({ kind: "failed", message: ticket.message });
     try {
-      await put(ticket.url, ticket.headers, file, (progress) => setStage({ kind: "uploading", progress }));
+      await uploadFile(ticket.url, ticket.headers, file, (progress) => setStage({ kind: "uploading", progress }));
     } catch (error) {
       return setStage({ kind: "failed", message: error instanceof Error ? error.message : "The upload didn't finish." });
     }

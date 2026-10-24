@@ -10,7 +10,7 @@ export type R2Options = {
   accessKeyId: string;
   secretAccessKey: string;
   bucket: string;
-  /** The bucket's public domain, e.g. https://media.example.com (R2 custom domain: no egress fees). */
+  /** The bucket's public domain, e.g. https://media.example.com (R2 custom domain: no egress fees). Empty for private buckets. */
   publicUrl: string;
 };
 
@@ -59,6 +59,13 @@ export class R2Storage implements ObjectStorage {
     return { size: Number(res.headers.get("content-length") ?? 0), contentType: res.headers.get("content-type") ?? "application/octet-stream" };
   }
 
+  async read(key: string) {
+    const res = await this.client.fetch(this.url(key));
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`R2 GET ${key}: ${res.status}`);
+    return new Uint8Array(await res.arrayBuffer());
+  }
+
   async download(key: string, toPath: string) {
     const res = await this.client.fetch(this.url(key));
     if (!res.ok || !res.body) throw new Error(`R2 GET ${key}: ${res.status}`);
@@ -79,6 +86,13 @@ export class R2Storage implements ObjectStorage {
   async remove(key: string) {
     const res = await this.client.fetch(this.url(key), { method: "DELETE" });
     if (!res.ok && res.status !== 404) throw new Error(`R2 DELETE ${key}: ${res.status}`);
+  }
+
+  async signDownload(key: string, expiresInSeconds: number) {
+    const url = new URL(this.url(key));
+    url.searchParams.set("X-Amz-Expires", String(expiresInSeconds));
+    const signed = await this.client.sign(url.toString(), { method: "GET", aws: { signQuery: true } });
+    return signed.url;
   }
 
   publicUrl(key: string) {

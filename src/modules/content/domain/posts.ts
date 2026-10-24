@@ -63,6 +63,8 @@ export type Review = Readonly<{
 export type Question = Readonly<{
   id: string;
   productSlug: string;
+  /** The shop that answers; null for seed questions. */
+  sellerId: string | null;
   askerId: string | null;
   askerName: string;
   question: string;
@@ -72,7 +74,7 @@ export type Question = Readonly<{
   createdAt: Date;
 }>;
 
-export type PostError = DomainError<"invalid_text" | "invalid_rating">;
+export type PostError = DomainError<"invalid_text" | "invalid_rating" | "already_answered">;
 
 const clean = (text: string) => text.replace(/\s+/g, " ").trim();
 
@@ -93,6 +95,14 @@ export function askQuestion(props: Omit<Question, "answer" | "answeredBy" | "vot
   const question = clean(props.question);
   if (question.length < 5 || question.length > 300) return err(domainError("invalid_text", "Questions are 5 to 300 characters."));
   return ok({ ...props, question, answer: null, answeredBy: null, votes: 0 });
+}
+
+/** The shop's answer. Answers are final: a correction is a new answer in the thread later. */
+export function answerQuestion(q: Question, text: string): Result<Question, PostError> {
+  if (q.answer) return err(domainError("already_answered", "This question already has an answer."));
+  const answer = text.trim();
+  if (answer.length < 2 || answer.length > 1000) return err(domainError("invalid_text", "Answers are 2 to 1,000 characters."));
+  return ok({ ...q, answer, answeredBy: "seller" });
 }
 
 /** Star counts (5★ first) and the average, from individual ratings. */

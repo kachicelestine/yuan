@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { createWriteStream } from "node:fs";
-import { copyFile, mkdir, rename, rm, stat } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rename, rm, stat } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -14,6 +14,7 @@ const TYPES: Record<string, string> = {
   jpeg: "image/jpeg",
   png: "image/png",
   webp: "image/webp",
+  pdf: "application/pdf",
 };
 
 /** Content type from a key's extension. */
@@ -28,7 +29,18 @@ export type UploadTicket = { key: string; bytes: number; type: string; exp: numb
 export class LocalStorage implements ObjectStorage {
   private readonly root: string;
 
-  constructor(private readonly options: { dir: string; baseUrl: string; secret: string; now?: () => Date }) {
+  constructor(
+    private readonly options: {
+      dir: string;
+      /** Where public files are served (empty for private storage). */
+      baseUrl: string;
+      secret: string;
+      now?: () => Date;
+      /** The routes that accept uploads and hand out signed downloads for this folder. */
+      uploadPath?: string;
+      downloadPath?: string;
+    },
+  ) {
     this.root = resolve(options.dir);
   }
 
@@ -41,7 +53,31 @@ export class LocalStorage implements ObjectStorage {
   }
 
   private sign(t: UploadTicket) {
-    return createHmac("sha256", this.options.secret).update(`${t.key}\n${t.bytes}\n${t.type}\n${t.exp}`).digest("base64url");
+    return createHmac("sha256", this.options.secret).update(`upload\n${this.root}\n${t.key}\n${t.bytes}\n${t.type}\n${t.exp}`).digest("base64url");
+  }
+
+  private signKey(key: string, exp: number) {
+    return createHmac("sha256", this.options.secret).update(`download\n${this.root}\n${key}\n${exp}`).digest("base64url");
+  }
+
+  private nowSeconds() {
+    return Math.floor((this.options.now?.() ?? new Date()).getTime() / 1000);
+  }
+
+  async signDownload(key: string, expiresInSeconds: number) {
+    this.path(key);
+    const exp = this.nowSeconds() + expiresInSeconds;
+    return `${this.options.downloadPath ?? "/api/storage/file"}?${new URLSearchParams({ key, exp: String(exp), sig: this.signKey(key, exp) })}`;
+  }
+
+  /** The key a download link points at, if its signature holds and it hasn't expired. */
+  verifyDownload(params: URLSearchParams): string | null {
+    const key = params.get("key") ?? "";
+    const exp = Number(params.get("exp"));
+    const sig = Buffer.from(params.get("sig") ?? "");
+    if (!isStorageKey(key) || !Number.isSafeInteger(exp) || exp < this.nowSeconds()) return null;
+    const expected = Buffer.from(this.signKey(key, exp));
+    return sig.length === expected.length && timingSafeEqual(sig, expected) ? key : null;
   }
 
   async signUpload(key: string, file: { contentType: string; bytes: number }, expiresInSeconds: number): Promise<SignedUpload> {
@@ -49,7 +85,7 @@ export class LocalStorage implements ObjectStorage {
     const now = this.options.now?.() ?? new Date();
     const ticket: UploadTicket = { key, bytes: file.bytes, type: file.contentType, exp: Math.floor(now.getTime() / 1000) + expiresInSeconds };
     const query = new URLSearchParams({ key, bytes: String(ticket.bytes), type: ticket.type, exp: String(ticket.exp), sig: this.sign(ticket) });
-    return { url: `/api/media/upload?${query}`, method: "PUT", headers: { "content-type": file.contentType } };
+    return { url: `${this.options.uploadPath ?? "/api/media/upload"}?${query}`, method: "PUT", headers: { "content-type": file.contentType } };
   }
 
   /** The ticket in an upload URL, if its signature holds and it hasn't expired. */
@@ -89,6 +125,14 @@ export class LocalStorage implements ObjectStorage {
     try {
       const s = await stat(this.path(key));
       return s.isFile() ? { size: s.size, contentType: contentTypeOf(key) } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async read(key: string) {
+    try {
+      return new Uint8Array(await readFile(this.path(key)));
     } catch {
       return null;
     }

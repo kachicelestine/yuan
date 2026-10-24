@@ -4,7 +4,7 @@ import { Scheduler, type ScheduledJob } from "@/shared/infrastructure/schedules"
 import { log } from "@/shared/infrastructure/log";
 import { services, type Services } from "../container";
 import { revalidateTags } from "../internal";
-import { categoryVideosTag, FEED_TAG, MARKETS_TAG, sellerVideosTag } from "../cache-tags";
+import { categoryVideosTag, commentsTag, FEED_TAG, MARKETS_TAG, questionsTag, reviewsTag, sellerReviewsTag, sellerVideosTag } from "../cache-tags";
 
 const jobLog = log.child({ scope: "jobs" });
 const DAY = 24 * 60 * 60 * 1000;
@@ -20,6 +20,16 @@ function eventHandlers(app: Services): Record<string, OutboxHandler> {
     VideoPublished: async ({ payload }) => {
       const { sellerId, category } = payload as { sellerId: string; category: string };
       await revalidateTags([FEED_TAG, sellerVideosTag(sellerId), categoryVideosTag(category)]);
+    },
+    // A takedown disappears from every page that showed it.
+    ContentRemoved: async ({ payload }) => {
+      const p = payload as { targetType: string; videoId: string | null; productSlug: string | null; sellerId: string | null };
+      const tags: string[] = [];
+      if (p.videoId) tags.push(FEED_TAG, commentsTag(p.videoId));
+      if (p.targetType === "video" && p.sellerId) tags.push(sellerVideosTag(p.sellerId));
+      if (p.targetType === "question" && p.productSlug) tags.push(questionsTag(p.productSlug));
+      if (p.targetType === "review" && p.productSlug) tags.push(reviewsTag(p.productSlug), ...(p.sellerId ? [sellerReviewsTag(p.sellerId)] : []));
+      if (tags.length) await revalidateTags(tags);
     },
   };
 }
