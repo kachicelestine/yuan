@@ -37,7 +37,7 @@ compose exec -T app node -e "
   fetch('http://127.0.0.1:3000/api/internal/revalidate', {
     method: 'POST',
     headers: { authorization: 'Bearer ' + process.env.INTERNAL_TOKEN, 'content-type': 'application/json' },
-    body: JSON.stringify({ tags: ['catalog', 'markets'] }),
+    body: JSON.stringify({ tags: ['catalog', 'markets', 'content'] }),
   }).then(r => process.exit(r.ok ? 0 : 1))"
 
 docker image prune -f --filter "until=168h" >/dev/null

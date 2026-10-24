@@ -26,6 +26,8 @@ services:
       migrate: { condition: service_completed_successfully }
     volumes:
       - photos:/app/.next/cache/photos
+      # Uploads and encoded videos when STORAGE=local (R2 in production).
+      - media:/app/.data/media
     # Next.js drains in-flight requests and after() work on SIGTERM.
     stop_grace_period: 30s
     init: true
@@ -53,6 +55,8 @@ services:
     command: ["node", "ops/worker.mjs"]
     depends_on:
       db: { condition: service_healthy }
+    volumes:
+      - media:/app/.data/media
     stop_grace_period: 60s
     init: true
     restart: unless-stopped
@@ -106,3 +110,4 @@ secrets:
 volumes:
   pgdata:
   photos:
+  media:

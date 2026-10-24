@@ -31,9 +31,16 @@ export const videos = contentSchema.table(
     status: videoStatus().notNull(),
     createdAt: timestamp({ withTimezone: true }).notNull(),
     publishedAt: timestamp({ withTimezone: true }),
+    // The encoding queue lives on the row: a claim leases it, failures retry later.
+    encodeAttempts: integer().notNull().default(0),
+    encodeAfter: timestamp({ withTimezone: true }),
+    encodeError: text(),
   },
   (t) => [
     index("videos_ready_idx").on(t.publishedAt).where(sql`${t.status} = 'ready'`),
+    index("videos_encode_idx").on(t.createdAt).where(sql`${t.status} = 'processing'`),
+    index("videos_author_idx").on(t.authorId, t.createdAt),
+    uniqueIndex("videos_source_idx").on(t.sourceKey),
     index("videos_seller_idx").on(t.sellerId, t.publishedAt),
     index("videos_category_idx").on(t.category, t.publishedAt),
   ],

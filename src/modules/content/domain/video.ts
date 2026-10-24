@@ -41,9 +41,14 @@ export type VideoError = DomainError<"invalid_caption" | "too_many_products" | "
 export const MAX_CAPTION = 2200;
 export const MAX_TAGGED = 6;
 export const MAX_TAGS = 10;
+/** Uploads: phone footage up to three minutes fits comfortably. */
+export const MAX_UPLOAD_BYTES = 300 * 1024 * 1024;
+export const MAX_DURATION_MS = 3 * 60_000;
+/** What phones record (MP4/MOV) and what browsers export (WebM), with their file extensions. */
+export const UPLOAD_TYPES: Readonly<Record<string, string>> = { "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm" };
 
 export type VideoUploaded = Readonly<{ type: "VideoUploaded"; videoId: string; sourceKey: string; at: Date }>;
-export type VideoPublished = Readonly<{ type: "VideoPublished"; videoId: string; sellerId: string; at: Date }>;
+export type VideoPublished = Readonly<{ type: "VideoPublished"; videoId: string; sellerId: string; category: string; at: Date }>;
 
 /** A new upload, waiting for its renditions. Hashtags are normalised: lower case, no "#". */
 export function draftVideo(props: {
@@ -110,7 +115,7 @@ export function approve(video: Video, at: Date): Result<{ video: Video; event: V
 
 const goLive = (video: Video, at: Date) => ({
   video: { ...video, status: "ready" as const, publishedAt: at },
-  event: { type: "VideoPublished" as const, videoId: video.id, sellerId: video.sellerId, at },
+  event: { type: "VideoPublished" as const, videoId: video.id, sellerId: video.sellerId, category: video.category, at },
 });
 
 /** Encoding gave up (unreadable file, too long, no video track). */

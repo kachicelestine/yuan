@@ -18,6 +18,17 @@ export interface VideoRepository {
   bump(id: string, delta: Partial<VideoStats>): Promise<boolean>;
   /** Adds watch tallies to the lifetime counters and to today's row. */
   addWatches(tallies: readonly WatchTally[], day: string): Promise<void>;
+  /** Someone's own videos in any state, newest first. */
+  listByAuthor(authorId: string, limit: number): Promise<Video[]>;
+  /** True when a video was already made from this upload. */
+  hasSource(sourceKey: string): Promise<boolean>;
+  /**
+   * Takes the oldest video waiting for encoding, leased until `leaseUntil` so no other
+   * worker takes it meanwhile. Videos that have used up their attempts are skipped.
+   */
+  claimForEncoding(now: Date, leaseUntil: Date, maxAttempts: number): Promise<{ video: Video; attempt: number } | null>;
+  /** Hands a claimed video back to wait until `retryAt`, noting why. */
+  releaseEncoding(id: string, error: string, retryAt: Date): Promise<void>;
 }
 
 export interface CommentRepository {

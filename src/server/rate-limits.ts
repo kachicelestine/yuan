@@ -21,6 +21,8 @@ export const LIMITS = {
   "content.react": [300, 60],
   /** Comments and questions, per account. */
   "content.post": [20, 10 * 60],
+  /** Upload tickets and posts, per account. */
+  "content.upload": [20, 60 * 60],
   /** Feed pages, per IP. */
   feed: [240, 60],
   /** Watch beacons, per IP. */

@@ -10,6 +10,7 @@ export {
   type ProductDirectory,
   type QuestionAsked,
 } from "./application/interactions";
+export { ENCODE_ATTEMPTS, ENCODE_LEASE_MS, makeUploads, type EncodeError, type MyVideoView, type UploadDeps, type UploadError, type Uploads, type VideoEncoder } from "./application/uploads";
 export { FEED_CANDIDATES, makeContentQueries, TOP_COMMENTS, type ContentQueries, type ContentQueryDeps } from "./application/queries";
 export { ago, shortDate, type CommentView, type NoteView, type QuestionView, type ReviewView, type VideoView } from "./application/views";
 export { askQuestion, summarise, writeComment, writeReview, type Comment, type LikeTarget, type Note, type PostError, type Question, type Review, type TargetType } from "./domain/posts";
@@ -22,7 +23,9 @@ export {
   fail,
   MAX_CAPTION,
   MAX_TAGGED,
+  MAX_DURATION_MS,
   MAX_TAGS,
+  MAX_UPLOAD_BYTES,
   remove,
   renditionFor,
   type Rendition,
@@ -33,4 +36,5 @@ export {
   type VideoPublished,
   type VideoStatus,
   type VideoUploaded,
+  UPLOAD_TYPES,
 } from "./domain/video";

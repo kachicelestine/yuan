@@ -4,7 +4,7 @@ import { Scheduler, type ScheduledJob } from "@/shared/infrastructure/schedules"
 import { log } from "@/shared/infrastructure/log";
 import { services, type Services } from "../container";
 import { revalidateTags } from "../internal";
-import { MARKETS_TAG } from "../cache-tags";
+import { categoryVideosTag, FEED_TAG, MARKETS_TAG, sellerVideosTag } from "../cache-tags";
 
 const jobLog = log.child({ scope: "jobs" });
 const DAY = 24 * 60 * 60 * 1000;
@@ -15,7 +15,13 @@ const DAY = 24 * 60 * 60 * 1000;
  */
 function eventHandlers(app: Services): Record<string, OutboxHandler> {
   void app; // Notifications, search indexing and analytics subscribe here as they land.
-  return {};
+  return {
+    // A new video joins the feed, its shop and its category as soon as it's live.
+    VideoPublished: async ({ payload }) => {
+      const { sellerId, category } = payload as { sellerId: string; category: string };
+      await revalidateTags([FEED_TAG, sellerVideosTag(sellerId), categoryVideosTag(category)]);
+    },
+  };
 }
 
 /** Recurring work. Each runs on one instance at a time, wherever the scheduler ticks. */
@@ -48,5 +54,5 @@ export async function buildJobs() {
   const app = await services();
   const dispatcher = new OutboxDispatcher(app.db, eventHandlers(app));
   const scheduler = new Scheduler(app.db, recurringJobs(app, dispatcher));
-  return { dispatcher, scheduler };
+  return { app, dispatcher, scheduler };
 }

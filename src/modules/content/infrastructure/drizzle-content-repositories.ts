@@ -5,7 +5,14 @@ import type { CommentRepository, LikeRepository, NoteRepository, QuestionReposit
 import type { Video } from "../domain/video";
 import { comments, likes, notes, questions, reviews, videoDaily, videos, videoStats } from "./schema";
 
-const toVideo = (r: typeof videos.$inferSelect): Video => r;
+/** The row without its encoding-queue bookkeeping, which only the queue methods touch. */
+const toVideo = (r: typeof videos.$inferSelect): Video => {
+  const v: Partial<typeof r> = { ...r };
+  delete v.encodeAttempts;
+  delete v.encodeAfter;
+  delete v.encodeError;
+  return v as Video;
+};
 
 export class DrizzleVideoRepository implements VideoRepository {
   constructor(private readonly db: Database) {}
@@ -66,6 +73,37 @@ export class DrizzleVideoRepository implements VideoRepository {
     if (!Object.keys(set).length) return (await this.db.select({ id: videoStats.videoId }).from(videoStats).where(eq(videoStats.videoId, id)).limit(1)).length > 0;
     const rows = await this.db.update(videoStats).set(set).where(eq(videoStats.videoId, id)).returning({ id: videoStats.videoId });
     return rows.length > 0;
+  }
+
+  async listByAuthor(authorId: string, limit: number) {
+    const rows = await this.db.select().from(videos).where(eq(videos.authorId, authorId)).orderBy(desc(videos.createdAt)).limit(limit);
+    return rows.map(toVideo);
+  }
+
+  async hasSource(sourceKey: string) {
+    return (await this.db.select({ id: videos.id }).from(videos).where(eq(videos.sourceKey, sourceKey)).limit(1)).length > 0;
+  }
+
+  async claimForEncoding(now: Date, leaseUntil: Date, maxAttempts: number) {
+    const [r] = await this.db
+      .update(videos)
+      .set({ encodeAfter: leaseUntil, encodeAttempts: sql`${videos.encodeAttempts} + 1` })
+      .where(
+        sql`${videos.id} = (
+          select id from ${videos}
+          where ${videos.status} = 'processing' and ${videos.encodeAttempts} < ${maxAttempts}
+            and (${videos.encodeAfter} is null or ${videos.encodeAfter} <= ${now.toISOString()})
+          order by ${videos.createdAt}
+          limit 1
+          for update skip locked
+        )`,
+      )
+      .returning();
+    return r ? { video: toVideo(r), attempt: r.encodeAttempts } : null;
+  }
+
+  async releaseEncoding(id: string, error: string, retryAt: Date) {
+    await this.db.update(videos).set({ encodeAfter: retryAt, encodeError: error.slice(0, 1000) }).where(eq(videos.id, id));
   }
 
   async addWatches(tallies: readonly WatchTally[], day: string) {

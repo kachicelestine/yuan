@@ -7,6 +7,6 @@ export class CatalogProductDirectory implements ProductDirectory {
 
   async find(slug: string) {
     const p = await this.products.findBySlug(slug);
-    return p && { slug: p.slug, sellerId: p.sellerId, category: p.categoryId };
+    return p && { slug: p.slug, sellerId: p.sellerId, category: p.categoryId, image: p.images[0] ?? "" };
   }
 }

@@ -43,6 +43,22 @@ const schema = z
     LOG_FORMAT: optional(z.enum(["json", "pretty"])),
     /** A public demo or staging site: allows simulated payments and on-screen sign-in codes in production. */
     DEMO_DEPLOYMENT: z.stringbool().default(false),
+    /** Where uploads and encoded videos live: this machine's disk, or a Cloudflare R2 bucket. */
+    STORAGE: z.enum(["local", "r2"]).default("local"),
+    /** Folder for STORAGE=local. */
+    MEDIA_DIR: z.string().min(1).default(".data/media"),
+    R2_ACCOUNT_ID: optional(z.string().regex(/^[a-f0-9]{32}$/, "must be the 32-character account id")),
+    R2_ACCESS_KEY_ID: optional(z.string().min(16)),
+    R2_SECRET_ACCESS_KEY: optional(z.string().min(32)),
+    R2_BUCKET: optional(z.string().regex(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/, "must be an R2 bucket name")),
+    /** The bucket's public domain, e.g. https://media.example.com. */
+    MEDIA_PUBLIC_URL: optional(z.url()),
+    /** ffmpeg encodes uploads; copy serves them as uploaded (machines without ffmpeg). Default: ffmpeg when installed. */
+    VIDEO_ENCODER: optional(z.enum(["ffmpeg", "copy"])),
+    /** CPU threads per encode; keep low on a server that also serves pages. */
+    ENCODE_THREADS: z.coerce.number().int().min(1).max(16).default(1),
+    /** Hold new uploads for a moderator before they're public. Default: on in production. */
+    CONTENT_PREMODERATION: optional(z.stringbool()),
   })
   .superRefine((env, ctx) => {
     // A production server with a real database is a real deployment.
@@ -58,6 +74,11 @@ const schema = z
       if (!env.AUTH_SECRET) ctx.addIssue({ code: "custom", path: ["AUTH_SECRET"], message: "required when taking real payments" });
       if (env.AUTH_DEV_CODES) ctx.addIssue({ code: "custom", path: ["AUTH_DEV_CODES"], message: "must be off when taking real payments" });
       if (!env.RESEND_API_KEY || !env.EMAIL_FROM) ctx.addIssue({ code: "custom", path: ["RESEND_API_KEY"], message: "RESEND_API_KEY and EMAIL_FROM are required when taking real payments" });
+    }
+    if (env.STORAGE === "r2") {
+      for (const key of ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET", "MEDIA_PUBLIC_URL"] as const) {
+        if (!env[key]) ctx.addIssue({ code: "custom", path: [key], message: "required when STORAGE=r2" });
+      }
     }
     // Base is the only rail with an on-chain verifier so far.
     if (env.PAYMENTS_MODE === "onchain" && !env.PAYMENTS_BASE_ADDRESS) {

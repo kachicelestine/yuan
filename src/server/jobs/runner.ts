@@ -10,15 +10,16 @@ const sleep = (ms: number, signal: AbortSignal) =>
   });
 
 /** Last successful loop pass, for the health check. */
-export const jobStatus = { startedAt: null as Date | null, lastDispatchAt: null as Date | null, lastTickAt: null as Date | null };
+export const jobStatus = { startedAt: null as Date | null, lastDispatchAt: null as Date | null, lastTickAt: null as Date | null, lastEncodeAt: null as Date | null };
 
 /**
- * Two loops until `signal` aborts: deliver outbox events (every second, straight away
- * again while there's a backlog) and tick recurring jobs (every 10 s). Errors are logged
- * and retried; they never stop the loops.
+ * Three loops until `signal` aborts: deliver outbox events (every second, straight away
+ * again while there's a backlog), tick recurring jobs (every 10 s) and encode uploaded
+ * videos one at a time (encoding can take minutes, so it never holds up the others).
+ * Errors are logged and retried; they never stop the loops.
  */
 export async function runJobs(signal: AbortSignal) {
-  const { dispatcher, scheduler } = await buildJobs();
+  const { app, dispatcher, scheduler } = await buildJobs();
   jobStatus.startedAt = new Date();
   jobLog.info("background jobs started");
 
@@ -48,6 +49,22 @@ export async function runJobs(signal: AbortSignal) {
     }
   };
 
-  await Promise.all([dispatchLoop(), scheduleLoop()]);
+  const encodeLoop = async () => {
+    while (!signal.aborted) {
+      try {
+        const done = await app.uploads.encodeNext();
+        jobStatus.lastEncodeAt = new Date();
+        if (done) {
+          jobLog.info("video encoded", done);
+          continue; // the queue may hold more
+        }
+      } catch (error) {
+        jobLog.error("video encoding failed", { error });
+      }
+      await sleep(5_000, signal);
+    }
+  };
+
+  await Promise.all([dispatchLoop(), scheduleLoop(), encodeLoop()]);
   jobLog.info("background jobs stopped");
 }

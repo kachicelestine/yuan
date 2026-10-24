@@ -25,13 +25,12 @@ export function ClipPlayer({ src, playing, paused, muted, showBar }: Props) {
   useEffect(() => {
     const v = ref.current;
     if (!v) return;
+    // Mute before playing: browsers only autoplay muted video, and a server-rendered
+    // <video> arrives without its muted attribute (React doesn't render it).
+    v.muted = muted;
     if (playing) v.play().catch(() => setReady(false));
     else v.pause();
-  }, [playing]);
-
-  useEffect(() => {
-    if (ref.current) ref.current.muted = muted;
-  }, [muted]);
+  }, [playing, muted]);
 
   return (
     <>

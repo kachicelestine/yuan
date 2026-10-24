@@ -1,10 +1,12 @@
 import "server-only";
+import { spawnSync } from "node:child_process";
 import { brand } from "@/config/brand";
 import { serverEnv } from "@/config/server-env";
 import { makeCatalogQueries, makeSearchProducts } from "@/modules/catalog";
 import { DrizzleCategoryRepository, DrizzleProductRepository, DrizzleSellerRepository } from "@/modules/catalog/infrastructure/drizzle-catalog-repositories";
 import { DrizzleProductSearch } from "@/modules/catalog/infrastructure/drizzle-product-search";
-import { makeContentQueries, makeInteractions } from "@/modules/content";
+import { makeContentQueries, makeInteractions, makeUploads, type VideoEncoder } from "@/modules/content";
+import { CopyEncoder } from "@/modules/content/infrastructure/copy-encoder";
 import {
   DrizzleCommentRepository,
   DrizzleLikeRepository,
@@ -13,6 +15,7 @@ import {
   DrizzleReviewRepository,
   DrizzleVideoRepository,
 } from "@/modules/content/infrastructure/drizzle-content-repositories";
+import { FfmpegEncoder } from "@/modules/content/infrastructure/ffmpeg-encoder";
 import { makeEngagement } from "@/modules/engagement";
 import {
   DrizzleClaimRepository,
@@ -38,8 +41,10 @@ import { RailRouter, SimulatedNetwork } from "@/modules/payments/infrastructure/
 import type { Database } from "@/shared/infrastructure/database";
 import { OutboxDispatcher, OutboxEventLog } from "@/shared/infrastructure/outbox";
 import { PostgresRateLimiter } from "@/shared/infrastructure/rate-limit";
+import { LocalStorage } from "@/shared/infrastructure/storage/local-storage";
+import { R2Storage } from "@/shared/infrastructure/storage/r2-storage";
 import { unitOfWork } from "@/shared/infrastructure/unit-of-work";
-import { newId, systemClock, type Clock } from "@/shared/kernel";
+import { newId, systemClock, type Clock, type ObjectStorage } from "@/shared/kernel";
 import { CatalogProductDirectory } from "./adapters/content-products";
 import { WalletCoupons } from "./adapters/coupons";
 import { MarketDestinations } from "./adapters/destinations";
@@ -69,8 +74,34 @@ function paymentNetwork(db: Database): Payments {
   return { network: new RailRouter({ "usdc-base": base }), simulator: null };
 }
 
+type Media = { storage: ObjectStorage; encoder: VideoEncoder; premoderated: boolean };
+
+let ffmpegFound: boolean | undefined;
+/** Whether ffmpeg is on this machine (checked once per process). */
+const hasFfmpeg = () => (ffmpegFound ??= spawnSync("ffmpeg", ["-version"], { stdio: "ignore" }).status === 0);
+
+/** Disk in development, R2 in production; ffmpeg when it's installed. */
+function media(): Media {
+  const storage: ObjectStorage =
+    serverEnv.STORAGE === "r2"
+      ? new R2Storage({
+          accountId: serverEnv.R2_ACCOUNT_ID!,
+          accessKeyId: serverEnv.R2_ACCESS_KEY_ID!,
+          secretAccessKey: serverEnv.R2_SECRET_ACCESS_KEY!,
+          bucket: serverEnv.R2_BUCKET!,
+          publicUrl: serverEnv.MEDIA_PUBLIC_URL!,
+        })
+      : new LocalStorage({ dir: serverEnv.MEDIA_DIR, baseUrl: "/media", secret: authSecret() });
+  const useFfmpeg = (serverEnv.VIDEO_ENCODER ?? (hasFfmpeg() ? "ffmpeg" : "copy")) === "ffmpeg";
+  return {
+    storage,
+    encoder: useFfmpeg ? new FfmpegEncoder({ storage, threads: serverEnv.ENCODE_THREADS }) : new CopyEncoder(storage),
+    premoderated: serverEnv.CONTENT_PREMODERATION ?? serverEnv.NODE_ENV === "production",
+  };
+}
+
 /** What tests swap out; production uses the defaults. */
-export type WireOptions = { clock?: Clock; newTag?: () => number; payments?: Payments };
+export type WireOptions = { clock?: Clock; newTag?: () => number; payments?: Payments; media?: Media };
 
 /**
  * The composition root: the one place that knows which adapter backs each port.
@@ -113,6 +144,7 @@ export function wire(db: Database, options: WireOptions = {}) {
     likes: new DrizzleLikeRepository(tx),
   });
   const content = contentRepos(db);
+  const { storage, encoder, premoderated } = options.media ?? media();
 
   const checkInvoice = makeCheckInvoice({
     network,
@@ -170,6 +202,17 @@ export function wire(db: Database, options: WireOptions = {}) {
       clock,
       newId: () => newId(),
     }),
+    uploads: makeUploads({
+      storage,
+      videos: content.videos,
+      products: new CatalogProductDirectory(products),
+      encoder,
+      uow: unitOfWork(db, (tx) => ({ videos: new DrizzleVideoRepository(tx), events: new OutboxEventLog(tx, () => clock.now()) })),
+      clock,
+      newId: () => newId(),
+      premoderated,
+    }),
+    storage,
     cart: makeCart({ carts: new DrizzleCartRepository(db), catalog: pricing }),
 
     checkout: makeCheckout({

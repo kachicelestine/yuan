@@ -8,7 +8,7 @@ export type Actor = Readonly<{ accountId: string; name: string; avatar: string }
 
 /** Lets content check products without reading catalog tables. */
 export interface ProductDirectory {
-  find(slug: string): Promise<{ slug: string; sellerId: string; category: string } | null>;
+  find(slug: string): Promise<{ slug: string; sellerId: string; category: string; image: string } | null>;
 }
 
 export type InteractionScope = {

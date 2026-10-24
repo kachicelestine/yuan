@@ -11,6 +11,7 @@ import { getProduct } from "@/lib/catalog";
 import { compact, niceCeil } from "@/lib/format";
 import { capDensity } from "@/lib/images";
 import { useStored } from "@/lib/use-stored";
+import { MyVideos } from "./my-videos";
 
 /** Earn by posting what you buy: earnings, links, free samples and payouts. */
 export function CreatorHub() {
@@ -123,6 +124,8 @@ export function CreatorHub() {
           </tbody>
         </table>
       </section>
+
+      <MyVideos />
 
       <section aria-labelledby="links-h" className="mt-5">
         <h2 id="links-h" className="mb-3 px-1 text-[15px] font-bold">

@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icon";
 import { useStore } from "@/components/providers";
 import { useChrome } from "@/components/shell/chrome";
@@ -157,13 +157,14 @@ export function Feed({ first }: { first: FeedPage }) {
 
   // Deep links (/?v=v-solar) open the feed on that video, e.g. from search results or a
   // shared link. It moves to the front; one that isn't loaded yet is fetched first.
+  const pinned = useRef(false);
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("v");
     if (!id || id === first.items[0]?.video.id) return;
     const pin = (item: FeedItem) => {
+      pinned.current = true;
       setForYou((f) => ({ ...f, items: [item, ...f.items.filter((i) => i.video.id !== id)] }));
       setSeen([id]);
-      scroller.current?.scrollTo({ top: 0 });
     };
     const loaded = first.items.find((item) => item.video.id === id);
     if (loaded) pin(loaded);
@@ -172,6 +173,13 @@ export function Feed({ first }: { first: FeedPage }) {
         if (page?.items[0]) pin(page.items[0]);
       });
   }, [first]);
+  // Scroll snapping re-snaps to the slide that was showing when the list changes, so the
+  // move to the top waits until the pinned video is actually first.
+  useLayoutEffect(() => {
+    if (!pinned.current) return;
+    pinned.current = false;
+    scroller.current?.scrollTo({ top: 0 });
+  }, [forYou]);
 
   useEffect(() => {
     if (!burst) return;
@@ -250,7 +258,8 @@ export function Feed({ first }: { first: FeedPage }) {
       <div className="relative lg:aspect-[9/16] lg:h-full lg:max-w-full lg:overflow-hidden lg:rounded-[28px] lg:shadow-[0_30px_80px_rgb(0_0_0/0.5),0_0_0_0.5px_rgb(255_255_255/0.12)]">
         {current ? (
           <>
-            <div ref={scroller} onScroll={onScroll} className="no-scrollbar fixed inset-0 snap-y snap-mandatory overflow-y-scroll overscroll-contain lg:absolute">
+            {/* No scroll anchoring: when a shared video moves to the front, the browser would otherwise shift down a slide to keep the old first one in view. */}
+            <div ref={scroller} onScroll={onScroll} className="no-scrollbar fixed inset-0 snap-y snap-mandatory overflow-y-scroll overscroll-contain [overflow-anchor:none] lg:absolute">
               {items.map((item, i) => (
                 <FeedSlide
                   key={item.video.id}

@@ -27,14 +27,16 @@ RUN --mount=type=secret,id=actions_key,required=false \
 
 FROM node:24-bookworm-slim AS runner
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000
+# ffmpeg encodes uploaded videos (the background jobs run in this image).
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/public ./public
 COPY --from=build --chown=node:node /app/drizzle ./drizzle
 COPY --from=build --chown=node:node /app/dist/ops ./ops
-# Writable caches (the photo cache persists on a volume in compose).
-RUN mkdir -p .next/cache/photos && chown -R node:node .next/cache
+# Writable caches and local media (both persist on volumes in compose).
+RUN mkdir -p .next/cache/photos .data/media && chown -R node:node .next/cache .data
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
