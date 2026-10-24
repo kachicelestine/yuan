@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Lychee
 
-## Getting Started
+Shoppable videos, live rooms and factory-direct prices on everything made in China, delivered to any country, paid in dollar stablecoins.
 
-First, run the development server:
+- **ARCHITECTURE.md**: how the code is organised and why (clean architecture, bounded contexts, the rules lint enforces).
+- **ROADMAP.md**: what's built, what's next.
+
+## Run it
+
+Requirements: Node 24 and pnpm 12. No database setup is needed for development.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+cp .env.example .env     # brand, database and payment settings
+pnpm dev                 # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Sign in with any email. Without an email provider configured, the code is printed in the server log; set `AUTH_DEV_CODES=true` in `.env` to see it on screen instead. Wallet sign-in works with any browser wallet (MetaMask, Coinbase Wallet, Rabby) or a wallet app's built-in browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Without `DATABASE_URL`, `pnpm dev` runs an embedded Postgres in `.data/pglite`. It is migrated and seeded the first time it's used and kept between restarts; delete the folder to start over. Payments run in **simulated** mode: checkout opens a real invoice and the pay page has a "Simulate payment" button.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+To use a Postgres server instead, set `DATABASE_URL` and run:
 
-## Learn More
+```bash
+pnpm db:migrate          # apply migrations in drizzle/
+pnpm db:seed             # load countries, exchange rates and the sample catalog
+```
 
-To learn more about Next.js, take a look at the following resources:
+Run `pnpm db:migrate` again whenever a new migration lands in `drizzle/`. If the server is behind or empty, the app stops with an error naming the command to run.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Scripts
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Command | What it does |
+|---|---|
+| `pnpm check` | Type-check, lint (including architecture boundaries) and run every test |
+| `pnpm test` | Unit tests, plus integration tests against in-memory Postgres |
+| `pnpm build` | Production build |
+| `pnpm db:generate` | Generate a migration after changing a `schema.ts` |
+| `pnpm db:migrate` / `pnpm db:seed` | Prepare a Postgres server |
+| `pnpm db:studio` | Browse the database |
+| `pnpm data:countries` | Rebuild the countries and exchange-rate seed from open datasets |
 
-## Deploy on Vercel
+## Configuration
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Everything is in `.env` (see `.env.example`). The brand (`NEXT_PUBLIC_BRAND_NAME`, `_SEAL`, `_TAGLINE`) is read from there, so renaming the product is a one-line change. Invalid settings stop the app at startup with a message naming the variable.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Taking real payments
+
+Set `AUTH_SECRET`, `RESEND_API_KEY` and `EMAIL_FROM` (sign-in codes are emailed, never shown), then `PAYMENTS_MODE=onchain`, a Base treasury address (`PAYMENTS_BASE_ADDRESS`), `PAYMENTS_BASE_CHAIN` and an RPC URL. Start on `base-sepolia` with test USDC. Read the "Risks to settle before launch" section of ARCHITECTURE.md first: accepting crypto for goods has licensing and compliance requirements that vary by country.

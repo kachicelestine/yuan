@@ -1,0 +1,84 @@
+import { domainError, err, ok, type Cents, type DomainError, type Result } from "@/shared/kernel";
+import type { Pricing, ShippingMethod } from "./pricing";
+
+export const ORDER_STATUSES = ["awaiting_payment", "paid", "cancelled"] as const;
+export type OrderStatus = (typeof ORDER_STATUSES)[number];
+
+/** A snapshot of what was bought, so later catalog edits never change a placed order. */
+export type OrderLine = Readonly<{
+  productId: string;
+  slug: string;
+  title: string;
+  image: string;
+  sellerId: string;
+  option: string | null;
+  unitPrice: Cents;
+  qty: number;
+}>;
+
+export type Order = Readonly<{
+  id: string;
+  /** What the buyer sees and quotes to support, e.g. LY-7KD2Q9. */
+  number: string;
+  /** The account that placed it; only they can see or pay it. */
+  buyerId: string;
+  status: OrderStatus;
+  country: string;
+  shippingMethod: ShippingMethod;
+  lines: readonly OrderLine[];
+  pricing: Pricing;
+  placedAt: Date;
+  paidAt: Date | null;
+}>;
+
+export type OrderPlaced = Readonly<{ type: "OrderPlaced"; orderId: string; total: Cents; at: Date }>;
+export type OrderPaid = Readonly<{ type: "OrderPaid"; orderId: string; at: Date }>;
+
+export type OrderError = DomainError<"empty_order" | "invalid_quantity" | "order_not_payable" | "order_not_cancellable">;
+
+export const MAX_QTY = 10_000;
+
+// Crockford base32 without I, L, O, U: no look-alikes when read out over the phone.
+const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+/** A short, unguessable order number. `random` returns values in [0, 1). */
+export function orderNumber(prefix: string, random: () => number = Math.random) {
+  let code = "";
+  for (let i = 0; i < 6; i++) code += ALPHABET[Math.floor(random() * ALPHABET.length)];
+  return `${prefix}-${code}`;
+}
+
+export function placeOrder(props: {
+  id: string;
+  number: string;
+  buyerId: string;
+  country: string;
+  shippingMethod: ShippingMethod;
+  lines: readonly OrderLine[];
+  pricing: Pricing;
+  at: Date;
+}): Result<{ order: Order; event: OrderPlaced }, OrderError> {
+  if (props.lines.length === 0) return err(domainError("empty_order", "An order needs at least one item."));
+  if (props.lines.some((l) => !Number.isInteger(l.qty) || l.qty < 1 || l.qty > MAX_QTY)) {
+    return err(domainError("invalid_quantity", `Quantities must be whole numbers from 1 to ${MAX_QTY}.`));
+  }
+  const order: Order = { ...props, status: "awaiting_payment", placedAt: props.at, paidAt: null };
+  return ok({ order, event: { type: "OrderPlaced", orderId: order.id, total: order.pricing.total, at: props.at } });
+}
+
+/**
+ * Payment arrived. Paying twice is harmless: the second confirmation changes nothing.
+ * An order cancelled because its payment window lapsed is reopened: the money arrived late,
+ * but it arrived, and the buyer gets what they paid for.
+ */
+export function markPaid(order: Order, at: Date): Result<{ order: Order; event: OrderPaid | null }, OrderError> {
+  if (order.status === "paid") return ok({ order, event: null });
+  return ok({ order: { ...order, status: "paid", paidAt: at }, event: { type: "OrderPaid", orderId: order.id, at } });
+}
+
+/** The payment window closed with nothing paid. */
+export function cancelUnpaid(order: Order): Result<Order, OrderError> {
+  if (order.status === "cancelled") return ok(order);
+  if (order.status !== "awaiting_payment") return err(domainError("order_not_cancellable", `Order ${order.number} is ${order.status}.`));
+  return ok({ ...order, status: "cancelled" });
+}

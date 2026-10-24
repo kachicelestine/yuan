@@ -1,3 +1,15 @@
 allowBuilds:
   sharp: false
   unrs-resolver: false
+  # Fetches its platform binary; needed by drizzle-kit, tsx and vitest.
+  esbuild: true
+
+# Supply-chain guard: only install versions that have been public for 3+ days,
+# so a compromised release is usually caught and pulled before it reaches us.
+minimumReleaseAge: 4320
+minimumReleaseAgeExclude:
+  # Browser-support data, republished almost daily by their maintainers.
+  - caniuse-lite
+  - electron-to-chromium
+  # Already in the tree before the guard was added (eslint resolver helper).
+  - napi-postinstall

@@ -1,0 +1,37 @@
+// Account queries over the fixtures: shipments, rewards, coupons, boards, creator stats and RFQs.
+import { products } from "@/fixtures/products";
+import type { Coupon } from "./types";
+import { badges, boards, businessRfqs, checkinRewards, coupons, creatorLinks, creatorWeeks, demoShipment, levels, missions, rewardStore, sampleOffers } from "@/fixtures/account";
+
+export { badges, boards, businessRfqs, checkinRewards, coupons, creatorLinks, creatorWeeks, demoShipment, levels, missions, rewardStore, sampleOffers };
+
+export function getBoard(id: string) {
+  return boards.find((b) => b.id === id);
+}
+
+export function getCoupon(id: string) {
+  return coupons.find((c) => c.id === id);
+}
+
+/** The level for a coin balance, and progress toward the next one (0–1). */
+export function levelFor(coins: number) {
+  const index = levels.findLastIndex((l) => coins >= l.from);
+  const current = levels[index];
+  const next = levels[index + 1];
+  return { current, next, progress: next ? (coins - current.from) / (next.from - current.from) : 1 };
+}
+
+/**
+ * The coupon in the wallet that saves the most on these lines: seller coupons count only
+ * that seller's items, free-shipping coupons are worth the shipping.
+ */
+export function bestCoupon(walletIds: string[], lines: { slug: string; unitPrice: number; qty: number }[], shipping: number) {
+  let best: { coupon: Coupon; discount: number } | null = null;
+  for (const c of coupons.filter((x) => walletIds.includes(x.id))) {
+    const base = lines.filter((l) => !c.sellerId || products.find((p) => p.slug === l.slug)?.sellerId === c.sellerId).reduce((n, l) => n + l.unitPrice * l.qty, 0);
+    if (base < c.minSpend) continue;
+    const discount = c.freeShipping ? shipping : c.percent ? base * c.value : c.value;
+    if (discount > 0 && (!best || discount > best.discount)) best = { coupon: c, discount };
+  }
+  return best;
+}

@@ -1,0 +1,77 @@
+import type { Clock } from "@/shared/kernel";
+import type { CategoryId } from "../domain/category";
+import type { Product } from "../domain/product";
+import type { CategoryRepository, ProductRepository, SellerRepository } from "../domain/repositories";
+import type { SellerId } from "../domain/seller";
+import { toCategoryView, toProductView, toSellerView, toStorefrontView, type CategoryView, type ProductView, type SellerView, type StorefrontView } from "./views";
+
+export type CatalogDeps = {
+  categories: CategoryRepository;
+  sellers: SellerRepository;
+  products: ProductRepository;
+  clock: Clock;
+};
+
+export type SellerPage = { seller: SellerView; storefront: StorefrontView | null };
+
+/** Read use cases for the catalog. Each returns views ready for the UI. */
+export function makeCatalogQueries({ categories, sellers, products, clock }: CatalogDeps) {
+  /** Views for a list of products, with each seller fetched once. */
+  const view = async (list: Product[]): Promise<ProductView[]> => {
+    const owners = await sellers.findByIds([...new Set(list.map((p) => p.sellerId))]);
+    const byId = new Map(owners.map((s) => [s.id, s]));
+    const today = clock.now();
+    return list.map((p) => toProductView(p, today, byId.get(p.sellerId)));
+  };
+
+  return {
+    async listCategories(): Promise<CategoryView[]> {
+      return (await categories.list()).map(toCategoryView);
+    },
+
+    async getCategory(id: string): Promise<CategoryView | null> {
+      const c = await categories.findById(id as CategoryId);
+      return c && toCategoryView(c);
+    },
+
+    async getProduct(slug: string): Promise<ProductView | null> {
+      const p = await products.findBySlug(slug);
+      return p && toProductView(p, clock.now(), (await sellers.findById(p.sellerId)) ?? undefined);
+    },
+
+    async listProducts(filter: { category?: string; seller?: string; limit?: number } = {}): Promise<ProductView[]> {
+      return view(await products.list({ categoryId: filter.category as CategoryId | undefined, sellerId: filter.seller as SellerId | undefined, limit: filter.limit }));
+    },
+
+    /** Other sellers' products in the same category, the comparison a buyer actually makes. */
+    async similarProducts(slug: string, limit = 4): Promise<ProductView[]> {
+      const p = await products.findBySlug(slug);
+      if (!p) return [];
+      const same = await products.list({ categoryId: p.categoryId });
+      return view(same.filter((o) => o.sellerId !== p.sellerId && o.slug !== p.slug).slice(0, limit));
+    },
+
+    async getSeller(id: string): Promise<SellerPage | null> {
+      const s = await sellers.findById(id as SellerId);
+      return s && { seller: toSellerView(s), storefront: toStorefrontView(s) };
+    },
+
+    /** Sellers with listings in a category, in the order their first listing appeared. */
+    async sellersInCategory(category: string): Promise<SellerPage[]> {
+      const ids = [...new Set((await products.list({ categoryId: category as CategoryId })).map((p) => p.sellerId))];
+      const found = new Map((await sellers.findByIds(ids)).map((s) => [s.id, s]));
+      return ids.flatMap((id) => {
+        const s = found.get(id);
+        return s ? [{ seller: toSellerView(s), storefront: toStorefrontView(s) }] : [];
+      });
+    },
+
+    async listSellers(): Promise<SellerView[]> {
+      return (await sellers.list()).map(toSellerView);
+    },
+
+    productSlugs: () => products.slugs(),
+  };
+}
+
+export type CatalogQueries = ReturnType<typeof makeCatalogQueries>;

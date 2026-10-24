@@ -1,26 +1,482 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * Yuan design system: iOS 27 Liquid Glass on a dark, video-first canvas.
+ *
+ * iOS 27 notes this follows:
+ * - one glass strength setting from clear to tinted (html[data-glass]), defaulting a little more frosted than iOS 26
+ * - defined rims instead of heavy drop shadows
+ * - the selected tab sits on a darker pill, not a lighter one
+ * - a "prominent" role that can tint any single control (we use it for the bag)
+ * - glass darkens over bright media so labels stay legible (data-tone / data-under)
+ * - the tab bar minimizes while you browse, with an accessory docked beside it
+ * - sheets float inset at partial height and go edge to edge at full height
+ */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@theme {
+  --color-canvas: #050506;
+  --color-surface: #101013;
+  --color-raised: #17171c;
+  --color-ink: #ffffff;
+  --color-ink-2: rgb(255 255 255 / 0.74);
+  --color-ink-3: rgb(255 255 255 / 0.58);
+  --color-line: rgb(255 255 255 / 0.12);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  /* Vermilion: filled controls carry white text at 5:1. The lighter tone is for text on dark. */
+  --color-accent: #cc3a17;
+  --color-accent-light: #ff7a52;
+  --color-like: #ff3b5c;
+  --color-save: #ffc53d;
+  --color-positive: #7fe0b4;
+  --color-agent: #c9b6ff;
+  --color-verified: #4da3ff;
+  --color-live: #e5223f;
+  /* Charts: categorical slot 1, validated for this dark surface (dataviz reference palette). */
+  --color-series: #3987e5;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, var(--font-inter), "Segoe UI", system-ui, sans-serif;
+  --font-display: var(--font-inter-tight), -apple-system, BlinkMacSystemFont, var(--font-inter), system-ui, sans-serif;
+  --font-seal: "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", "Noto Serif SC", serif;
+
+  --ease-spring: cubic-bezier(0.32, 1.45, 0.45, 1);
+  --ease-soft: cubic-bezier(0.2, 0.9, 0.3, 1);
+
+  --animate-kenburns: kenburns 16s ease-in-out infinite alternate;
+  --animate-progress: progress 16s linear infinite;
+  --animate-pop: pop 0.42s var(--ease-spring);
+  --animate-blink: blink 1.2s ease-in-out infinite;
+  --animate-rise: rise 0.6s var(--ease-soft) both;
+  --animate-burst: burst 0.82s ease-out forwards;
+  --animate-float: float 4.2s cubic-bezier(0.3, 0.6, 0.5, 1) infinite;
+  --animate-unfurl: unfurl 0.55s var(--ease-soft);
+  --animate-scan: scan 1.8s ease-in-out infinite alternate;
+  --animate-wave: wave 0.9s ease-in-out infinite alternate;
+  --animate-shimmer: shimmer 1.4s linear infinite;
+  --animate-breathe: breathe 2.2s ease-in-out infinite;
+  --animate-shake: shake 0.5s ease-in-out 2;
+  --animate-lid: lid 0.7s var(--ease-soft) forwards;
+  --animate-rays: rays 9s linear infinite;
+  --animate-reveal: reveal 0.9s var(--ease-spring) both;
+  --animate-confetti: confetti 2.6s cubic-bezier(0.25, 0.6, 0.45, 1) both;
+  --animate-marquee: marquee 32s linear infinite;
+
+  @keyframes kenburns {
+    from { transform: scale(1.04) translate3d(0, 0, 0); }
+    to { transform: scale(1.15) translate3d(-1.8%, -2.4%, 0); }
+  }
+  @keyframes progress {
+    from { width: 0; }
+    to { width: 100%; }
+  }
+  @keyframes pop {
+    from { transform: scale(0.55); }
+    to { transform: scale(1); }
+  }
+  @keyframes blink {
+    50% { opacity: 0.25; }
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes burst {
+    0% { opacity: 0; transform: scale(0.3) rotate(-14deg); }
+    35% { opacity: 1; transform: scale(1.14) rotate(5deg); }
+    70% { opacity: 1; transform: scale(1) rotate(0); }
+    100% { opacity: 0; transform: scale(1.2) translateY(-36px); }
+  }
+  @keyframes float {
+    0% { opacity: 0; transform: translate(0, 0) scale(0.5); }
+    12% { opacity: 1; transform: translate(-4px, -30px) scale(1); }
+    50% { transform: translate(10px, -160px) rotate(10deg); }
+    100% { opacity: 0; transform: translate(-8px, -320px) rotate(-8deg) scale(0.9); }
+  }
+  @keyframes scan {
+    from { top: 6%; }
+    to { top: 94%; }
+  }
+  @keyframes wave {
+    from { transform: scaleY(0.25); }
+    to { transform: scaleY(1); }
+  }
+  @keyframes shimmer {
+    from { background-position: 150% 0; }
+    to { background-position: -50% 0; }
+  }
+  @keyframes breathe {
+    50% { transform: scale(1.06); opacity: 0.85; }
+  }
+  @keyframes shake {
+    0%, 100% { transform: rotate(0); }
+    20% { transform: rotate(-7deg) translateY(-2px); }
+    40% { transform: rotate(6deg); }
+    60% { transform: rotate(-4deg) translateY(-1px); }
+    80% { transform: rotate(3deg); }
+  }
+  /* A blind-box lid popping off and spinning away. */
+  @keyframes lid {
+    to { transform: translate(40%, -160%) rotate(28deg); opacity: 0; }
+  }
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  @keyframes confetti {
+    from { transform: translate3d(0, -12vh, 0) rotate(0deg); opacity: 1; }
+    to { transform: translate3d(var(--drift, 0px), 110vh, 0) rotate(var(--spin, 540deg)); opacity: 0.9; }
+  }
+  @keyframes rays {
+    to { transform: rotate(360deg); }
+  }
+  @keyframes reveal {
+    from { opacity: 0; transform: translateY(40px) scale(0.4); }
+    to { opacity: 1; transform: none; }
+  }
+  /* The minimized tab button (48px, flush left) growing into the full 64px bar. */
+  @keyframes unfurl {
+    from { clip-path: inset(8px calc(100% - 48px) 8px 0 round 999px); }
+    to { clip-path: inset(0 0 0 0 round 999px); }
   }
 }
 
+:root {
+  color-scheme: dark;
+  --glass-fill: rgb(255 255 255 / 0.13);
+  --glass-blur: 12px;
+  --glass-sat: 180%;
+  --glass-rim: 0.42;
+  --glass-shade: 0.18;
+  --glass-over-light: rgb(18 16 20 / 0.44);
+  --sheet-fill: rgb(28 28 32 / 0.66);
+  --sheet-solid: rgb(30 30 35 / 0.94);
+  --sheet-edge: rgb(24 24 28 / 0.72);
+  --sheet-blur: 34px;
+}
+
+:root[data-glass="clear"] {
+  --glass-fill: rgb(255 255 255 / 0.05);
+  --glass-blur: 3px;
+  --glass-sat: 150%;
+  --glass-rim: 0.58;
+  --glass-shade: 0.1;
+  --glass-over-light: rgb(18 16 20 / 0.3);
+  --sheet-fill: rgb(24 24 28 / 0.46);
+  --sheet-solid: rgb(26 26 31 / 0.86);
+  --sheet-edge: rgb(22 22 26 / 0.6);
+  --sheet-blur: 18px;
+}
+
+:root[data-glass="frosted"] {
+  --glass-fill: rgb(255 255 255 / 0.22);
+  --glass-blur: 24px;
+  --glass-sat: 160%;
+  --glass-rim: 0.36;
+  --glass-shade: 0.14;
+  --glass-over-light: rgb(30 28 34 / 0.52);
+  --sheet-fill: rgb(40 40 46 / 0.76);
+  --sheet-solid: rgb(40 40 46 / 0.96);
+  --sheet-edge: rgb(38 38 44 / 0.8);
+  --sheet-blur: 48px;
+}
+
+:root[data-glass="tinted"] {
+  --glass-fill: rgb(26 24 30 / 0.72);
+  --glass-blur: 30px;
+  --glass-sat: 140%;
+  --glass-rim: 0.22;
+  --glass-shade: 0.22;
+  --glass-over-light: rgb(26 24 30 / 0.76);
+  --sheet-fill: rgb(18 18 22 / 0.92);
+  --sheet-solid: rgb(18 18 22 / 0.98);
+  --sheet-edge: rgb(18 18 22 / 0.9);
+  --sheet-blur: 48px;
+}
+
+/* Users who ask the OS for less transparency get the opaque end of the scale. */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-fill: rgb(26 24 30 / 0.92);
+    --glass-over-light: rgb(26 24 30 / 0.92);
+    --sheet-fill: rgb(18 18 22 / 0.97);
+    --sheet-solid: rgb(18 18 22 / 0.99);
+    --sheet-edge: rgb(18 18 22 / 0.97);
+  }
+}
+
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  letter-spacing: -0.003em;
+}
+
+@layer components {
+  .glass {
+    position: relative;
+    isolation: isolate;
+    background: var(--glass-fill);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+    box-shadow:
+      inset 0 0 0 0.75px rgb(255 255 255 / var(--glass-rim)),
+      inset 0 1px 1.5px rgb(255 255 255 / 0.38),
+      inset 0 -1px 1px rgb(0 0 0 / 0.1),
+      0 10px 30px rgb(0 0 0 / var(--glass-shade));
+    transition:
+      background-color 0.5s ease,
+      box-shadow 0.5s ease;
+  }
+
+  /* Specular highlight from above-left. */
+  .glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background:
+      radial-gradient(85% 65% at 28% -8%, rgb(255 255 255 / 0.32), transparent 62%),
+      radial-gradient(70% 55% at 85% 115%, rgb(255 255 255 / 0.12), transparent 70%);
+  }
+
+  /* Refractive rim: bright at the top-left and bottom-right edges. */
+  .glass::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(150deg, rgb(255 255 255 / 0.85), rgb(255 255 255 / 0.12) 28%, transparent 52%, rgb(255 255 255 / 0.38));
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+
+  /* Glass sitting on bright media darkens itself, like Liquid Glass adapting to content. */
+  [data-tone="light"] .glass,
+  :root[data-under="light"] .glass-bar {
+    background: var(--glass-over-light);
+  }
+
+  /*
+   * Reading surfaces (sheets, panels) use a heavier, more opaque glass. It is drawn on
+   * ::before so the surface itself isn't a backdrop root: Chrome won't blur content again
+   * under a pinned bar (.edge-bottom) inside an element that has its own backdrop-filter.
+   */
+  .glass-sheet {
+    position: relative;
+    isolation: isolate;
+    background: transparent;
+    box-shadow: 0 -12px 40px rgb(0 0 0 / 0.35);
+  }
+
+  .glass-sheet::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: var(--sheet-fill);
+    -webkit-backdrop-filter: blur(var(--sheet-blur)) saturate(170%);
+    backdrop-filter: blur(var(--sheet-blur)) saturate(170%);
+    box-shadow:
+      inset 0 0 0 0.75px rgb(255 255 255 / 0.22),
+      inset 0 1px 1px rgb(255 255 255 / 0.36);
+    transition: background-color 0.5s ease;
+  }
+
+  /* Glass laid on glass: a quiet inset card. */
+  .glass-inset {
+    background: rgb(255 255 255 / 0.07);
+    box-shadow:
+      inset 0 0 0 0.75px rgb(255 255 255 / 0.14),
+      inset 0 1px 0 rgb(255 255 255 / 0.08);
+  }
+
+  /* iOS 27: the selected item sits on a darker pill inside the bar. */
+  .glass-selected {
+    background: rgb(0 0 0 / 0.32);
+    box-shadow:
+      inset 0 0 0 0.5px rgb(255 255 255 / 0.22),
+      inset 0 1px 0 rgb(255 255 255 / 0.1);
+  }
+
+  /* iOS 27 "prominent" role: one control tinted with the brand colour. */
+  .glass.glass-prominent {
+    background: rgb(204 58 23 / 0.86);
+  }
+
+  /* Only the floating bars need help now that captions live in the sheet. */
+  .scrim-feed {
+    background: linear-gradient(180deg, rgb(0 0 0 / 0.34) 0%, transparent 16%, transparent 76%, rgb(0 0 0 / 0.42) 100%);
+  }
+
+  /*
+   * Sheets, on a native modal <dialog> (components/sheet.tsx): inset and floating at the
+   * half detent, edge to edge and nearly opaque at full height. Heights match the snap
+   * points in sheet.tsx.
+   */
+  .sheet {
+    position: fixed;
+    inset: auto 0 8px;
+    width: min(100% - 16px, 480px);
+    height: min(64dvh, 600px);
+    max-width: none;
+    max-height: none;
+    margin: 0 auto;
+    padding: 0;
+    border: 0;
+    border-radius: 34px;
+    color: inherit;
+    overflow: hidden;
+    translate: 0 0;
+    transition-property: height, width, bottom, border-radius, translate, display, overlay;
+    transition-duration: 0.5s;
+    transition-timing-function: var(--ease-soft);
+    transition-behavior: allow-discrete;
+  }
+
+  /* Between lg and xl the sheet opens from the player, which sits right of the 256px side
+     nav with the 72px up/down column beside it; center over that, not the window. */
+  @media (min-width: 1024px) {
+    .sheet {
+      left: 256px;
+      right: 72px;
+    }
+  }
+
+  .sheet[data-detent="full"] {
+    bottom: 0;
+    width: min(100%, 480px);
+    height: calc(100dvh - max(env(safe-area-inset-top), 12px) - 8px);
+    border-radius: 34px 34px 0 0;
+  }
+
+  .sheet[data-detent="full"]::before {
+    background: var(--sheet-solid);
+  }
+
+  .sheet:not([open]) {
+    translate: 0 110%;
+  }
+
+  @starting-style {
+    .sheet[open] {
+      translate: 0 110%;
+    }
+  }
+
+  .sheet[data-dragging] {
+    transition: none;
+  }
+
+  .sheet::backdrop {
+    background: rgb(0 0 0 / 0);
+    transition-property: background-color, display, overlay;
+    transition-duration: 0.5s;
+    transition-behavior: allow-discrete;
+  }
+
+  .sheet[open]::backdrop {
+    background: rgb(0 0 0 / 0.18);
+  }
+
+  .sheet[open][data-detent="full"]::backdrop {
+    background: rgb(0 0 0 / 0.5);
+  }
+
+  @starting-style {
+    .sheet[open]::backdrop {
+      background: rgb(0 0 0 / 0);
+    }
+  }
+
+  /* Scroll edge effect: content blurs out as it slides under a bar pinned to the bottom. */
+  .edge-bottom {
+    background: linear-gradient(to top, var(--sheet-edge) 55%, transparent);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-mask-image: linear-gradient(to top, #000 calc(100% - 20px), transparent);
+    mask-image: linear-gradient(to top, #000 calc(100% - 20px), transparent);
+  }
+
+  /* Popover menus grow out of the control that opened them. */
+  .menu-pop {
+    transform-origin: top left;
+    transition-property: opacity, scale, display, overlay;
+    transition-duration: 0.3s;
+    transition-timing-function: var(--ease-spring);
+    transition-behavior: allow-discrete;
+  }
+
+  .menu-pop:not(:popover-open) {
+    opacity: 0;
+    scale: 0.9;
+  }
+
+  @starting-style {
+    .menu-pop:popover-open {
+      opacity: 0;
+      scale: 0.9;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sheet,
+    .sheet::backdrop,
+    .menu-pop {
+      transition-duration: 0.01s;
+    }
+  }
+
+  .text-legible {
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.32);
+  }
+
+  /* Loading placeholder with a soft moving highlight. */
+  .skeleton {
+    background: linear-gradient(100deg, rgb(255 255 255 / 0.05) 30%, rgb(255 255 255 / 0.12) 50%, rgb(255 255 255 / 0.05) 70%) 0 0 / 200% 100%;
+    animation: var(--animate-shimmer);
+  }
+
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .seal {
+    font-family: var(--font-seal);
+    font-weight: 700;
+    line-height: 1;
+  }
+}
+
+@utility pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 16px);
+}
+
+@utility bottom-safe {
+  bottom: max(env(safe-area-inset-bottom), 16px);
+}
+
+@utility pt-safe {
+  padding-top: max(env(safe-area-inset-top), 12px);
+}
+
+@utility top-safe {
+  top: max(env(safe-area-inset-top), 12px);
 }
