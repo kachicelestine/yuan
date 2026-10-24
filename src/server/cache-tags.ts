@@ -17,3 +17,6 @@ export const reviewsTag = (slug: string) => `reviews:${slug}`;
 export const sellerReviewsTag = (id: string) => `reviews:seller:${id}`;
 export const commentsTag = (videoId: string) => `comments:${videoId}`;
 export const questionsTag = (slug: string) => `questions:${slug}`;
+
+/** The live lobby: shows starting, ending or scheduled. */
+export const LIVE_TAG = "live";

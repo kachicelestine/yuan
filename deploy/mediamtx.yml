@@ -1,0 +1,38 @@
+# MediaMTX: hosts broadcast from their browser over WHIP (WebRTC), viewers watch HLS.
+# Every publish and read is checked by the app (POST /api/live/auth); the hook URL, with the
+# internal token, comes from the MTX_AUTHHTTPADDRESS environment variable (compose sets it).
+logLevel: info
+
+authMethod: http
+authHTTPAddress: http://app:3000/api/live/auth
+authHTTPExclude: []
+
+# Only what we use.
+api: false
+metrics: false
+pprof: false
+playback: false
+rtsp: false
+rtmp: false
+srt: false
+moq: false
+
+# Viewers: low-latency HLS over plain HTTP, so Cloudflare can cache and fan it out.
+hls: true
+hlsAddress: :8888
+hlsVariant: lowLatency
+hlsSegmentDuration: 1s
+hlsPartDuration: 200ms
+hlsAllowOrigins: ["*"]
+
+# Hosts: WHIP signalling over HTTP; media over UDP 8189, which must be reachable from the
+# internet (open it on the server). Set MTX_WEBRTCADDITIONALHOSTS to the server's public IP.
+webrtc: true
+webrtcAddress: :8889
+webrtcLocalUDPAddress: :8189
+webrtcAdditionalHosts: []
+webrtcAllowOrigins: ["*"]
+
+paths:
+  # Shows publish to show-<id>; anything else is refused by the auth hook.
+  all_others:

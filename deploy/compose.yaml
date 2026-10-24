@@ -95,6 +95,21 @@ services:
       retries: 20
     restart: unless-stopped
 
+  # Live video: WHIP in (hosts' browsers), HLS out (viewers, through the tunnel and Cloudflare).
+  # The tunnel carries HTTP only, so WebRTC media needs UDP 8189 open on the server.
+  media:
+    profiles: [live]
+    image: bluenviron/mediamtx:1.21.2
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml:ro
+    environment:
+      MTX_AUTHHTTPADDRESS: http://app:3000/api/live/auth?token=${INTERNAL_TOKEN}
+      MTX_WEBRTCADDITIONALHOSTS: ${PUBLIC_IP:-}
+    ports:
+      - "8189:8189/udp"
+    depends_on: [app]
+    restart: unless-stopped
+
   tunnel:
     image: cloudflare/cloudflared:latest
     command: ["tunnel", "--no-autoupdate", "run"]

@@ -17,7 +17,10 @@ compose up -d db
 echo "→ migrating"
 compose run --rm migrate
 echo "→ starting"
-compose up -d --remove-orphans app tunnel
+services=(app tunnel)
+# The live-video media server runs when .env sets COMPOSE_PROFILES=live.
+if grep -Eq '^COMPOSE_PROFILES=.*\blive\b' .env; then services+=(media); fi
+compose up -d --remove-orphans "${services[@]}"
 
 echo "→ waiting for /api/health"
 probe="fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"

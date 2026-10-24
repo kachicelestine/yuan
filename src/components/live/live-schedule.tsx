@@ -3,16 +3,16 @@
 import Image from "next/image";
 import { Icon } from "@/components/icon";
 import { useStore } from "@/components/providers";
-import { getSeller, type LiveShow } from "@/lib/catalog";
 import { countdown, localParts } from "@/lib/drops";
-import { showAt } from "@/lib/live";
 import { useNow } from "@/lib/use-now";
 import { useStored } from "@/lib/use-stored";
 
 const kindLabel = { show: "Live show", tour: "Factory tour", auction: "Auction" } as const;
 
+export type ScheduledShow = { id: string; title: string; image: string; kind: "show" | "tour" | "auction"; hostName: string; sellerName: string; /** ISO start time. */ at: string };
+
 /** Upcoming lives in the shopper's time zone, each with a reminder. */
-export function LiveSchedule({ shows }: { shows: LiveShow[] }) {
+export function LiveSchedule({ shows }: { shows: ScheduledShow[] }) {
   const now = useNow(60_000);
   const { market } = useStore();
   const [reminders, setReminders] = useStored<string[]>("app.reminders", []);
@@ -21,8 +21,7 @@ export function LiveSchedule({ shows }: { shows: LiveShow[] }) {
   return (
     <ul className="glass flex flex-col divide-y divide-line rounded-[26px] px-3">
       {shows.map((s) => {
-        const seller = getSeller(s.sellerId);
-        const at = now === null ? null : showAt(s.inHours, now);
+        const at = now === null ? null : new Date(s.at).getTime();
         const local = at === null ? null : localParts(at, market.timeZone);
         const on = reminders.includes(s.id);
         return (
@@ -34,7 +33,7 @@ export function LiveSchedule({ shows }: { shows: LiveShow[] }) {
               </p>
               <p className="line-clamp-2 text-sm leading-snug font-semibold">{s.title}</p>
               <p className="text-xs text-ink-2">
-                {kindLabel[s.kind]} · {s.hostName}, {seller?.name}
+                {kindLabel[s.kind]} · {s.hostName}, {s.sellerName}
               </p>
             </div>
             <button

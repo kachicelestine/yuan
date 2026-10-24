@@ -45,6 +45,8 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
       const { orderId } = payload as { orderId: string };
       const order = await app.getOrder.internal(orderId);
       if (!order) return;
+      // Live prices and auction wins behind this order are used up.
+      await app.live.useHolds(order.buyerId, [...new Set(order.lines.map((l) => l.slug))]);
       for (const parcel of await app.fulfilment.forOrder(orderId)) {
         await notify(await shopPeople(parcel.sellerId), { kind: "order_paid", title: `New order ${order.number}`, body: `${usd(parcel.amount * 100)} paid and held by Protect. Ship it to ${order.country} and add the tracking number.`, link: "/sell?tab=orders", email: true }, `${id}:${parcel.sellerId}`);
       }
@@ -78,6 +80,12 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
       const p = payload as { kind: "payout" | "refund"; sellerId: string; accountId: string | null; amount: number };
       if (p.kind === "payout") await notify(await shopPeople(p.sellerId), { kind: "payout_sent", title: `${usd(p.amount)} sent to your wallet`, body: "Your payout is on Base. It shows in your wallet within a minute.", link: "/sell?tab=money", email: true }, id);
       else if (p.accountId) await notify([p.accountId], { kind: "refund_sent", title: `${usd(p.amount)} refunded`, body: "Your refund has been sent to your wallet.", link: "/me", email: true }, id);
+    },
+
+    // ── Live ──────────────────────────────────────────────────────────────────
+    LotSold: async ({ id, payload }) => {
+      const p = payload as { winnerId: string; slug: string; amount: number };
+      await notify([p.winnerId], { kind: "auction_won", title: `You won it for ${usd(p.amount)}`, body: "The hammer price is held for you for 48 hours. Check out to claim it.", link: `/p/${p.slug}`, email: true }, id);
     },
 
     // ── Content ───────────────────────────────────────────────────────────────
@@ -128,6 +136,12 @@ function recurringJobs(app: Services, dispatcher: OutboxDispatcher): ScheduledJo
         jobLog.info("exchange rates", r);
         if (r.updated) await revalidateTags([MARKETS_TAG]);
       },
+    },
+    {
+      // Lots whose clock ran out while nobody was watching.
+      name: "live.lots",
+      everyMs: 10_000,
+      run: async () => void (await app.live.closeDueLots()),
     },
     {
       // Parcels nobody confirmed or disputed are taken as delivered, which pays the shop.

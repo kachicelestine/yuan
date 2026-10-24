@@ -1,5 +1,6 @@
 import "server-only";
 import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { brand } from "@/config/brand";
 import { serverEnv } from "@/config/server-env";
 import { makeCatalogQueries, makeRatings, makeSearchProducts, makeSelling } from "@/modules/catalog";
@@ -29,6 +30,9 @@ import {
 import { makeIdentity } from "@/modules/identity";
 import { ConsoleMailer, NodeSecrets, ResendMailer, ViemVerifier } from "@/modules/identity/infrastructure/adapters";
 import { DrizzleAccountRepository, DrizzleChallengeRepository, DrizzleSessionRepository } from "@/modules/identity/infrastructure/drizzle-identity-repositories";
+import { makeLive, type LiveBus } from "@/modules/live";
+import { DrizzleChatRepository, DrizzleHoldRepository, DrizzleLotRepository, DrizzleShowRepository } from "@/modules/live/infrastructure/drizzle-live-repositories";
+import { PostgresBus } from "@/modules/live/infrastructure/postgres-bus";
 import { makeListMarkets, makeRefreshRates } from "@/modules/markets";
 import { makeOnboarding } from "@/modules/merchants";
 import { DrizzleApplicationRepository, DrizzleMembershipRepository } from "@/modules/merchants/infrastructure/drizzle-merchants-repositories";
@@ -55,6 +59,7 @@ import { newId, systemClock, type Clock, type ObjectStorage } from "@/shared/ker
 import { CatalogProductDirectory } from "./adapters/content-products";
 import { WalletCoupons } from "./adapters/coupons";
 import { IdentityEmails, MerchantWallets, OrderingPurchases, OrderingTotals } from "./adapters/fulfilment";
+import { CatalogForLive } from "./adapters/live";
 import { CatalogShops } from "./adapters/shops";
 import { MarketDestinations } from "./adapters/destinations";
 import { CatalogPricing } from "./adapters/order-catalog";
@@ -109,8 +114,16 @@ function media(): Media {
   };
 }
 
+// One LISTEN connection per database per process, however often wiring reruns.
+const buses = new WeakMap<Database, PostgresBus>();
+function liveBus(db: Database) {
+  let bus = buses.get(db);
+  if (!bus) buses.set(db, (bus = new PostgresBus(db)));
+  return bus;
+}
+
 /** What tests swap out; production uses the defaults. */
-export type WireOptions = { clock?: Clock; newTag?: () => number; payments?: Payments; media?: Media };
+export type WireOptions = { clock?: Clock; newTag?: () => number; payments?: Payments; media?: Media; bus?: LiveBus };
 
 /**
  * The composition root: the one place that knows which adapter backs each port.
@@ -170,6 +183,22 @@ export function wire(db: Database, options: WireOptions = {}) {
     })),
     clock,
     newId: () => newId(),
+  });
+
+  const bus = options.bus ?? liveBus(db);
+  const live = makeLive({
+    shows: new DrizzleShowRepository(db),
+    chat: new DrizzleChatRepository(db),
+    lots: new DrizzleLotRepository(db),
+    holds: new DrizzleHoldRepository(db),
+    bus,
+    catalog: new CatalogForLive(products),
+    media: serverEnv.LIVE_INGEST_URL ? { ingest: serverEnv.LIVE_INGEST_URL.replace(/\/$/, ""), playback: (serverEnv.LIVE_PLAYBACK_URL ?? serverEnv.LIVE_INGEST_URL).replace(/\/$/, "") } : null,
+    // A closed lot, the winner's hold and the event commit together.
+    uow: unitOfWork(db, (tx) => ({ shows: new DrizzleShowRepository(tx), lots: new DrizzleLotRepository(tx), holds: new DrizzleHoldRepository(tx), events: new OutboxEventLog(tx, () => clock.now()) })),
+    clock,
+    newId: () => newId(),
+    newKey: () => randomBytes(24).toString("base64url"),
   });
 
   const checkInvoice = makeCheckInvoice({
@@ -255,8 +284,12 @@ export function wire(db: Database, options: WireOptions = {}) {
     onboarding,
     cart: makeCart({ carts: new DrizzleCartRepository(db), catalog: pricing }),
 
+    live,
+    /** Live updates for viewers connected to this process (the stream route subscribes). */
+    liveBus: bus,
     checkout: makeCheckout({
       catalog: pricing,
+      holds: { best: (buyerId: string, slug: string) => live.bestHold(buyerId, slug) },
       destinations: new MarketDestinations(countries),
       coupons: new WalletCoupons(engagement),
       // The order, its invoice and the coupon it takes are written in one transaction.

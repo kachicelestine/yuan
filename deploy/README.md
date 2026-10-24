@@ -66,6 +66,17 @@ GitHub → Settings → Secrets: `DEPLOY_HOST`, `DEPLOY_USER` (`ubuntu`), `DEPLO
 - run the **Deploy** workflow by hand, or
 - set the repository variable `AUTO_DEPLOY=true` to deploy every green push to `main`.
 
+### 5. Live video (optional)
+
+Live rooms work without this (chat, products and auctions, over the cover photo). For video, run the media server (MediaMTX) next to the app:
+
+1. **Tunnel hostnames** (Zero Trust → your tunnel → *Public hostnames*): `whip.<your domain>` → `http://media:8889` (sellers publish here) and `live.<your domain>` → `http://media:8888` (buyers watch here).
+2. **Open UDP 8189** for the video itself, which can't go through the tunnel: Oracle console → your VCN → *Security Lists* → add an ingress rule, source `0.0.0.0/0`, **UDP**, destination port `8189`. Docker publishes the port past the server's own firewall.
+3. In `.env`: `LIVE_INGEST_URL=https://whip.<your domain>`, `LIVE_PLAYBACK_URL=https://live.<your domain>`, `PUBLIC_IP=<the server's public IP>`, and `COMPOSE_PROFILES=live`.
+4. `deploy/scripts/deploy.sh`. Sellers go live from `/sell/live` with their browser's camera, or from OBS (Settings → Stream → *WHIP*, with the server URL the studio shows).
+
+MediaMTX checks every publish and every viewer with the app (`/api/live/auth`): only the show's stream key can publish, and only while the show is live can anyone watch.
+
 ## Day to day
 
 | Task | Command (on the server, in `/opt/lychee`) |
@@ -88,4 +99,5 @@ GitHub → Settings → Secrets: `DEPLOY_HOST`, `DEPLOY_USER` (`ubuntu`), `DEPLO
 - **Deploys restart the app** for a few seconds. Two instances behind the tunnel (stage 1) remove that gap. `deploymentId` already makes open pages reload cleanly across versions.
 - **Backups are nightly** (up to 24 h of data at risk). Stage 1 adds continuous WAL archiving to R2.
 - **Videos are encoded on the same server** (ffmpeg, one at a time, `ENCODE_THREADS` cores). A minute of phone video takes roughly a minute on 2 OCPUs. When uploads outgrow that, run the `worker` profile on a second free instance with `JOBS=off` on the app, or move encoding to a managed service behind the same `VideoEncoder` port.
+- **Live video on one server:** MediaMTX repackages (never re-encodes) the seller's H.264, so a show costs little CPU, but every viewer's video leaves this server through the tunnel. That suits a first audience; Cloudflare's terms steer heavy video to its paid products, so as live grows, move playback to Cloudflare Stream (it takes WHIP in and serves HLS) or a CDN made for video, behind the same `LIVE_INGEST_URL`/`LIVE_PLAYBACK_URL`.
 - **Moderation:** with `CONTENT_PREMODERATION=true`, new uploads wait in "review" until someone in `ADMIN_EMAILS` approves them at `/admin`, where seller applications and reports also queue.

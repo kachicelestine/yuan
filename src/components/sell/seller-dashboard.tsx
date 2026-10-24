@@ -62,8 +62,12 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
             {listings.filter((l) => l.status === "active").length} live · {paid.length} paid orders · {money(paid.reduce((n, o) => n + o.subtotal, 0))} sold
           </p>
         </div>
-        <Link href={`/s/${seller.id}`} className="glass-inset h-9 shrink-0 rounded-full px-4 text-[13px] leading-9 font-semibold">
-          View shop
+        <Link href="/sell/live" className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-live/90 px-3.5 text-[13px] font-bold">
+          <Icon name="live" className="size-4" />
+          Go live
+        </Link>
+        <Link href={`/s/${seller.id}`} aria-label="View shop" className="glass-inset grid size-9 shrink-0 place-items-center rounded-full">
+          <Icon name="store" className="size-4" />
         </Link>
       </div>
 

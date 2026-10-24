@@ -1,19 +1,18 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
-import { LiveRoom, type LiveRoomItem } from "@/components/live/live-room";
-import { getProduct, getSeller } from "@/lib/catalog";
-import { getLiveRoom, livePurchases, liveRooms } from "@/lib/live";
+import { Auction } from "@/components/live/auction";
+import { LiveRoom } from "@/components/live/live-room";
+import { getSellerPage } from "@/server/catalog";
+import { services } from "@/server/container";
 
+// Rooms change by the second, so the body renders per request; the shell is instant.
 export function generateStaticParams() {
-  return liveRooms.map((r) => ({ id: r.id }));
+  return [{ id: "auction" }];
 }
 
-export async function generateMetadata({ params }: PageProps<"/live/[id]">): Promise<Metadata> {
-  const { id } = await params;
-  const room = getLiveRoom(id);
-  return room ? { title: `Live: ${room.title}` } : {};
-}
+export const metadata: Metadata = { title: "Live" };
 
 export default function LiveRoomPage({ params }: PageProps<"/live/[id]">) {
   return (
@@ -24,25 +23,16 @@ export default function LiveRoomPage({ params }: PageProps<"/live/[id]">) {
 }
 
 async function RoomBody({ params }: { params: PageProps<"/live/[id]">["params"] }) {
+  await connection();
   const { id } = await params;
-  const room = getLiveRoom(id);
+  if (id.length > 64) notFound();
+  const app = await services();
+  const room = await app.live.show(id);
   if (!room) notFound();
-  const items: LiveRoomItem[] = room.items.flatMap((i) => {
-    const product = getProduct(i.slug);
-    return product ? [{ product, livePrice: i.livePrice, status: i.status }] : [];
-  });
-  return (
-    <LiveRoom
-      host={room.hostName}
-      seller={getSeller(room.sellerId)}
-      title={room.title}
-      image={room.image}
-      place={room.place}
-      viewers={room.viewers}
-      items={items}
-      comments={room.comments}
-      pinned={room.pinned}
-      purchases={livePurchases}
-    />
-  );
+  const slugs = [...new Set([...room.show.items.map((i) => i.slug), ...room.lots.map((l) => l.slug)])];
+  const [page, list] = await Promise.all([getSellerPage(room.show.sellerId), app.catalog.getProductsBySlugs(slugs)]);
+  if (!page) notFound();
+  const products = Object.fromEntries(list.map((p) => [p.slug, p]));
+  const props = { show: room.show, seller: page.seller, messages: room.messages, lots: room.lots, products };
+  return room.show.kind === "auction" ? <Auction {...props} /> : <LiveRoom {...props} />;
 }

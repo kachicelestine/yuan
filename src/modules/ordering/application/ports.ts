@@ -22,6 +22,11 @@ export interface OrderCatalog {
   priceLine(slug: string, option: string | null, qty: number): Promise<Result<CatalogLine, CatalogLineError>>;
 }
 
+/** Special prices one buyer holds (a live price they tapped, an auction they won). */
+export interface PriceHolds {
+  best(buyerId: string, slug: string): Promise<{ price: Cents; qty: number } | null>;
+}
+
 export interface Destinations {
   find(country: string): Promise<Destination | null>;
 }

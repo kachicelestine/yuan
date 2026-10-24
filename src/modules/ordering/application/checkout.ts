@@ -2,7 +2,7 @@ import { domainError, err, ok, type Cents, type Clock, type DomainError, type Re
 import { MAX_QTY, placeOrder, type OrderError, type OrderLine } from "../domain/order";
 import { priceOrder, type PricedLine, type Pricing, type ShippingMethod } from "../domain/pricing";
 import type { CouponCatalog } from "../domain/repositories";
-import type { CatalogLineError, CheckoutScope, Destinations, OrderCatalog, UnitOfWork } from "./ports";
+import type { CatalogLineError, CheckoutScope, Destinations, OrderCatalog, PriceHolds, UnitOfWork } from "./ports";
 
 export type CheckoutRequest = Readonly<{
   /** The signed-in buyer, from the session (never from the request body). */
@@ -27,6 +27,8 @@ export const MAX_LINES = 50;
 
 export type CheckoutDeps = {
   catalog: OrderCatalog;
+  /** Live prices and auction wins this buyer holds; checkout honours them. */
+  holds?: PriceHolds;
   destinations: Destinations;
   coupons: CouponCatalog;
   uow: UnitOfWork<CheckoutScope>;
@@ -56,10 +58,14 @@ export function makeCheckout(deps: CheckoutDeps) {
       const r = await deps.catalog.priceLine(l.slug, l.option, l.qty);
       if (!r.ok) return r;
       const c = r.value;
-      if (l.qty < c.minOrder) return err(domainError("below_min_order", `${c.title} has a minimum order of ${c.minOrder}.`));
+      // A held price (live, or an auction win) applies when it's lower, up to its quantity.
+      const hold = deps.holds ? await deps.holds.best(req.buyerId, l.slug) : null;
+      const held = hold !== null && l.qty <= hold.qty && hold.price < c.unitPrice;
+      const unitPrice = held ? hold.price : c.unitPrice;
+      if (!held && l.qty < c.minOrder) return err(domainError("below_min_order", `${c.title} has a minimum order of ${c.minOrder}.`));
       priced.push({
-        line: { productId: c.productId, slug: c.slug, title: c.title, image: c.image, sellerId: c.sellerId, option: l.option, unitPrice: c.unitPrice, qty: l.qty },
-        pricing: { unitPrice: c.unitPrice, qty: l.qty, dutyRate: c.dutyRate, sellerId: c.sellerId, shipsFrom: c.shipsFrom },
+        line: { productId: c.productId, slug: c.slug, title: c.title, image: c.image, sellerId: c.sellerId, option: l.option, unitPrice, qty: l.qty },
+        pricing: { unitPrice, qty: l.qty, dutyRate: c.dutyRate, sellerId: c.sellerId, shipsFrom: c.shipsFrom },
       });
     }
 

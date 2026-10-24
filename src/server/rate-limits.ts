@@ -23,6 +23,12 @@ export const LIMITS = {
   "content.post": [20, 10 * 60],
   /** Upload tickets and posts, per account. */
   "content.upload": [20, 60 * 60],
+  /** Live chat messages, per account. */
+  "live.chat": [20, 60],
+  /** Hearts, per IP. */
+  "live.heart": [120, 60],
+  /** Bids and price holds, per account. */
+  "live.bid": [60, 60],
   /** Feed pages, per IP. */
   feed: [240, 60],
   /** Watch beacons, per IP. */
