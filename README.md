@@ -39,7 +39,13 @@ Run `pnpm db:migrate` again whenever a new migration lands in `drizzle/`. If the
 | `pnpm db:generate` | Generate a migration after changing a `schema.ts` |
 | `pnpm db:migrate` / `pnpm db:seed` | Prepare a Postgres server |
 | `pnpm db:studio` | Browse the database |
+| `pnpm worker` | Background jobs in their own process (when the app runs with `JOBS=off`) |
+| `pnpm build:ops` | Bundle migrate, seed and worker for the production image |
 | `pnpm data:countries` | Rebuild the countries and exchange-rate seed from open datasets |
+
+## Deploying
+
+One free Oracle Cloud server behind Cloudflare, step by step: [deploy/README.md](deploy/README.md).
 
 ## Performance
 

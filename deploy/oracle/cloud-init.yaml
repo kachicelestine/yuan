@@ -1,0 +1,15 @@
+#cloud-config
+# Oracle Cloud Always Free Ampere A1 (Ubuntu 24.04 aarch64): Docker, git, rclone, swap,
+# automatic security updates, and the nightly backup job. Paste into "Initialization script".
+package_update: true
+package_upgrade: true
+packages: [git, rclone, unattended-upgrades, ca-certificates, curl]
+runcmd:
+  - curl -fsSL https://get.docker.com | sh
+  - usermod -aG docker ubuntu
+  - systemctl enable --now docker
+  - fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+  - echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  - mkdir -p /opt/lychee && chown ubuntu:ubuntu /opt/lychee
+  - echo '15 2 * * * ubuntu /opt/lychee/deploy/scripts/backup.sh >> /var/log/lychee-backup.log 2>&1' > /etc/cron.d/lychee-backup
+  - touch /var/log/lychee-backup.log && chown ubuntu:ubuntu /var/log/lychee-backup.log

@@ -28,8 +28,31 @@ const schema = z
     /** Resend (resend.com) API key and sender, for sign-in emails. */
     RESEND_API_KEY: optional(z.string().startsWith("re_", "must be a Resend key (re_…)")),
     EMAIL_FROM: optional(z.string().min(3)),
+    /**
+     * inline: the web server also runs background jobs (outbox delivery, invoice sweeps,
+     * rate refresh); right for a single server. off: run them in `pnpm worker` instead.
+     */
+    JOBS: z.enum(["inline", "off"]).default("inline"),
+    /** Authorises internal calls (cache revalidation from jobs and deploys). 32+ random characters. */
+    INTERNAL_TOKEN: optional(z.string().min(32, "must be at least 32 characters")),
+    /** Where jobs reach this app for internal calls. Defaults to http://127.0.0.1:$PORT. */
+    INTERNAL_URL: optional(z.url()),
+    /** Which proxy's client-IP header to believe: Cloudflare's, a reverse proxy's X-Forwarded-For, or none. */
+    TRUST_PROXY: z.enum(["cloudflare", "proxy", "none"]).default("none"),
+    /** json for log shippers in production; pretty for people. */
+    LOG_FORMAT: optional(z.enum(["json", "pretty"])),
+    /** A public demo or staging site: allows simulated payments and on-screen sign-in codes in production. */
+    DEMO_DEPLOYMENT: z.stringbool().default(false),
   })
   .superRefine((env, ctx) => {
+    // A production server with a real database is a real deployment.
+    if (env.NODE_ENV === "production" && env.DATABASE_URL && process.env.NEXT_PHASE !== "phase-production-build") {
+      if (!env.AUTH_SECRET) ctx.addIssue({ code: "custom", path: ["AUTH_SECRET"], message: "required in production" });
+      if (!env.INTERNAL_TOKEN) ctx.addIssue({ code: "custom", path: ["INTERNAL_TOKEN"], message: "required in production" });
+      // Either would let anyone mark an order paid or sign in as anyone.
+      if (!env.DEMO_DEPLOYMENT && env.PAYMENTS_MODE === "simulated") ctx.addIssue({ code: "custom", path: ["PAYMENTS_MODE"], message: "simulated payments in production need DEMO_DEPLOYMENT=true" });
+      if (!env.DEMO_DEPLOYMENT && env.AUTH_DEV_CODES) ctx.addIssue({ code: "custom", path: ["AUTH_DEV_CODES"], message: "on-screen sign-in codes in production need DEMO_DEPLOYMENT=true" });
+    }
     // Real money means a real deployment: no shortcuts in how people sign in.
     if (env.PAYMENTS_MODE === "onchain") {
       if (!env.AUTH_SECRET) ctx.addIssue({ code: "custom", path: ["AUTH_SECRET"], message: "required when taking real payments" });

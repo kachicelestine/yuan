@@ -15,6 +15,8 @@
     "db:migrate": "tsx --env-file-if-exists=.env scripts/db/migrate.mts",
     "db:seed": "tsx --env-file-if-exists=.env scripts/db/seed.mts",
     "db:studio": "drizzle-kit studio",
+    "worker": "tsx --conditions=react-server --env-file-if-exists=.env scripts/worker.mts",
+    "build:ops": "tsx scripts/build-ops.mts",
     "data:countries": "tsx --env-file-if-exists=.env scripts/data/build-countries.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm test"
   },
@@ -36,6 +38,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "drizzle-kit": "^0.31.11",
+    "esbuild": "0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
     "tailwindcss": "^4",

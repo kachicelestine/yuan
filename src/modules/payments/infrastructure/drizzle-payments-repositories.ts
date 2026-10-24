@@ -1,4 +1,4 @@
-import { eq, sum } from "drizzle-orm";
+import { and, asc, eq, gt, or, sum } from "drizzle-orm";
 import type { Database } from "@/shared/infrastructure/database";
 import { cents } from "@/shared/kernel/money";
 import type { Invoice } from "../domain/invoice";
@@ -33,6 +33,16 @@ export class DrizzleInvoiceRepository implements InvoiceRepository {
   async findByOrder(orderId: string) {
     const [r] = await this.db.select().from(invoices).where(eq(invoices.orderId, orderId)).limit(1);
     return r ? toInvoice(r) : null;
+  }
+
+  async idsToSync(expiredSince: Date, limit: number) {
+    const rows = await this.db
+      .select({ id: invoices.id })
+      .from(invoices)
+      .where(or(eq(invoices.status, "pending"), and(eq(invoices.status, "expired"), gt(invoices.expiresAt, expiredSince))))
+      .orderBy(asc(invoices.expiresAt))
+      .limit(limit);
+    return rows.map((r) => r.id);
   }
 
   async save(i: Invoice) {

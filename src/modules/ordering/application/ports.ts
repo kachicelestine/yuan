@@ -1,4 +1,4 @@
-import type { Cents, DomainError, Result } from "@/shared/kernel";
+import type { Cents, DomainError, EventLog, Result } from "@/shared/kernel";
 import type { OrderRepository } from "../domain/repositories";
 import type { Destination } from "../domain/pricing";
 
@@ -45,4 +45,4 @@ export interface CouponReservations {
   reserve(buyerId: string, couponId: string, orderId: string): Promise<boolean>;
 }
 
-export type CheckoutScope = { orders: OrderRepository; payments: PaymentRequester; coupons: CouponReservations };
+export type CheckoutScope = { orders: OrderRepository; payments: PaymentRequester; coupons: CouponReservations; events: EventLog };

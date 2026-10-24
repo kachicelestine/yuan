@@ -1,4 +1,4 @@
-import { domainError, err, ok, type Result } from "@/shared/kernel";
+import { domainError, err, ok, type Clock, type EventLog, type Result } from "@/shared/kernel";
 import { cancelUnpaid, markPaid, type Order, type OrderError, type OrderStatus } from "../domain/order";
 import type { OrderRepository } from "../domain/repositories";
 import { pricingInDollars } from "./checkout";
@@ -49,24 +49,31 @@ export function makeGetOrder(deps: { orders: OrderRepository }) {
 }
 
 /** Marks an order paid once its invoice is settled. Called inside the payment's transaction. */
-export function makeMarkOrderPaid(deps: { orders: OrderRepository }) {
+export function makeMarkOrderPaid(deps: { orders: OrderRepository; events: EventLog }) {
   return async (orderId: string, at: Date): Promise<Result<Order, OrderError | ReturnType<typeof domainError<"not_found">>>> => {
     const order = await deps.orders.findById(orderId);
     if (!order) return err(domainError("not_found", `Order ${orderId} not found.`));
     const r = markPaid(order, at);
     if (!r.ok) return r;
-    if (r.value.event) await deps.orders.save(r.value.order);
+    if (r.value.event) {
+      await deps.orders.save(r.value.order);
+      await deps.events.record(order.id, r.value.event);
+    }
     return ok(r.value.order);
   };
 }
 
 /** Cancels an order whose payment window lapsed. Called inside the invoice's transaction. */
-export function makeCancelUnpaidOrder(deps: { orders: OrderRepository }) {
+export function makeCancelUnpaidOrder(deps: { orders: OrderRepository; events: EventLog; clock: Clock }) {
   return async (orderId: string): Promise<Result<Order, OrderError | ReturnType<typeof domainError<"not_found">>>> => {
     const order = await deps.orders.findById(orderId);
     if (!order) return err(domainError("not_found", `Order ${orderId} not found.`));
-    const r = cancelUnpaid(order);
-    if (r.ok && r.value !== order) await deps.orders.save(r.value);
-    return r;
+    const r = cancelUnpaid(order, deps.clock.now());
+    if (!r.ok) return r;
+    if (r.value.event) {
+      await deps.orders.save(r.value.order);
+      await deps.events.record(order.id, r.value.event);
+    }
+    return ok(r.value.order);
   };
 }

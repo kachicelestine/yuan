@@ -33,6 +33,7 @@ export type Order = Readonly<{
 
 export type OrderPlaced = Readonly<{ type: "OrderPlaced"; orderId: string; total: Cents; at: Date }>;
 export type OrderPaid = Readonly<{ type: "OrderPaid"; orderId: string; at: Date }>;
+export type OrderCancelled = Readonly<{ type: "OrderCancelled"; orderId: string; reason: "payment_lapsed"; at: Date }>;
 
 export type OrderError = DomainError<"empty_order" | "invalid_quantity" | "order_not_payable" | "order_not_cancellable">;
 
@@ -76,9 +77,9 @@ export function markPaid(order: Order, at: Date): Result<{ order: Order; event: 
   return ok({ order: { ...order, status: "paid", paidAt: at }, event: { type: "OrderPaid", orderId: order.id, at } });
 }
 
-/** The payment window closed with nothing paid. */
-export function cancelUnpaid(order: Order): Result<Order, OrderError> {
-  if (order.status === "cancelled") return ok(order);
+/** The payment window closed with nothing paid. Cancelling twice changes nothing. */
+export function cancelUnpaid(order: Order, at: Date): Result<{ order: Order; event: OrderCancelled | null }, OrderError> {
+  if (order.status === "cancelled") return ok({ order, event: null });
   if (order.status !== "awaiting_payment") return err(domainError("order_not_cancellable", `Order ${order.number} is ${order.status}.`));
-  return ok({ ...order, status: "cancelled" });
+  return ok({ order: { ...order, status: "cancelled" }, event: { type: "OrderCancelled", orderId: order.id, reason: "payment_lapsed", at } });
 }

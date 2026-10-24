@@ -50,6 +50,13 @@
       "when": 1792844689624,
       "tag": "0006_hero_and_cover_urls",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792858645691,
+      "tag": "0007_platform",
+      "breakpoints": true
     }
   ]
 }

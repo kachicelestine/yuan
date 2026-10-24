@@ -5,6 +5,7 @@ import { MAX_LIST } from "@/modules/engagement";
 import { MAX_CART_LINES } from "@/modules/ordering";
 import { accountData, type AccountState } from "../account-data";
 import { services } from "../container";
+import { allow, RATE_LIMITED } from "../rate-limits";
 import { currentAccount } from "../session";
 
 type Failure = { ok: false; code: string; message: string };
@@ -32,6 +33,7 @@ export async function syncAccountAction(
 ): Promise<{ ok: true; state: AccountState | null } | Failure> {
   const account = await currentAccount();
   if (!account) return signedOut();
+  if (!(await allow("account.write", account.id))) return RATE_LIMITED;
   const data = deviceData.safeParse(input?.data);
   if (!data.success) return fail("invalid", "That data couldn't be read.");
   const store = accountData(await services());
@@ -47,6 +49,7 @@ export async function syncAccountAction(
 export async function claimCouponAction(couponId: string): Promise<{ ok: true; coupons: string[] } | Failure> {
   const account = await currentAccount();
   if (!account) return signedOut();
+  if (!(await allow("account.write", account.id))) return RATE_LIMITED;
   const id = z.string().min(1).max(64).safeParse(couponId);
   if (!id.success) return fail("unknown_coupon", "That coupon doesn't exist.");
   return { ok: true, coupons: await (await services()).engagement.claimCoupons(account.id, [id.data]) };
@@ -56,6 +59,7 @@ export async function claimCouponAction(couponId: string): Promise<{ ok: true; c
 export async function checkInAction(): Promise<{ ok: true; coins: number; checkin: AccountState["checkin"]; earned: number } | Failure> {
   const account = await currentAccount();
   if (!account) return signedOut();
+  if (!(await allow("account.write", account.id))) return RATE_LIMITED;
   return { ok: true, ...(await (await services()).engagement.checkIn(account.id)) };
 }
 
@@ -63,6 +67,7 @@ export async function checkInAction(): Promise<{ ok: true; coins: number; checki
 export async function redeemRewardAction(rewardId: string): Promise<{ ok: true; coins: number; coupons: string[] } | Failure> {
   const account = await currentAccount();
   if (!account) return signedOut();
+  if (!(await allow("account.write", account.id))) return RATE_LIMITED;
   const id = z.string().min(1).max(64).safeParse(rewardId);
   if (!id.success) return fail("unknown_reward", "That reward isn't available.");
   const r = await (await services()).engagement.redeem(account.id, id.data);

@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import type { CheckoutRequest } from "@/modules/ordering";
 import { DrizzleInvoiceRepository } from "@/modules/payments/infrastructure/drizzle-payments-repositories";
+import { outbox } from "@/shared/infrastructure/platform-schema";
 import { SimulatedNetwork } from "@/modules/payments/infrastructure/networks";
 import { openDatabase, type Database } from "@/shared/infrastructure/database";
 import { fixedClock, newId } from "@/shared/kernel";
@@ -35,6 +36,8 @@ describe("checkout and payment, end to end", () => {
     rail: "usdc-base",
     ...patch,
   });
+  /** Topics recorded in the outbox for an aggregate, oldest first. */
+  const eventsFor = async (key: string) => (await db.select({ topic: outbox.topic, key: outbox.key }).from(outbox)).filter((r) => r.key === key).map((r) => r.topic);
   const pay = async (invoiceId: string) => {
     const invoice = await new DrizzleInvoiceRepository(db).findById(invoiceId);
     await network.send(invoice!, clock.now());
@@ -152,6 +155,38 @@ describe("checkout and payment, end to end", () => {
       expect(late?.status).toBe("paid");
       expect(late?.late).toBe(true);
       expect((await app().getOrder.byNumber(r.value.orderNumber, buyer))?.status).toBe("paid");
+    } finally {
+      clock = fixedClock("2026-10-24T10:00:00Z");
+    }
+  });
+
+  it("records what happened in the outbox, in the same transactions", async () => {
+    const buyer = await newBuyer();
+    const r = await app().checkout(request(buyer));
+    if (!r.ok) throw new Error(r.error.message);
+    expect(await eventsFor(r.value.orderId)).toEqual(["OrderPlaced"]);
+    await pay(r.value.invoiceId);
+    expect(await eventsFor(r.value.orderId)).toEqual(["OrderPlaced", "OrderPaid"]);
+    expect(await eventsFor(r.value.invoiceId)).toEqual(["InvoicePaid"]);
+
+    // A failed checkout leaves no trace.
+    const before = await db.$count(outbox);
+    await app().checkout(request(buyer, { rail: "dogecoin" }));
+    expect(await db.$count(outbox)).toBe(before);
+  });
+
+  it("sweeps open invoices in the background: lapsed ones close without anyone visiting", async () => {
+    const buyer = await newBuyer([]);
+    const r = await app().checkout(request(buyer, { couponId: null }));
+    if (!r.ok) throw new Error(r.error.message);
+    clock = fixedClock("2026-10-24T11:00:00Z");
+    try {
+      const swept = await app().syncInvoices();
+      expect(swept.checked).toBeGreaterThan(0);
+      expect(swept.expired).toBeGreaterThan(0);
+      expect((await app().getOrder.byNumber(r.value.orderNumber, buyer))?.status).toBe("cancelled");
+      expect(await eventsFor(r.value.orderId)).toEqual(["OrderPlaced", "OrderCancelled"]);
+      expect(await eventsFor(r.value.invoiceId)).toEqual(["InvoiceExpired"]);
     } finally {
       clock = fixedClock("2026-10-24T10:00:00Z");
     }

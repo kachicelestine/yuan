@@ -16,16 +16,19 @@ import {
 import { makeIdentity } from "@/modules/identity";
 import { ConsoleMailer, NodeSecrets, ResendMailer, ViemVerifier } from "@/modules/identity/infrastructure/adapters";
 import { DrizzleAccountRepository, DrizzleChallengeRepository, DrizzleSessionRepository } from "@/modules/identity/infrastructure/drizzle-identity-repositories";
-import { makeListMarkets } from "@/modules/markets";
+import { makeListMarkets, makeRefreshRates } from "@/modules/markets";
 import { DrizzleCountryRepository, DrizzleFxRateRepository } from "@/modules/markets/infrastructure/drizzle-markets-repository";
+import { OpenErApiRateSource } from "@/modules/markets/infrastructure/open-er-api-rate-source";
 import { makeCancelUnpaidOrder, makeCart, makeCheckout, makeGetOrder, makeMarkOrderPaid, orderNumber } from "@/modules/ordering";
 import { DrizzleCartRepository } from "@/modules/ordering/infrastructure/drizzle-cart-repository";
 import { DrizzleOrderRepository } from "@/modules/ordering/infrastructure/drizzle-order-repository";
-import { makeCheckInvoice, makeRequestPayment, type PaymentNetwork } from "@/modules/payments";
+import { makeCheckInvoice, makeRequestPayment, makeSyncInvoices, type PaymentNetwork } from "@/modules/payments";
 import { BaseUsdcNetwork } from "@/modules/payments/infrastructure/base-usdc-network";
 import { DrizzleInvoiceRepository, DrizzleLedger } from "@/modules/payments/infrastructure/drizzle-payments-repositories";
 import { RailRouter, SimulatedNetwork } from "@/modules/payments/infrastructure/networks";
 import type { Database } from "@/shared/infrastructure/database";
+import { OutboxDispatcher, OutboxEventLog } from "@/shared/infrastructure/outbox";
+import { PostgresRateLimiter } from "@/shared/infrastructure/rate-limit";
 import { unitOfWork } from "@/shared/infrastructure/unit-of-work";
 import { newId, systemClock, type Clock } from "@/shared/kernel";
 import { WalletCoupons } from "./adapters/coupons";
@@ -91,6 +94,34 @@ export function wire(db: Database, options: WireOptions = {}) {
     newId: () => newId(),
   });
 
+  const checkInvoice = makeCheckInvoice({
+    network,
+    invoices: new DrizzleInvoiceRepository(db),
+    // Invoice, ledger journal, order status and the order's coupon settle in one transaction.
+    uow: unitOfWork(db, (tx) => {
+      const orders = new DrizzleOrderRepository(tx);
+      const claims = new DrizzleClaimRepository(tx);
+      const events = new OutboxEventLog(tx, () => clock.now());
+      return {
+        invoices: new DrizzleInvoiceRepository(tx),
+        ledger: new DrizzleLedger(tx),
+        events,
+        orderPaid: async (orderId: string, at: Date) => {
+          const r = await makeMarkOrderPaid({ orders, events })(orderId, at);
+          if (r.ok) await claims.redeemForOrder(orderId, at);
+          return r;
+        },
+        orderLapsed: async (orderId: string) => {
+          const r = await makeCancelUnpaidOrder({ orders, events, clock })(orderId);
+          if (r.ok) await claims.releaseForOrder(orderId);
+          return r;
+        },
+      };
+    }),
+    clock,
+    newId: () => newId(),
+  });
+
   return {
     identity: makeIdentity({
       ...identityRepos(db),
@@ -120,6 +151,7 @@ export function wire(db: Database, options: WireOptions = {}) {
         orders: new DrizzleOrderRepository(tx),
         payments: { request: makeRequestPayment({ network, invoices: new DrizzleInvoiceRepository(tx), clock, newId: () => newId(), newTag }) },
         coupons: { reserve: (buyerId: string, couponId: string, orderId: string) => new DrizzleClaimRepository(tx).reserve(buyerId, couponId, orderId) },
+        events: new OutboxEventLog(tx, () => clock.now()),
       })),
       clock,
       newId: () => newId(),
@@ -127,32 +159,13 @@ export function wire(db: Database, options: WireOptions = {}) {
     }),
     getOrder: makeGetOrder({ orders: new DrizzleOrderRepository(db) }),
 
-    checkInvoice: makeCheckInvoice({
-      network,
-      invoices: new DrizzleInvoiceRepository(db),
-      // Invoice, ledger journal, order status and the order's coupon settle in one transaction.
-      uow: unitOfWork(db, (tx) => {
-        const orders = new DrizzleOrderRepository(tx);
-        const claims = new DrizzleClaimRepository(tx);
-        return {
-          invoices: new DrizzleInvoiceRepository(tx),
-          ledger: new DrizzleLedger(tx),
-          orderPaid: async (orderId: string, at: Date) => {
-            const r = await makeMarkOrderPaid({ orders })(orderId, at);
-            if (r.ok) await claims.redeemForOrder(orderId, at);
-            return r;
-          },
-          orderLapsed: async (orderId: string) => {
-            const r = await makeCancelUnpaidOrder({ orders })(orderId);
-            if (r.ok) await claims.releaseForOrder(orderId);
-            return r;
-          },
-        };
-      }),
-      clock,
-      newId: () => newId(),
-    }),
+    checkInvoice,
+    syncInvoices: makeSyncInvoices({ invoices: new DrizzleInvoiceRepository(db), checkInvoice, clock }),
     ledger: new DrizzleLedger(db),
+    refreshRates: makeRefreshRates({ source: new OpenErApiRateSource(), fx: new DrizzleFxRateRepository(db), clock }),
+    rateLimiter: new PostgresRateLimiter(db, () => clock.now()),
+    outbox: new OutboxDispatcher(db, {}, { now: () => clock.now() }),
+    db,
     /** Development only: pretends the buyer paid an invoice. Null outside simulated mode. */
     simulatePayment: simulator
       ? async (invoiceId: string) => {

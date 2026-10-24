@@ -113,7 +113,8 @@ Stack (decided 24 Oct 2026): Next.js 16 modular monolith with clean architecture
 - ⬜ **Engagement module.** Missions, badges, polls, chops, drops, reminders and rankings from real data (coupons, coins and check-ins are done).
 - ⬜ **Seller tools.** Listings, inventory, orders, lives, analytics.
 - ⬜ **Live streaming, notifications, shopping agent with tools and approvals.**
-- ⬜ **Operations.** Background jobs (expiring invoices, exchange-rate refresh), per-IP rate limiting, observability, backups.
+- ✅ **Production foundation.** Outbox for domain events and a background-job runner (invoice sweep, daily exchange rates, pruning); rate limits on sign-in, checkout, account writes and search; `/api/health`; structured logs and server-error reporting; Docker image with bundled migrate/seed/worker; one-server deployment on Oracle Always Free behind a Cloudflare Tunnel, nightly backups to R2, CI and an SSH deploy workflow ([deploy/README.md](deploy/README.md)).
+- ⬜ **Operations, stage 1.** Shared cache handler for several app instances, continuous WAL backups, metrics and traces (OpenTelemetry → Grafana Cloud), alerting.
 
 ## Guardrails
 

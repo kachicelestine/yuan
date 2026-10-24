@@ -86,10 +86,11 @@ export function makeCheckout(deps: CheckoutDeps) {
       at: deps.clock.now(),
     });
     if (!placed.ok) return placed;
-    const { order } = placed.value;
+    const { order, event } = placed.value;
 
-    return deps.uow.run(async ({ orders, payments, coupons }) => {
+    return deps.uow.run(async ({ orders, payments, coupons, events }) => {
       await orders.save(order);
+      await events.record(order.id, event);
       // Re-checked inside the transaction: another checkout may have used it a moment ago.
       if (pricing.couponId && !(await coupons.reserve(req.buyerId, pricing.couponId, order.id))) {
         throw new CheckoutAbort(domainError("coupon_unavailable", "That coupon was just used on another order. Your total has changed; try again."));

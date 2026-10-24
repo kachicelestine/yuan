@@ -6,6 +6,8 @@ export interface InvoiceRepository {
   findById(id: string): Promise<Invoice | null>;
   findByOrder(orderId: string): Promise<Invoice | null>;
   save(invoice: Invoice): Promise<void>;
+  /** Invoice ids worth checking against the chain: every pending one, plus ones that expired after `expiredSince` (late payments). */
+  idsToSync(expiredSince: Date, limit: number): Promise<string[]>;
 }
 
 export interface Ledger {

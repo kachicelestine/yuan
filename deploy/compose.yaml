@@ -1,0 +1,108 @@
+# Production on one server (stage 0): the app, a one-shot migration, Postgres, and a
+# Cloudflare Tunnel. No inbound web ports: cloudflared dials out to Cloudflare, which
+# serves the site. Run from the repo root on the server: deploy/scripts/deploy.sh
+
+name: lychee
+
+services:
+  app:
+    build:
+      context: ..
+      args:
+        NEXT_PUBLIC_BRAND_NAME: ${NEXT_PUBLIC_BRAND_NAME}
+        NEXT_PUBLIC_BRAND_SEAL: ${NEXT_PUBLIC_BRAND_SEAL}
+        NEXT_PUBLIC_BRAND_TAGLINE: ${NEXT_PUBLIC_BRAND_TAGLINE}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
+        NEXT_DEPLOYMENT_ID: ${DEPLOYMENT_ID:-dev}
+      secrets: [actions_key]
+    image: lychee-app:${DEPLOYMENT_ID:-dev}
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgres://lychee:${POSTGRES_PASSWORD}@db:5432/lychee
+      TRUST_PROXY: cloudflare
+      INTERNAL_URL: http://app:3000
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    volumes:
+      - photos:/app/.next/cache/photos
+    # Next.js drains in-flight requests and after() work on SIGTERM.
+    stop_grace_period: 30s
+    init: true
+    restart: unless-stopped
+    mem_limit: 2g
+
+  migrate:
+    image: lychee-app:${DEPLOYMENT_ID:-dev}
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgres://lychee:${POSTGRES_PASSWORD}@db:5432/lychee
+    command: ["node", "ops/migrate.mjs"]
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+
+  # Only when the app runs with JOBS=off: `docker compose --profile worker up -d`.
+  worker:
+    profiles: [worker]
+    image: lychee-app:${DEPLOYMENT_ID:-dev}
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgres://lychee:${POSTGRES_PASSWORD}@db:5432/lychee
+      INTERNAL_URL: http://app:3000
+    command: ["node", "ops/worker.mjs"]
+    depends_on:
+      db: { condition: service_healthy }
+    stop_grace_period: 60s
+    init: true
+    restart: unless-stopped
+
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: lychee
+      POSTGRES_DB: lychee
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # Sized for Oracle's free 2 OCPU / 12 GB server; keeps RAM use above Oracle's idle threshold too.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=3GB
+      - -c
+      - effective_cache_size=8GB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=512MB
+      - -c
+      - max_connections=100
+      - -c
+      - wal_compression=on
+      - -c
+      - log_min_duration_statement=500ms
+    shm_size: 1g
+    volumes:
+      # Postgres 18 images keep data under /var/lib/postgresql/18/docker.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lychee -d lychee"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on: [app]
+    restart: unless-stopped
+
+secrets:
+  actions_key:
+    environment: NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
+
+volumes:
+  pgdata:
+  photos:

@@ -1,15 +1,14 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import type { SearchCriteria } from "@/modules/catalog";
+import { CATALOG_TAG, categoryTag, productTag, sellerTag } from "./cache-tags";
 import { services } from "./container";
 
 // Cached reads of the catalog. Every entry carries the `catalog` tag plus a precise one,
 // so a seller editing a listing can invalidate just that product (see revalidateTag).
 // An hour of freshness also keeps the "Arrives Nov 4–9" windows current.
 
-export const CATALOG_TAG = "catalog";
-export const productTag = (slug: string) => `product:${slug}`;
-export const sellerTag = (id: string) => `seller:${id}`;
+export { CATALOG_TAG, productTag, sellerTag };
 
 const catalog = async () => (await services()).catalog;
 
@@ -23,7 +22,7 @@ export async function getCategories() {
 export async function getCategory(id: string) {
   "use cache";
   cacheLife("hours");
-  cacheTag(CATALOG_TAG, `category:${id}`);
+  cacheTag(CATALOG_TAG, categoryTag(id));
   return (await catalog()).getCategory(id);
 }
 
@@ -58,7 +57,7 @@ export async function getSellerPage(id: string) {
 export async function getSellersInCategory(category: string) {
   "use cache";
   cacheLife("hours");
-  cacheTag(CATALOG_TAG, `category:${category}`);
+  cacheTag(CATALOG_TAG, categoryTag(category));
   return (await catalog()).sellersInCategory(category);
 }
 

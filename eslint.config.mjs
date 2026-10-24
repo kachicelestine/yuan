@@ -48,6 +48,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     ".data/**",
     "drizzle/**",
+    // Bundled ops scripts (pnpm build:ops).
+    "dist/**",
   ]),
 ]);
 

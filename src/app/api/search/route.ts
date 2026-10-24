@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { PRODUCT_SORTS, SELLER_KINDS } from "@/modules/catalog";
 import { searchCatalog } from "@/server/catalog";
+import { allow, clientIp } from "@/server/rate-limits";
 import { money } from "@/shared/kernel";
 
 /** Comma-separated lists, e.g. cat=energy,beauty */
@@ -26,6 +27,7 @@ const Query = z.object({
 
 /** GET /api/search?q=solar%20panels&maxPrice=100&sort=price-asc */
 export async function GET(request: NextRequest) {
+  if (!(await allow("search", await clientIp()))) return Response.json({ error: "rate_limited" }, { status: 429, headers: { "retry-after": "60" } });
   const parsed = Query.safeParse(Object.fromEntries(request.nextUrl.searchParams));
   if (!parsed.success) {
     return Response.json({ error: "invalid_input", message: z.prettifyError(parsed.error) }, { status: 400 });

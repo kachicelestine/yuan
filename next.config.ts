@@ -4,6 +4,9 @@ import { DEVICE_SIZES, IMAGE_SIZES, QUALITIES } from "./src/lib/image-config";
 const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
+  // The Docker image runs the self-contained server (`.next/standalone`); local builds keep
+  // the normal layout (standalone output needs symlink rights on Windows).
+  output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
   // Embedded Postgres ships a WebAssembly build; load it from node_modules, not the bundle.
   serverExternalPackages: ["@electric-sql/pglite"],
   partialPrefetching: true,

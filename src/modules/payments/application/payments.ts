@@ -1,5 +1,5 @@
-import { domainError, err, ok, type Cents, type Clock, type DomainError, type Result } from "@/shared/kernel";
-import { confirmPayment, expire, formatUnits, openInvoice, type Invoice, type InvoiceStatus } from "../domain/invoice";
+import { domainError, err, ok, type Cents, type Clock, type DomainError, type EventLog, type Result } from "@/shared/kernel";
+import { confirmPayment, expire, formatUnits, openInvoice, type Invoice, type InvoiceExpired, type InvoiceStatus } from "../domain/invoice";
 import { paymentReceived } from "../domain/ledger";
 import type { InvoiceRepository, Ledger, PaymentNetwork } from "../domain/ports";
 import { isRailId, RAILS } from "../domain/rails";
@@ -63,11 +63,34 @@ export function makeRequestPayment(deps: { network: PaymentNetwork; invoices: In
 export type SettlementScope = {
   invoices: InvoiceRepository;
   ledger: Ledger;
+  events: EventLog;
   /** Tells the order its payment arrived (implemented by the ordering module). */
   orderPaid: (orderId: string, at: Date) => Promise<Result<unknown, DomainError>>;
   /** Tells the order its payment window closed unpaid. */
   orderLapsed: (orderId: string) => Promise<Result<unknown, DomainError>>;
 };
+
+/**
+ * The background sweep: checks every open invoice (and recently expired ones, to catch
+ * late payments) so orders settle and lapse even when nobody has the pay page open.
+ */
+export function makeSyncInvoices(deps: { invoices: Pick<InvoiceRepository, "idsToSync">; checkInvoice: (id: string) => Promise<InvoiceView | null>; clock: Clock }) {
+  return async (limit = 200): Promise<{ checked: number; paid: number; expired: number }> => {
+    const since = new Date(deps.clock.now().getTime() - LATE_PAYMENT_WINDOW_MS);
+    const ids = await deps.invoices.idsToSync(since, limit);
+    let paid = 0;
+    let expired = 0;
+    for (const id of ids) {
+      const view = await deps.checkInvoice(id);
+      if (view?.status === "paid") paid++;
+      if (view?.status === "expired") expired++;
+    }
+    return { checked: ids.length, paid, expired };
+  };
+}
+
+/** How long after expiry a payment is still looked for (and accepted, marked late). */
+export const LATE_PAYMENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Syncs an invoice with the chain: if a matching transfer has landed, the invoice is
@@ -92,8 +115,9 @@ export function makeCheckInvoice(deps: {
       if (!confirmed.ok) return toInvoiceView(invoice, deps.network); // underpaid: keep waiting
       const { invoice: paid, event } = confirmed.value;
       if (event) {
-        await deps.uow.run(async ({ invoices, ledger, orderPaid }) => {
+        await deps.uow.run(async ({ invoices, ledger, events, orderPaid }) => {
           await invoices.save(paid);
+          await events.record(paid.id, event);
           const entry = paymentReceived({ id: deps.newId(), invoiceId: paid.id, orderId: paid.orderId, rail: paid.rail, amount: paid.amount, at: event.at });
           if (!entry.ok) throw new Error(entry.error.message);
           await ledger.post(entry.value);
@@ -107,8 +131,10 @@ export function makeCheckInvoice(deps: {
     if (invoice.status === "pending") {
       const r = expire(invoice, deps.clock.now());
       if (r.ok && r.value.status === "expired") {
-        await deps.uow.run(async ({ invoices, orderLapsed }) => {
+        await deps.uow.run(async ({ invoices, events, orderLapsed }) => {
           await invoices.save(r.value);
+          const expired: InvoiceExpired = { type: "InvoiceExpired", invoiceId: r.value.id, orderId: r.value.orderId, at: deps.clock.now() };
+          await events.record(r.value.id, expired);
           const lapsed = await orderLapsed(r.value.orderId);
           if (!lapsed.ok) throw new Error(lapsed.error.message);
         });

@@ -32,6 +32,7 @@ export type Invoice = Readonly<{
 }>;
 
 export type InvoicePaid = Readonly<{ type: "InvoicePaid"; invoiceId: string; orderId: string; amount: Cents; rail: RailId; txHash: string; at: Date }>;
+export type InvoiceExpired = Readonly<{ type: "InvoiceExpired"; invoiceId: string; orderId: string; at: Date }>;
 
 export type InvoiceError = DomainError<"invalid_amount" | "underpaid" | "invoice_closed">;
 

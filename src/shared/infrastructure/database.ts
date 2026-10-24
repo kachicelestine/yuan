@@ -59,7 +59,8 @@ export async function migrateEmbedded(db: Database) {
 /** Applies pending migrations to a Postgres server. */
 export async function migrateServer(url: string) {
   const [{ drizzle }, { migrate }, { default: postgres }] = await Promise.all([import("drizzle-orm/postgres-js"), import("drizzle-orm/postgres-js/migrator"), import("postgres")]);
-  const client = postgres(url, { max: 1 });
+  // Migrations print "already exists, skipping" notices; they aren't news.
+  const client = postgres(url, { max: 1, onnotice: () => {} });
   try {
     await migrate(drizzle({ client, casing: "snake_case" }), MIGRATIONS);
   } finally {

@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { MAX_LINES, MAX_QTY, SHIPPING_METHODS } from "@/modules/ordering";
 import { services } from "../container";
+import { allow, RATE_LIMITED } from "../rate-limits";
 import { currentAccount } from "../session";
 
 const Input = z.object({
@@ -39,6 +40,7 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutOutc
   if (!account) return { ok: false, code: "sign_in_required", message: "Sign in to place your order." };
   const parsed = Input.safeParse(input);
   if (!parsed.success) return { ok: false, code: "invalid_input", message: "Something in your bag looks wrong. Refresh and try again." };
+  if (!(await allow("checkout", account.id))) return RATE_LIMITED;
   const r = await (await services()).checkout({ ...parsed.data, buyerId: account.id });
   if (!r.ok) return { ok: false, code: r.error.code, message: r.error.message };
   return { ok: true, orderNumber: r.value.orderNumber, invoiceId: r.value.invoiceId, total: r.value.pricing.total / 100 };

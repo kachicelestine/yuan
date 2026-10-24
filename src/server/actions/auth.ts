@@ -4,6 +4,7 @@ import { z } from "zod";
 import { brand } from "@/config/brand";
 import type { AccountView } from "@/modules/identity";
 import { services } from "../container";
+import { allow, clientIp, RATE_LIMITED } from "../rate-limits";
 import { endSession, startSession } from "../session";
 
 type Failure = { ok: false; code: string; message: string };
@@ -12,6 +13,7 @@ const fail = (code: string, message: string): Failure => ({ ok: false, code, mes
 /** Step 1 of email sign-in: send a code. The answer never reveals whether the email has an account. */
 export async function requestCodeAction(email: string): Promise<{ ok: true; challengeId: string; devCode: string | null } | Failure> {
   if (typeof email !== "string" || email.length > 254) return fail("invalid_email", "That doesn't look like an email address.");
+  if (!(await allow("auth.code", await clientIp()))) return RATE_LIMITED;
   const r = await (await services()).identity.requestEmailCode(email);
   return r.ok ? { ok: true, ...r.value } : fail(r.error.code, r.error.message);
 }
@@ -22,6 +24,7 @@ const Verify = z.object({ challengeId: z.uuid(), code: z.string().regex(/^\d{6}$
 export async function verifyCodeAction(challengeId: string, code: string): Promise<{ ok: true; account: AccountView } | Failure> {
   const input = Verify.safeParse({ challengeId, code: typeof code === "string" ? code.trim() : code });
   if (!input.success) return fail("wrong_code", "Codes are 6 digits.");
+  if (!(await allow("auth.verify", await clientIp()))) return RATE_LIMITED;
   const r = await (await services()).identity.verifyEmailCode(input.data.challengeId, input.data.code);
   if (!r.ok) return fail(r.error.code, r.error.message);
   await startSession(r.value);
@@ -34,6 +37,7 @@ const site = new URL(brand.url);
 export async function walletChallengeAction(address: string, chainId: number): Promise<{ ok: true; nonce: string; message: string } | Failure> {
   const input = z.object({ address: z.string().max(42), chainId: z.number().int().positive().max(2 ** 32) }).safeParse({ address, chainId });
   if (!input.success) return fail("invalid_address", "That isn't an Ethereum address.");
+  if (!(await allow("auth.wallet", await clientIp()))) return RATE_LIMITED;
   const r = await (await services()).identity.startWalletSignIn({ ...input.data, domain: site.host, uri: site.origin, appName: brand.name });
   return r.ok ? { ok: true, ...r.value } : fail(r.error.code, r.error.message);
 }
@@ -42,6 +46,7 @@ export async function walletChallengeAction(address: string, chainId: number): P
 export async function walletVerifyAction(nonce: string, signature: string): Promise<{ ok: true; account: AccountView } | Failure> {
   const input = z.object({ nonce: z.string().regex(/^[0-9a-f]{24}$/), signature: z.string().regex(/^0x[0-9a-fA-F]{130}$/) }).safeParse({ nonce, signature });
   if (!input.success) return fail("bad_signature", "The wallet's signature couldn't be read.");
+  if (!(await allow("auth.wallet", await clientIp()))) return RATE_LIMITED;
   const r = await (await services()).identity.completeWalletSignIn(input.data.nonce, input.data.signature);
   if (!r.ok) return fail(r.error.code, r.error.message);
   await startSession(r.value);

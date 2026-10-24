@@ -1,0 +1,12 @@
+.git
+.next
+.data
+dist
+node_modules
+coverage
+*.log
+.env
+.env.*
+!.env.example
+docs
+deploy/secrets
