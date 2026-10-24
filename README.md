@@ -47,6 +47,10 @@ Run `pnpm db:migrate` again whenever a new migration lands in `drizzle/`. If the
 
 On Windows, excluding the project folder from Microsoft Defender (or using a Dev Drive) makes `pnpm dev` noticeably faster.
 
+## Research
+
+[docs/research](docs/research/README.md) covers how today's social-commerce and marketplace leaders work, how they scaled, what's free to run on (and the catches), and a stage-by-stage plan from a $0 server to multi-region infrastructure.
+
 ## Configuration
 
 Everything is in `.env` (see `.env.example`). The brand (`NEXT_PUBLIC_BRAND_NAME`, `_SEAL`, `_TAGLINE`) is read from there, so renaming the product is a one-line change. Invalid settings stop the app at startup with a message naming the variable.

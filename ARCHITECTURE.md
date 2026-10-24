@@ -1,6 +1,6 @@
 # Architecture
 
-Lychee is a modular monolith: one Next.js app, split inside into bounded contexts that each follow clean architecture. This file records the decisions and the rules that keep them true. Add a new entry under "Decisions" when one changes.
+Lychee is a modular monolith: one Next.js app, split inside into bounded contexts that each follow clean architecture. This file records the decisions and the rules that keep them true. Add a new entry under "Decisions" when one changes. The research behind the product and the path from a free single server to multi-region scale is in [docs/research](docs/research/README.md).
 
 ## Layout
 
