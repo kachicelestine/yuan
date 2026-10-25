@@ -6,6 +6,10 @@ import type { Pricing, ShippingMethod } from "./pricing";
 export const ORDER_STATUSES = ["awaiting_payment", "paid", "cancelled", "completed"] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
+/** goods ship; a deposit only holds money toward a later order (pre-orders and pre-sales). */
+export const ORDER_KINDS = ["goods", "deposit"] as const;
+export type OrderKind = (typeof ORDER_KINDS)[number];
+
 /** A snapshot of what was bought, so later catalog edits never change a placed order. */
 export type OrderLine = Readonly<{
   productId: string;
@@ -25,6 +29,7 @@ export type Order = Readonly<{
   /** The account that placed it; only they can see or pay it. */
   buyerId: string;
   status: OrderStatus;
+  kind: OrderKind;
   country: string;
   /** Where it's delivered, in `country`. */
   address: ShippingAddress | null;
@@ -66,13 +71,14 @@ export function placeOrder(props: {
   pricing: Pricing;
   at: Date;
   referral?: string | null;
+  kind?: OrderKind;
 }): Result<{ order: Order; event: OrderPlaced }, OrderError> {
   if (props.lines.length === 0) return err(domainError("empty_order", "An order needs at least one item."));
   if (props.lines.some((l) => !Number.isInteger(l.qty) || l.qty < 1 || l.qty > MAX_QTY)) {
     return err(domainError("invalid_quantity", `Quantities must be whole numbers from 1 to ${MAX_QTY}.`));
   }
-  const { referral = null, ...rest } = props;
-  const order: Order = { ...rest, referral, status: "awaiting_payment", placedAt: props.at, paidAt: null };
+  const { referral = null, kind = "goods", ...rest } = props;
+  const order: Order = { ...rest, referral, kind, status: "awaiting_payment", placedAt: props.at, paidAt: null };
   return ok({ order, event: { type: "OrderPlaced", orderId: order.id, total: order.pricing.total, at: props.at } });
 }
 

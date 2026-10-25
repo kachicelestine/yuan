@@ -161,6 +161,11 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
                     </li>
                   ))}
                 </ul>
+                {o.kind === "deposit" && (
+                  <p className="mt-2.5 rounded-2xl bg-white/[0.05] p-3 text-[13px] leading-snug text-ink-2">
+                    A deposit toward a pre-order. Nothing to ship: it reaches your balance when the buyer&apos;s balance order is delivered, or if they let the balance window pass.
+                  </p>
+                )}
                 {boxes[o.id]?.length ? (
                   <p className="mt-2.5 rounded-2xl bg-white/[0.05] p-3 text-[13px] leading-snug">
                     <span className="mb-0.5 block text-[11px] font-semibold text-ink-3">Blind boxes: send these figures, sealed</span>

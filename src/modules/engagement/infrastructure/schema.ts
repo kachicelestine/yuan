@@ -389,3 +389,48 @@ export const blindHints = engagementSchema.table(
   },
   (t) => [primaryKey({ columns: [t.caseId, t.index, t.buyerId, t.figureId] })],
 );
+
+export const depositKind = engagementSchema.enum("deposit_kind", ["preorder", "presale"]);
+export const depositStatus = engagementSchema.enum("deposit_status", ["pending", "paid", "converted", "lapsed", "forfeited", "refunded"]);
+
+/** Pre-orders and pre-sales: a listing for a deposit now and the balance later. */
+export const depositOffers = engagementSchema.table(
+  "deposit_offers",
+  {
+    id: uuid().primaryKey(),
+    sellerId: text().notNull(),
+    slug: text().notNull(),
+    kind: depositKind().notNull(),
+    title: text().notNull(),
+    blurb: text().notNull(),
+    depositCents: integer().notNull(),
+    creditCents: integer().notNull(),
+    priceCents: integer().notNull(),
+    opensAt: timestamp({ withTimezone: true }).notNull(),
+    closesAt: timestamp({ withTimezone: true }).notNull(),
+    balanceFrom: timestamp({ withTimezone: true }).notNull(),
+    balanceUntil: timestamp({ withTimezone: true }).notNull(),
+    stock: integer().notNull(),
+    perPerson: integer().notNull(),
+    taken: integer().notNull().default(0),
+    cancelled: boolean().notNull().default(false),
+    createdAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (t) => [index("deposit_offers_seller_idx").on(t.sellerId), check("deposit_offers_taken", sql`${t.taken} between 0 and ${t.stock}`)],
+);
+
+export const deposits = engagementSchema.table(
+  "deposits",
+  {
+    id: uuid().primaryKey(),
+    offerId: uuid().notNull(),
+    buyerId: uuid().notNull(),
+    orderId: uuid(),
+    status: depositStatus().notNull(),
+    finalOrderId: uuid(),
+    createdAt: timestamp({ withTimezone: true }).notNull(),
+    paidAt: timestamp({ withTimezone: true }),
+    remindedAt: timestamp({ withTimezone: true }),
+  },
+  (t) => [index("deposits_buyer_idx").on(t.buyerId), uniqueIndex("deposits_order_uq").on(t.orderId), index("deposits_final_idx").on(t.finalOrderId), index("deposits_offer_idx").on(t.offerId, t.status)],
+);

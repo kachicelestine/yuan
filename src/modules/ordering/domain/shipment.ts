@@ -41,6 +41,8 @@ export type ShipmentError = DomainError<"not_shippable" | "not_deliverable" | "n
 
 /** One shipment per shop in a paid order, each owed its own lines' total. */
 export function openShipments(order: Order): Shipment[] {
+  // A deposit has nothing to ship; its money waits for the order it goes toward.
+  if (order.kind === "deposit") return [];
   const bySeller = new Map<string, Cents>();
   for (const l of order.lines) bySeller.set(l.sellerId, money.add(bySeller.get(l.sellerId) ?? money.ZERO, money.cents(l.unitPrice * l.qty)));
   return [...bySeller].map(([sellerId, amount]) => ({

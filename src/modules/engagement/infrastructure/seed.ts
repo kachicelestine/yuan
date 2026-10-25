@@ -8,7 +8,8 @@ import { products as productFixtures } from "@/fixtures/products";
 import type { Database } from "@/shared/infrastructure/database";
 import { money } from "@/shared/kernel";
 import { newId } from "@/shared/kernel";
-import { blindSeries, boards, chopOffers, coupons, drops, rewards, teamOffers } from "./schema";
+import { festivalWindow } from "../domain/deposit";
+import { blindSeries, boards, chopOffers, coupons, depositOffers, drops, rewards, teamOffers } from "./schema";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -43,7 +44,7 @@ export async function seedChopOffers(db: Database) {
 /**
  * The design-phase drops, night deals and team buys as real ones from the shops that sell
  * those products: deals are live now, drops open on the days the fixtures give, in
- * Beijing time. Pre-orders and pre-sales need deposits, which aren't built, so they're left out.
+ * Beijing time. Pre-orders and pre-sales are deposit offers (see seedDeposits).
  */
 export async function seedPromos(db: Database, now = new Date()) {
   const [{ value: have }] = await db.select({ value: count() }).from(drops);
@@ -114,6 +115,47 @@ export async function seedBlindBoxes(db: Database, now = new Date()) {
     createdAt: now,
   });
   return { skipped: false, series: 1 };
+}
+
+/**
+ * The design-phase pre-orders and the 11.11 pre-sale, as real deposit offers from the
+ * shops that sell those listings. Pre-orders pay the balance from 15 December.
+ */
+export async function seedDeposits(db: Database, now = new Date()) {
+  const [{ value: have }] = await db.select({ value: count() }).from(depositOffers);
+  if (have > 0) return { skipped: true };
+  const festival = festivalWindow(now.getUTCFullYear());
+  const rows = dropFixtures.flatMap((d) => {
+    const p = productFixtures.find((x) => x.slug === d.slug);
+    if (!p?.price || !d.deposit || (d.kind !== "preorder" && d.kind !== "presale")) return [];
+    const presale = d.kind === "presale";
+    if (presale && now >= festival.from) return [];
+    const balanceFrom = presale ? festival.from : new Date(Date.UTC(now.getUTCFullYear(), 11, 15, 1));
+    return [
+      {
+        id: newId(),
+        sellerId: p.sellerId,
+        slug: p.slug,
+        kind: d.kind,
+        title: d.title,
+        blurb: d.blurb,
+        depositCents: money.fromDollars(d.deposit.pay),
+        creditCents: money.fromDollars(d.deposit.worth),
+        priceCents: money.fromDollars(p.price),
+        opensAt: new Date(now.getTime() - 3_600_000),
+        closesAt: presale ? festival.from : new Date(balanceFrom.getTime() - 86_400_000),
+        balanceFrom,
+        balanceUntil: presale ? festival.until : new Date(balanceFrom.getTime() + 7 * 86_400_000),
+        stock: 500,
+        perPerson: presale ? 1 : 2,
+        taken: 0,
+        cancelled: false,
+        createdAt: now,
+      },
+    ];
+  });
+  if (rows.length) await db.insert(depositOffers).values(rows);
+  return { skipped: false, offers: rows.length };
 }
 
 async function insertCoupons(db: Database) {

@@ -18,9 +18,10 @@ import {
   DrizzleVideoRepository,
 } from "@/modules/content/infrastructure/drizzle-content-repositories";
 import { FfmpegEncoder } from "@/modules/content/infrastructure/ffmpeg-encoder";
-import { makeBlindBoxes, makeBoards, makeChops, makeEngagement, makePolls, makePromos, makeRewards, pollId } from "@/modules/engagement";
+import { makeBlindBoxes, makeBoards, makeDeposits, makeChops, makeEngagement, makePolls, makePromos, makeRewards, pollId } from "@/modules/engagement";
 import { DrizzleBoardRepository } from "@/modules/engagement/infrastructure/drizzle-board-repository";
 import { DrizzleBlindBoxRepository } from "@/modules/engagement/infrastructure/drizzle-blindbox-repository";
+import { DrizzleDepositRepository } from "@/modules/engagement/infrastructure/drizzle-deposit-repository";
 import { DrizzleDropRepository, DrizzlePromoHoldRepository, DrizzleReminderRepository, DrizzleTeamRepository } from "@/modules/engagement/infrastructure/drizzle-promo-repositories";
 import { DrizzleChopRepository } from "@/modules/engagement/infrastructure/drizzle-chop-repository";
 import { DrizzlePollRepository } from "@/modules/engagement/infrastructure/drizzle-poll-repository";
@@ -43,7 +44,7 @@ import { makeOnboarding } from "@/modules/merchants";
 import { DrizzleApplicationRepository, DrizzleMembershipRepository } from "@/modules/merchants/infrastructure/drizzle-merchants-repositories";
 import { DrizzleCountryRepository, DrizzleFxRateRepository } from "@/modules/markets/infrastructure/drizzle-markets-repository";
 import { OpenErApiRateSource } from "@/modules/markets/infrastructure/open-er-api-rate-source";
-import { makeCancelUnpaidOrder, makeCart, makeCheckout, makeFulfilment, makeGetOrder, makeGifts, makeMarkOrderPaid, makeSellerOrders, orderNumber } from "@/modules/ordering";
+import { makeCancelUnpaidOrder, makeCart, makeCheckout, makeCloseDeposit, makeDepositCheckout, makeFulfilment, makeGetOrder, makeGifts, makeMarkOrderPaid, makeSellerOrders, orderNumber } from "@/modules/ordering";
 import { DrizzleGiftRepository } from "@/modules/ordering/infrastructure/drizzle-gift-repository";
 import { DrizzleCartRepository } from "@/modules/ordering/infrastructure/drizzle-cart-repository";
 import { DrizzleOrderRepository } from "@/modules/ordering/infrastructure/drizzle-order-repository";
@@ -312,11 +313,32 @@ export function wire(db: Database, options: WireOptions = {}) {
     newCode: () => pollId(random),
   });
 
+  const deposits = makeDeposits({
+    deposits: new DrizzleDepositRepository(db),
+    listings: {
+      owns: async (sellerId: string, slug: string) => {
+        const [p] = await products.findBySlugs([slug]);
+        return !!p && p.sellerId === sellerId && p.status === "active" && p.price !== null;
+      },
+    },
+    clock,
+    newId: () => newId(),
+  });
+
+  // The order, its invoice and the coupon it takes are written in one transaction.
+  const checkoutUow = unitOfWork(db, (tx) => ({
+    orders: new DrizzleOrderRepository(tx),
+    gifts: new DrizzleGiftRepository(tx),
+    payments: { request: makeRequestPayment({ network, invoices: new DrizzleInvoiceRepository(tx), clock, newId: () => newId(), newTag }) },
+    coupons: { reserve: (buyerId: string, couponId: string, orderId: string) => new DrizzleClaimRepository(tx).reserve(buyerId, couponId, orderId) },
+    events: new OutboxEventLog(tx, () => clock.now()),
+  }));
+
   // The lowest price the buyer holds for this many units: a live price, an auction win, a
-  // chop, a drop or a team, or an accepted quote. Checkout and the bag both use it.
+  // chop, a drop or a team, an accepted quote, or a pre-order's balance. Checkout and the bag both use it.
   const holds: PriceHolds = {
     best: async (buyerId: string, slug: string, qty: number) => {
-      const held = (await Promise.all([live.bestHold(buyerId, slug), chops.bestHold(buyerId, slug), promos.bestHold(buyerId, slug), sourcing.bestHold(buyerId, slug, qty)])).filter(
+      const held = (await Promise.all([live.bestHold(buyerId, slug), chops.bestHold(buyerId, slug), promos.bestHold(buyerId, slug), sourcing.bestHold(buyerId, slug, qty), deposits.bestHold(buyerId, slug)])).filter(
         (h): h is NonNullable<typeof h> => h !== null && qty <= h.qty && qty >= ("minQty" in h ? h.minQty : 1),
       );
       return held.length ? held.reduce((a, b) => (b.price < a.price ? b : a)) : null;
@@ -470,19 +492,15 @@ export function wire(db: Database, options: WireOptions = {}) {
       holds,
       destinations: new MarketDestinations(countries),
       coupons: new WalletCoupons(engagement),
-      // The order, its invoice and the coupon it takes are written in one transaction.
-      uow: unitOfWork(db, (tx) => ({
-        orders: new DrizzleOrderRepository(tx),
-        gifts: new DrizzleGiftRepository(tx),
-        payments: { request: makeRequestPayment({ network, invoices: new DrizzleInvoiceRepository(tx), clock, newId: () => newId(), newTag }) },
-        coupons: { reserve: (buyerId: string, couponId: string, orderId: string) => new DrizzleClaimRepository(tx).reserve(buyerId, couponId, orderId) },
-        events: new OutboxEventLog(tx, () => clock.now()),
-      })),
+      uow: checkoutUow,
       clock,
       newId: () => newId(),
       newOrderNumber: () => orderNumber("LY", random),
       newToken: () => randomBytes(18).toString("base64url"),
     }),
+    deposits,
+    depositCheckout: makeDepositCheckout({ catalog: pricing, destinations: new MarketDestinations(countries), uow: checkoutUow, clock, newId: () => newId(), newOrderNumber: () => orderNumber("LY", random) }),
+    closeDeposit: makeCloseDeposit({ orders: new DrizzleOrderRepository(db) }),
     getOrder: makeGetOrder({ orders: new DrizzleOrderRepository(db) }),
     sellerOrders: makeSellerOrders({ orders: new DrizzleOrderRepository(db), shipments: new DrizzleShipmentRepository(db), gifts: new DrizzleGiftRepository(db) }),
     gifts: makeGifts({

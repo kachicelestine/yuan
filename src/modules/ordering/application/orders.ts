@@ -10,6 +10,7 @@ export type OrderView = {
   number: string;
   buyerId: string;
   status: OrderStatus;
+  kind: Order["kind"];
   country: string;
   address: ShippingAddress | null;
   shippingMethod: string;
@@ -24,6 +25,7 @@ export const toOrderView = (o: Order): OrderView => ({
   number: o.number,
   buyerId: o.buyerId,
   status: o.status,
+  kind: o.kind,
   country: o.country,
   address: o.address,
   shippingMethod: o.shippingMethod,
@@ -97,6 +99,7 @@ export type SellerOrderView = {
   id: string;
   number: string;
   status: OrderStatus;
+  kind: Order["kind"];
   country: string;
   /** Where to send the parcel: only once the order is paid. */
   address: ShippingAddress | null;
@@ -155,6 +158,7 @@ export function makeSellerOrders(deps: { orders: OrderRepository; shipments: Shi
           id: o.id,
           number: o.number,
           status: o.status,
+          kind: o.kind,
           country: o.country,
           address: o.status === "paid" || o.status === "completed" ? o.address : null,
           shippingMethod: o.shippingMethod,

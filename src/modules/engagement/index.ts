@@ -13,9 +13,11 @@ export {
 } from "./application/engagement";
 export { CHECKIN_REWARDS, checkinReward, checkinState, dayOf, type Checkin, type CoinEntry, type CoinReason, type Reward, type Watch } from "./domain/coins";
 export { claim, isExpired, isUsable, type Claim, type Coupon, type CouponKind } from "./domain/coupon";
-export type { BlindBoxRepository, BoardRepository, ChopRepository, ClaimRepository, DropRepository, PromoHold, PromoHoldRepository, Reminder, ReminderRepository, TeamRepository, CoinRepository, CouponRepository, ListKind, ListRepository, PollRepository, RewardRepository, WatchRepository } from "./domain/repositories";
+export type { BlindBoxRepository, BoardRepository, DepositRepository, ChopRepository, ClaimRepository, DropRepository, PromoHold, PromoHoldRepository, Reminder, ReminderRepository, TeamRepository, CoinRepository, CouponRepository, ListKind, ListRepository, PollRepository, RewardRepository, WatchRepository } from "./domain/repositories";
 export { makePolls, type PollView, type Polls, type PollsDeps } from "./application/polls";
 export { makeBoards, type BoardView, type Boards, type BoardsDeps } from "./application/boards";
+export { makeDeposits, type DepositMoney, type DepositOfferView, type Deposits, type DepositsDeps, type SellerDepositOfferView } from "./application/deposits";
+export { balanceHold, balanceOf, createOffer as createDepositOffer, DEPOSIT_KINDS, festivalWindow, type Deposit, type DepositError, type DepositKind, type DepositOffer, type DepositStatus, type OfferInput as DepositOfferInput } from "./domain/deposit";
 export { makeBlindBoxes, type BlindBoxDeps, type BlindBoxes, type BoxSlot, type MachineView, type OrderBox } from "./application/blindboxes";
 export { HOLD_MINUTES as BOX_HOLD_MINUTES, makeCase, odds as boxOdds, validSeries, type Box, type BoxError, type Case as BoxCase, type Figure, type Series as BoxSeries } from "./domain/blindbox";
 export { canSee, createBoard, editBoard, MAX_BOARD_ITEMS, MAX_BOARDS, toggleItem, type Board, type BoardError } from "./domain/board";

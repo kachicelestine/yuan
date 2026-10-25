@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { boolean, char, check, index, integer, jsonb, pgSchema, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { ShippingAddress } from "../domain/address";
-import { ORDER_STATUSES } from "../domain/order";
+import { ORDER_KINDS, ORDER_STATUSES } from "../domain/order";
 import { GIFT_THEMES } from "../domain/gift";
 import { DISPUTE_REASONS, SHIPMENT_STATUSES } from "../domain/shipment";
 import { SHIPPING_METHODS } from "../domain/pricing";
@@ -9,6 +9,7 @@ import { SHIPPING_METHODS } from "../domain/pricing";
 export const orderingSchema = pgSchema("ordering");
 
 export const orderStatus = orderingSchema.enum("order_status", ORDER_STATUSES);
+export const orderKind = orderingSchema.enum("order_kind", ORDER_KINDS);
 export const shippingMethod = orderingSchema.enum("shipping_method", SHIPPING_METHODS);
 
 export const orders = orderingSchema.table(
@@ -18,6 +19,7 @@ export const orders = orderingSchema.table(
     number: text().notNull().unique(),
     buyerId: uuid().notNull(),
     status: orderStatus().notNull(),
+    kind: orderKind().notNull().default("goods"),
     country: char({ length: 2 }).notNull(),
     /** Delivery address; null on orders placed before addresses were taken. */
     address: jsonb().$type<ShippingAddress>(),

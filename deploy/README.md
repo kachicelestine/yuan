@@ -79,7 +79,7 @@ MediaMTX checks every publish and every viewer with the app (`/api/live/auth`): 
 
 ### 6. Ask, the shopping assistant (optional)
 
-Ask runs on Claude. Create an API key at console.anthropic.com (set a monthly spend limit there), put it in `.env` as `ANTHROPIC_API_KEY=sk-ant-…`, and run `deploy/scripts/deploy.sh`. Without a key, Ask says it isn't switched on. Only signed-in shoppers can ask, 30 questions an hour each. `ASK_MODEL` picks the model (default `claude-opus-5-5`; `claude-sonnet-5-5` or `claude-haiku-5-5` cost less per question).
+Ask runs on Claude. Create an API key at console.anthropic.com (set a monthly spend limit there), put it in `.env` as `ANTHROPIC_API_KEY=sk-ant-…`, and run `deploy/scripts/deploy.sh`. Without a key, Ask says it isn't switched on. Only signed-in shoppers can ask, 30 questions an hour each. `ASK_MODEL` picks the model (default `claude-sonnet-5-5`; `claude-opus-5-5` answers best and costs most, `claude-haiku-5-5` costs least).
 
 ## Day to day
 

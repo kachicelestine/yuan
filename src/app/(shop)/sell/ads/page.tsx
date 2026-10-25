@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { AdsManager } from "@/components/sell/ads-manager";
 import { ChopOffersManager } from "@/components/sell/chop-offers-manager";
+import { DepositOffersManager } from "@/components/sell/deposit-offers-manager";
 import { DropsManager, TeamOffersManager } from "@/components/sell/drops-manager";
 import { SamplesManager } from "@/components/sell/samples-manager";
 import { SellFrame, SellSkeleton } from "@/components/sell/sell-frame";
@@ -25,7 +26,7 @@ async function Body() {
   const shop = await currentShop();
   if (!shop) redirect("/sell");
   const app = await services();
-  const [campaigns, listings, available, offers, drops, teams, sampleOffers, sampleRequests] = await Promise.all([
+  const [campaigns, listings, available, offers, drops, teams, sampleOffers, sampleRequests, depositOffers] = await Promise.all([
     app.ads.list(shop.sellerId),
     app.selling.listings(shop.sellerId),
     app.escrow.available(shop.sellerId),
@@ -34,6 +35,7 @@ async function Body() {
     app.promos.sellerTeamOffers(shop.sellerId),
     app.samples.sellerOffers(shop.sellerId),
     app.samples.sellerRequests(shop.sellerId),
+    app.deposits.sellerOffers(shop.sellerId),
   ]);
   const live = listings.filter((l) => l.status === "active").map(({ slug, title, images, price }) => ({ slug, title, image: images[0], price: price ?? null }));
   return (
@@ -61,6 +63,12 @@ async function Body() {
           Team buys
         </h2>
         <TeamOffersManager offers={teams} listings={live} owner={shop.role === "owner"} />
+      </section>
+      <section aria-labelledby="deposits-h" className="mt-6 flex flex-col gap-2">
+        <h2 id="deposits-h" className="px-1 font-display text-xl font-bold">
+          Pre-orders and pre-sales
+        </h2>
+        <DepositOffersManager offers={depositOffers} listings={live} owner={shop.role === "owner"} />
       </section>
       <section aria-labelledby="samples-h" className="mt-6 flex flex-col gap-2">
         <h2 id="samples-h" className="px-1 font-display text-xl font-bold">

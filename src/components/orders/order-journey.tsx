@@ -92,7 +92,18 @@ export function OrderJourney({
                 {money(placed.totals.total)} held by {brand.name} Protect
               </h2>
               <p className="text-[13px] text-ink-2">
-                Each shop is paid when you confirm its parcel arrived, or {AUTO_CONFIRM_DAYS} days after it ships if you don&apos;t report a problem. Report one and the money stays put until it&apos;s sorted.
+                {placed.kind === "deposit" ? (
+                  <>
+                    This is a deposit: nothing ships yet. It counts toward the balance, which you pay when its window opens (we&apos;ll tell you), and reaches the shop when that order is delivered. If the shop cancels, it comes back to you; if the balance window passes unpaid, it goes to the shop.{" "}
+                    <Link href="/drops#deposits" className="font-semibold text-ink underline underline-offset-2">
+                      See your pre-orders
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    Each shop is paid when you confirm its parcel arrived, or {AUTO_CONFIRM_DAYS} days after it ships if you don&apos;t report a problem. Report one and the money stays put until it&apos;s sorted.
+                  </>
+                )}
               </p>
             </div>
           </div>

@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { DepositOffers } from "@/components/drops/deposit-offers";
 import { ChopOffers } from "@/components/drops/chop-offers";
 import { DropsCalendar } from "@/components/drops/drops-calendar";
 import { LiveNow } from "@/components/drops/live-now";
@@ -43,7 +44,7 @@ async function DropsBody() {
   const app = await services();
   const account = await currentAccount();
   const festival = festivalStart();
-  const [drops, chopOffers, teamOffers, products, lobby, sellers, festivalReminded] = await Promise.all([
+  const [drops, chopOffers, teamOffers, products, lobby, sellers, festivalReminded, depositOffers] = await Promise.all([
     app.promos.drops(account?.id ?? null),
     getChopOffers(),
     getTeamOffers(),
@@ -51,6 +52,7 @@ async function DropsBody() {
     getLiveLobby(),
     getSellers(),
     account ? app.promos.reminded(account.id, festivalKey(festival)) : Promise.resolve(false),
+    app.deposits.current(account?.id ?? null),
   ]);
   const bySlug = new Map(products.map((p) => [p.slug, p]));
   const info = (slug: string) => {
@@ -67,6 +69,8 @@ async function DropsBody() {
   return (
     <>
       <LiveNow drops={live} />
+
+      <DepositOffers items={withProduct(depositOffers)} signedIn={!!account} />
 
       <section aria-labelledby="chops-h">
         <h2 id="chops-h" className="font-display text-2xl font-extrabold tracking-[-0.02em]">

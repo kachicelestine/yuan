@@ -5,6 +5,7 @@ import type { Chop, ChopCut, ChopOffer, ChopStatus } from "./chop";
 import type { Drop, Team, TeamMember, TeamOffer, TeamStatus } from "./drop";
 import type { Board } from "./board";
 import type { Box, Case, Series } from "./blindbox";
+import type { Deposit, DepositOffer, DepositStatus } from "./deposit";
 
 export interface CouponRepository {
   list(): Promise<Coupon[]>;
@@ -226,4 +227,28 @@ export interface BlindBoxRepository {
   addHint(caseId: string, index: number, buyerId: string, figureId: string, at: Date): Promise<void>;
   /** Drops holds that ran out. */
   sweep(now: Date): Promise<number>;
+}
+
+export interface DepositRepository {
+  offer(id: string): Promise<DepositOffer | null>;
+  saveOffer(offer: DepositOffer): Promise<void>;
+  sellerOffers(sellerId: string): Promise<DepositOffer[]>;
+  /** Offers taking deposits, about to, or with a balance window still to come. */
+  currentOffers(now: Date): Promise<DepositOffer[]>;
+  find(id: string): Promise<Deposit | null>;
+  byOrder(orderId: string): Promise<Deposit | null>;
+  /** Takes one from the offer's stock and records the deposit, or false if none are left. */
+  reserve(deposit: Deposit): Promise<boolean>;
+  save(deposit: Deposit): Promise<void>;
+  /** Gives a pending deposit's place back to the offer. */
+  release(deposit: Deposit): Promise<void>;
+  /** A buyer's deposits (any status), with their offers. */
+  forBuyer(buyerId: string): Promise<{ deposit: Deposit; offer: DepositOffer }[]>;
+  forOffer(offerId: string, statuses: readonly DepositStatus[]): Promise<Deposit[]>;
+  /** Deposits converted into this order. */
+  forFinalOrder(orderId: string): Promise<{ deposit: Deposit; offer: DepositOffer }[]>;
+  /** Paid deposits whose balance window has closed. */
+  lapsed(now: Date): Promise<{ deposit: Deposit; offer: DepositOffer }[]>;
+  /** Paid deposits whose balance window just opened and haven't been told. */
+  toRemind(now: Date): Promise<{ deposit: Deposit; offer: DepositOffer }[]>;
 }

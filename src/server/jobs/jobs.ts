@@ -5,6 +5,8 @@ import { log } from "@/shared/infrastructure/log";
 import { services, type Services } from "../container";
 import { revalidateTags } from "../internal";
 import type { Message } from "@/modules/notifications";
+import type { DepositMoney } from "@/modules/engagement";
+import { settleDepositMoney } from "../deposits";
 import { cents } from "@/shared/kernel/money";
 import { categoryVideosTag, commentsTag, FEED_TAG, MARKETS_TAG, productTag, questionsTag, reviewsTag, sellerReviewsTag, sellerTag, sellerVideosTag } from "../cache-tags";
 
@@ -21,6 +23,9 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
   /** Everyone running a shop. */
   const shopPeople = (sellerId: string) => app.onboarding.members(sellerId);
   const notify = (accountIds: string[], message: Message, key: string) => app.notifications.notify(accountIds, message, key);
+  const when = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "Asia/Shanghai" });
+  /** Moves a deposit out of Protect, to the shop or back to the buyer, and closes its order. */
+  const settleDeposit = (d: DepositMoney, how: "release" | "refund") => settleDepositMoney(app, d, how);
 
   return {
     // A new video joins the feed, its shop and its category as soon as it's live.
@@ -48,6 +53,22 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
       const { orderId } = payload as { orderId: string };
       const order = await app.getOrder.internal(orderId);
       if (!order) return;
+      // A deposit: nothing ships yet; the buyer pays the balance when its window opens.
+      if (order.kind === "deposit") {
+        const paid = await app.deposits.paid(orderId);
+        if (!paid) return;
+        const { deposit, offer, late } = paid;
+        if (late) {
+          // Paid after its place went back, or after the shop cancelled: it goes straight back.
+          await settleDeposit({ depositId: deposit.id, depositOrderId: orderId, buyerId: deposit.buyerId, sellerId: offer.sellerId, amount: offer.deposit, title: offer.title }, "refund");
+          await notify([order.buyerId], { kind: "deposit", title: "Deposit coming back", body: `${offer.title}: your payment arrived after the deposit closed, so it's being refunded.`, link: `/orders/${order.number}`, email: true }, `${id}:late`);
+          return;
+        }
+        await notify([order.buyerId], { kind: "deposit", title: "Deposit paid", body: `${offer.title}: pay the balance of ${usd(offer.price - offer.credit)} between ${when(offer.balanceFrom)} and ${when(offer.balanceUntil)}. We'll remind you.`, link: "/drops#deposits", email: true }, id);
+        return;
+      }
+      // A balance paid at a pre-order's price uses up its deposit.
+      await app.deposits.convert(order.buyerId, orderId, order.lines.map((l) => ({ slug: l.slug, qty: l.qty, unitPrice: cents(Math.round(l.unitPrice * 100)) })));
       // Live prices and auction wins behind this order are used up.
       await app.live.useHolds(order.buyerId, [...new Set(order.lines.map((l) => l.slug))]);
       await app.chops.use(order.buyerId, [...new Set(order.lines.map((l) => l.slug))]);
@@ -75,15 +96,23 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
       const order = await app.getOrder.internal(orderId);
       if (order) await notify([order.buyerId], { kind: "order_shipped", title: `Order ${order.number} is on its way`, body: `${carrier} tracking ${tracking}. Confirm when it arrives, or tell us if something's wrong.`, link: `/orders/${order.number}`, email: true }, id);
     },
+    // An unpaid deposit gives its place back.
+    OrderCancelled: async ({ payload }) => {
+      await app.deposits.unpaid((payload as { orderId: string }).orderId);
+    },
     ShipmentDelivered: async ({ id, payload }) => {
       const p = payload as { orderId: string; sellerId: string; amount: number };
       await app.escrow.release({ orderId: p.orderId, sellerId: p.sellerId, amount: cents(p.amount) });
+      // The deposits that went toward it reach the shop too.
+      for (const d of await app.deposits.forFinalOrder(p.orderId)) if (d.sellerId === p.sellerId) await settleDeposit(d, "release");
       await app.affiliates.settle(p.orderId, p.sellerId, "earned");
       await notify(await shopPeople(p.sellerId), { kind: "funds_released", title: "Delivered: payment released", body: `${usd(p.amount)} (before commission) is in your balance.`, link: "/sell?tab=money", email: false }, id);
     },
     ShipmentRefunded: async ({ id, payload }) => {
       const p = payload as { orderId: string; sellerId: string; amount: number };
       await app.escrow.refund({ orderId: p.orderId, sellerId: p.sellerId, amount: cents(p.amount) });
+      // Refunding an order refunds the deposits that went toward it.
+      for (const d of await app.deposits.forFinalOrder(p.orderId)) if (d.sellerId === p.sellerId) await settleDeposit(d, "refund");
       await app.affiliates.settle(p.orderId, p.sellerId, "void");
       const order = await app.getOrder.internal(p.orderId);
       if (order) await notify([order.buyerId], { kind: "refund_approved", title: "Refund approved", body: `${usd(p.amount)} is on its way back to you.`, link: `/orders/${order.number}`, email: true }, id);
@@ -264,6 +293,27 @@ function recurringJobs(app: Services, dispatcher: OutboxDispatcher): ScheduledJo
       run: async () => {
         for (const r of await app.promos.dueReminders()) {
           await app.notifications.notify([r.accountId], { kind: "reminder", title: r.title, body: "Starting soon. Tap to get there first.", link: r.link, email: false }, `reminder:${r.key}:${r.accountId}`);
+        }
+      },
+    },
+    {
+      // Balance windows that closed unpaid: the deposit goes to the shop, as the offer said.
+      name: "deposits.forfeit",
+      everyMs: 10 * 60_000,
+      run: async () => {
+        for (const d of await app.deposits.forfeitLapsed()) {
+          await settleDepositMoney(app, d, "release");
+          await app.notifications.notify([d.buyerId], { kind: "deposit", title: "Balance window closed", body: `${d.title}: the balance wasn't paid in time, so the deposit went to the shop.`, link: "/drops#deposits", email: true }, `deposit-forfeit:${d.depositId}`);
+        }
+      },
+    },
+    {
+      // Buyers hear when their balance window opens.
+      name: "deposits.remind",
+      everyMs: 5 * 60_000,
+      run: async () => {
+        for (const r of await app.deposits.dueReminders()) {
+          await app.notifications.notify([r.buyerId], { kind: "deposit", title: "Pay the balance now", body: `${r.title}: $${r.balance.toFixed(2)} to go. Open until ${r.until.toUTCString().slice(5, 22)} UTC.`, link: `/p/${r.slug}`, email: true }, `deposit-remind:${r.buyerId}:${r.slug}:${r.until.getTime()}`);
         }
       },
     },
