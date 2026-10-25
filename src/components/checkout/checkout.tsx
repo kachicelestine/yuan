@@ -29,6 +29,18 @@ const shipping = [
 
 const HOLD_MS = 1200;
 
+type Address = { name: string; phone: string; line1: string; line2: string; city: string };
+const EMPTY_ADDRESS: Address = { name: "", phone: "", line1: "", line2: "", city: "" };
+const SHORT: Record<keyof Address, string> = { name: "name", phone: "phone number", line1: "street", line2: "apartment", city: "city" };
+/** [field, label, autocomplete, required] */
+const ADDRESS_FIELDS: [keyof Address, string, string, boolean][] = [
+  ["name", "Full name", "name", true],
+  ["phone", "Phone", "tel", true],
+  ["line1", "Street and number", "address-line1", true],
+  ["line2", "Apartment, floor or landmark", "address-line2", false],
+  ["city", "City", "address-level2", true],
+];
+
 /** Buyers pay in dollar stablecoins, so the amount to send is always shown in USD. */
 const usd = (amount: number) => formatMoney(amount, "USD");
 
@@ -46,6 +58,9 @@ export function Checkout({ rails: available, signedIn }: { rails: string[]; sign
   const [holding, setHolding] = useState(false);
   const [combine, setCombine] = useState(true);
   const [later, setLater] = useStored<CartLine[]>("app.later", []);
+  // Remembered on this device, so the next order is one tap.
+  const [address, setAddress] = useStored<Address>("app.address", EMPTY_ADDRESS);
+  const missing = ADDRESS_FIELDS.filter(([key, , , required]) => required && !address[key]?.trim()).map(([key]) => SHORT[key]);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -94,11 +109,18 @@ export function Checkout({ rails: available, signedIn }: { rails: string[]; sign
     if (submitting) return;
     setHolding(false);
     setFailure(null);
+    if (missing.length) {
+      setFailure(`Add the ${missing.length > 1 ? `${missing.slice(0, -1).join(", ")} and ${missing.at(-1)}` : missing[0]} for the delivery.`);
+      document.getElementById("ship-to")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      haptic([30, 60, 30]);
+      return;
+    }
     startSubmit(async () => {
       // The server reprices everything; what's shown here is a preview.
       const r = await checkoutAction({
         lines: cart.map((l) => ({ slug: l.slug, option: l.option ?? null, qty: l.qty })),
         country: market.code,
+        address: { name: address.name, phone: address.phone, line1: address.line1, line2: address.line2, city: address.city },
         shippingMethod: ship,
         combineParcels: combine,
         payDutiesNow: dutiesNow,
@@ -188,19 +210,27 @@ export function Checkout({ rails: available, signedIn }: { rails: string[]; sign
           </div>
         </fieldset>
 
-        <section aria-label="Ship to" className="glass rounded-[26px] p-4">
+        <section id="ship-to" aria-label="Ship to" className="glass scroll-mt-24 rounded-[26px] p-4">
           <h2 className="mb-3 text-[13px] font-semibold text-ink-2">Ship to</h2>
           <ShipTo variant="row" className="mb-2 rounded-2xl" />
           <div className="grid gap-2 sm:grid-cols-2">
-            {[
-              ["name", "Full name", "name"],
-              ["phone", "Phone", "tel"],
-              ["street", "Street and number", "street-address"],
-              ["city", "City", "address-level2"],
-            ].map(([id, label, autoComplete]) => (
-              <label key={id} className={`glass-inset flex flex-col rounded-2xl px-3.5 py-2 ${id === "street" ? "sm:col-span-2" : ""}`}>
-                <span className="text-[11px] font-semibold text-ink-2">{label}</span>
-                <input name={id} autoComplete={autoComplete} placeholder={id === "city" ? market.city : undefined} className="h-7 bg-transparent text-base outline-none placeholder:text-ink-3" />
+            {ADDRESS_FIELDS.map(([key, label, autoComplete, required]) => (
+              <label key={key} className={`glass-inset flex flex-col rounded-2xl px-3.5 py-2 ${key === "line1" || key === "line2" ? "sm:col-span-2" : ""}`}>
+                <span className="text-[11px] font-semibold text-ink-2">
+                  {label}
+                  {!required && " (optional)"}
+                </span>
+                <input
+                  name={key}
+                  autoComplete={autoComplete}
+                  type={key === "phone" ? "tel" : "text"}
+                  required={required}
+                  maxLength={key === "phone" ? 24 : 120}
+                  value={address[key] ?? ""}
+                  onChange={(e) => setAddress({ ...address, [key]: e.target.value })}
+                  placeholder={key === "city" ? market.city : undefined}
+                  className="h-7 bg-transparent text-base outline-none placeholder:text-ink-3"
+                />
               </label>
             ))}
           </div>

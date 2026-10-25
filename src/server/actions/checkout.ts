@@ -20,6 +20,15 @@ const Input = z.object({
     .min(1)
     .max(MAX_LINES),
   country: z.string().regex(/^[A-Z]{2}$/),
+  address: z.object({
+    name: z.string().max(200),
+    phone: z.string().max(60),
+    line1: z.string().max(300),
+    line2: z.string().max(300).optional(),
+    city: z.string().max(120),
+    region: z.string().max(120).optional(),
+    postcode: z.string().max(40).optional(),
+  }),
   shippingMethod: z.enum(SHIPPING_METHODS),
   combineParcels: z.boolean(),
   payDutiesNow: z.boolean(),

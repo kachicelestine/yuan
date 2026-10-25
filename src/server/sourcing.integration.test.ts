@@ -1,3 +1,4 @@
+import { TEST_ADDRESS } from "./test-address";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { CheckoutRequest } from "@/modules/ordering";
 import { DrizzleInvoiceRepository } from "@/modules/payments/infrastructure/drizzle-payments-repositories";
@@ -20,7 +21,7 @@ describe("requests for quotes", () => {
   const buyer = { accountId: newId(), name: "shopper-buy001" };
   const ask = (patch: Partial<Parameters<ReturnType<typeof app>["sourcing"]["open"]>[1]> = {}) =>
     app().sourcing.open(buyer, { item: "450 W solar panels", details: "All-black frames", slug: null, qty: 200, target: money.fromDollars(80), port: "Tema, Ghana", incoterm: "CIF", samples: true, ...patch });
-  const order = (slug: string, qty: number): CheckoutRequest => ({ buyerId: buyer.accountId, lines: [{ slug, option: null, qty }], country: "NG", shippingMethod: "standard", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base" });
+  const order = (slug: string, qty: number): CheckoutRequest => ({ buyerId: buyer.accountId, lines: [{ slug, option: null, qty }], country: "NG", shippingMethod: "standard", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base", address: TEST_ADDRESS });
   const unitPrice = async (slug: string, qty: number) => {
     const r = await app().checkout(order(slug, qty));
     return r.ok ? r.value.pricing.subtotal / qty / 100 : r.error.code;

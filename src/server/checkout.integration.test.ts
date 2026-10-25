@@ -1,3 +1,4 @@
+import { TEST_ADDRESS } from "./test-address";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { CheckoutRequest } from "@/modules/ordering";
 import { DrizzleInvoiceRepository } from "@/modules/payments/infrastructure/drizzle-payments-repositories";
@@ -33,7 +34,7 @@ describe("checkout and payment, end to end", () => {
     combineParcels: true,
     payDutiesNow: true,
     couponId: "welcome5",
-    rail: "usdc-base",
+    rail: "usdc-base", address: TEST_ADDRESS,
     ...patch,
   });
   /** Topics recorded in the outbox for an aggregate, oldest first. */
@@ -173,6 +174,21 @@ describe("checkout and payment, end to end", () => {
     const before = await db.$count(outbox);
     await app().checkout(request(buyer, { rail: "dogecoin" }));
     expect(await db.$count(outbox)).toBe(before);
+  });
+
+  it("needs a delivery address, which the shop sees only once the order is paid", async () => {
+    const buyer = await newBuyer([]);
+    const noStreet = await app().checkout(request(buyer, { couponId: null, address: { ...TEST_ADDRESS, line1: " " } }));
+    expect(!noStreet.ok && noStreet.error.code).toBe("invalid_address");
+    const r = await app().checkout(request(buyer, { couponId: null, lines: [{ slug: "earbuds-anc", option: null, qty: 1 }], address: { ...TEST_ADDRESS, line2: "Flat 3" } }));
+    if (!r.ok) throw new Error(r.error.message);
+    expect((await app().getOrder.byNumber(r.value.orderNumber, buyer))?.address).toMatchObject({ name: "Ada Obi", line1: "12 Admiralty Way", line2: "Flat 3", city: "Lagos" });
+    const sellerId = (await app().catalog.getProductsBySlugs(["earbuds-anc"]))[0].sellerId;
+    const unpaid = (await app().sellerOrders.list(sellerId)).find((o) => o.id === r.value.orderId);
+    expect(unpaid?.address).toBeNull();
+    await pay(r.value.invoiceId);
+    const paid = (await app().sellerOrders.list(sellerId)).find((o) => o.id === r.value.orderId);
+    expect(paid?.address).toMatchObject({ name: "Ada Obi", phone: "+234 803 123 4567" });
   });
 
   it("sweeps open invoices in the background: lapsed ones close without anyone visiting", async () => {

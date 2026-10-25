@@ -1,3 +1,4 @@
+import { TEST_ADDRESS } from "./test-address";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -44,7 +45,7 @@ describe("affiliates: creator links, commissions and creator payouts", () => {
       combineParcels: true,
       payDutiesNow: true,
       couponId: null,
-      rail: "usdc-base",
+      rail: "usdc-base", address: TEST_ADDRESS,
       referral,
     };
     const r = await app().checkout(req);

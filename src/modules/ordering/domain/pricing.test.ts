@@ -51,7 +51,7 @@ describe("priceOrder", () => {
 });
 
 describe("order", () => {
-  const props = { id: "o1", number: "LY-ABC123", buyerId: "b1", country: "NG", shippingMethod: "standard" as const, pricing: priceOrder(input()), at: new Date("2026-10-24T00:00:00Z") };
+  const props = { id: "o1", number: "LY-ABC123", buyerId: "b1", country: "NG", address: null, shippingMethod: "standard" as const, pricing: priceOrder(input()), at: new Date("2026-10-24T00:00:00Z") };
   const line = { productId: "p", slug: "s", title: "t", image: "i", sellerId: "x", option: null, unitPrice: cents(100), qty: 1 };
 
   it("needs at least one line with a sane quantity", () => {

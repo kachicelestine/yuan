@@ -1,4 +1,5 @@
 import { domainError, err, ok, type Cents, type DomainError, type Result } from "@/shared/kernel";
+import type { ShippingAddress } from "./address";
 import type { Pricing, ShippingMethod } from "./pricing";
 
 /** completed: every parcel delivered or refunded, and Protect has closed. */
@@ -25,6 +26,8 @@ export type Order = Readonly<{
   buyerId: string;
   status: OrderStatus;
   country: string;
+  /** Where it's delivered, in `country`. */
+  address: ShippingAddress | null;
   shippingMethod: ShippingMethod;
   lines: readonly OrderLine[];
   pricing: Pricing;
@@ -57,6 +60,7 @@ export function placeOrder(props: {
   number: string;
   buyerId: string;
   country: string;
+  address: ShippingAddress | null;
   shippingMethod: ShippingMethod;
   lines: readonly OrderLine[];
   pricing: Pricing;

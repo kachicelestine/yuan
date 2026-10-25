@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
-import { char, check, index, integer, pgSchema, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { char, check, index, integer, jsonb, pgSchema, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import type { ShippingAddress } from "../domain/address";
 import { ORDER_STATUSES } from "../domain/order";
 import { DISPUTE_REASONS, SHIPMENT_STATUSES } from "../domain/shipment";
 import { SHIPPING_METHODS } from "../domain/pricing";
@@ -17,6 +18,8 @@ export const orders = orderingSchema.table(
     buyerId: uuid().notNull(),
     status: orderStatus().notNull(),
     country: char({ length: 2 }).notNull(),
+    /** Delivery address; null on orders placed before addresses were taken. */
+    address: jsonb().$type<ShippingAddress>(),
     shippingMethod: shippingMethod().notNull(),
     subtotalCents: integer().notNull(),
     discountCents: integer().notNull(),

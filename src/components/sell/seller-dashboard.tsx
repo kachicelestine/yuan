@@ -159,6 +159,17 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
                     </li>
                   ))}
                 </ul>
+                {o.address && o.shipment?.status === "awaiting_shipment" && (
+                  <address className="mt-2.5 rounded-2xl bg-white/[0.05] p-3 text-[13px] leading-snug not-italic">
+                    <span className="mb-0.5 block text-[11px] font-semibold text-ink-3">Ship to</span>
+                    <b className="font-semibold">{o.address.name}</b> · {o.address.phone}
+                    <br />
+                    {o.address.line1}
+                    {o.address.line2 && `, ${o.address.line2}`}
+                    <br />
+                    {[o.address.city, o.address.region, o.address.postcode].filter(Boolean).join(", ")}, {o.country}
+                  </address>
+                )}
                 {o.shipment?.status === "awaiting_shipment" && o.status === "paid" && <ShipForm orderId={o.id} />}
                 {o.shipment?.tracking && (
                   <p className="mt-2 text-xs text-ink-2">

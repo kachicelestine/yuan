@@ -1,3 +1,4 @@
+import { TEST_ADDRESS } from "./test-address";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -46,7 +47,7 @@ describe("Protect: fulfilment, escrow, payouts and notifications", () => {
       combineParcels: true,
       payDutiesNow: true,
       couponId: null,
-      rail: "usdc-base",
+      rail: "usdc-base", address: TEST_ADDRESS,
     };
     const r = await app().checkout(req);
     if (!r.ok) throw new Error(r.error.message);

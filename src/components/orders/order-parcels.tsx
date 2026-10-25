@@ -74,6 +74,12 @@ export function OrderParcels({ order, parcels, shops, reviewed }: Props) {
       <h2 id="parcels-h" className="mb-3 px-1 text-[15px] font-bold">
         {parcels.length > 1 ? `${parcels.length} parcels, one from each shop` : "Your parcel"}
       </h2>
+      {order.address && (
+        <p className="mb-3 px-1 text-[13px] text-ink-2">
+          To {order.address.name}, {order.address.line1}
+          {order.address.line2 && `, ${order.address.line2}`}, {order.address.city} · {order.address.phone}
+        </p>
+      )}
       {error && (
         <p role="alert" className="mb-2 px-1 text-sm text-like">
           {error}

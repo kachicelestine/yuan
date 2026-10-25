@@ -1,0 +1,1 @@
+ALTER TABLE "ordering"."orders" ADD COLUMN "address" jsonb;

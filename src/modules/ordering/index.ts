@@ -5,6 +5,7 @@ export { cartKey, MAX_CART_LINES, mergeCarts, normalizeCart, type CartItem } fro
 export { makeCancelUnpaidOrder, makeGetOrder, makeMarkOrderPaid, makeSellerOrders, toOrderView, type OrderView, type SellerOrderView } from "./application/orders";
 export type { CatalogLine, CatalogLineError, CheckoutScope, CouponReservations, Destinations, OrderCatalog, PaymentRequest, PaymentRequester, PriceHold, PriceHolds, RequestedPayment, UnitOfWork } from "./application/ports";
 export { holdCovers } from "./application/ports";
+export { cleanAddress, type AddressError, type AddressInput, type ShippingAddress } from "./domain/address";
 export { MAX_QTY, orderNumber, type Order, type OrderCancelled, type OrderLine, type OrderPaid, type OrderPlaced, type OrderStatus } from "./domain/order";
 export { couponDiscount, priceOrder, SHIPPING_METHODS, type CouponRule, type Destination, type PricedLine, type Pricing, type ShippingMethod } from "./domain/pricing";
 export type { CartRepository, CouponCatalog, OrderRepository, ShipmentRepository } from "./domain/repositories";

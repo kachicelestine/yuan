@@ -1,5 +1,6 @@
 import { domainError, err, ok, type Clock, type EventLog, type Result } from "@/shared/kernel";
 import { cancelUnpaid, markPaid, type Order, type OrderError, type OrderStatus } from "../domain/order";
+import type { ShippingAddress } from "../domain/address";
 import type { OrderRepository, ShipmentRepository } from "../domain/repositories";
 import { AUTO_CONFIRM_DAYS, openShipments, type Shipment } from "../domain/shipment";
 import { pricingInDollars } from "./checkout";
@@ -10,6 +11,7 @@ export type OrderView = {
   buyerId: string;
   status: OrderStatus;
   country: string;
+  address: ShippingAddress | null;
   shippingMethod: string;
   placedAt: string;
   paidAt: string | null;
@@ -23,6 +25,7 @@ export const toOrderView = (o: Order): OrderView => ({
   buyerId: o.buyerId,
   status: o.status,
   country: o.country,
+  address: o.address,
   shippingMethod: o.shippingMethod,
   placedAt: o.placedAt.toISOString(),
   paidAt: o.paidAt?.toISOString() ?? null,
@@ -95,6 +98,8 @@ export type SellerOrderView = {
   number: string;
   status: OrderStatus;
   country: string;
+  /** Where to send the parcel: only once the order is paid. */
+  address: ShippingAddress | null;
   shippingMethod: string;
   placedAt: string;
   paidAt: string | null;
@@ -148,6 +153,7 @@ export function makeSellerOrders(deps: { orders: OrderRepository; shipments: Shi
           number: o.number,
           status: o.status,
           country: o.country,
+          address: o.status === "paid" || o.status === "completed" ? o.address : null,
           shippingMethod: o.shippingMethod,
           placedAt: o.placedAt.toISOString(),
           paidAt: o.paidAt?.toISOString() ?? null,

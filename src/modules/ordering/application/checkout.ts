@@ -1,4 +1,5 @@
 import { domainError, err, ok, type Cents, type Clock, type DomainError, type Result } from "@/shared/kernel";
+import { cleanAddress, type AddressError, type AddressInput } from "../domain/address";
 import { MAX_QTY, placeOrder, type OrderError, type OrderLine } from "../domain/order";
 import { priceOrder, type PricedLine, type Pricing, type ShippingMethod } from "../domain/pricing";
 import type { CouponCatalog } from "../domain/repositories";
@@ -9,6 +10,8 @@ export type CheckoutRequest = Readonly<{
   buyerId: string;
   lines: readonly { slug: string; option: string | null; qty: number }[];
   country: string;
+  /** Where it goes, in `country`. */
+  address: AddressInput;
   shippingMethod: ShippingMethod;
   combineParcels: boolean;
   payDutiesNow: boolean;
@@ -23,6 +26,7 @@ export type CheckoutResult = Readonly<{ orderId: string; orderNumber: string; in
 export type CheckoutError =
   | CatalogLineError
   | OrderError
+  | AddressError
   | DomainError<"too_many_lines" | "unknown_country" | "below_min_order" | "rail_unavailable" | "invalid_amount" | "coupon_unavailable">;
 
 export const MAX_LINES = 50;
@@ -51,6 +55,9 @@ export function makeCheckout(deps: CheckoutDeps) {
     if (req.lines.some((l) => !Number.isInteger(l.qty) || l.qty < 1 || l.qty > MAX_QTY)) {
       return err(domainError("invalid_quantity", `Quantities must be whole numbers from 1 to ${MAX_QTY}.`));
     }
+
+    const address = cleanAddress(req.address);
+    if (!address.ok) return address;
 
     const destination = await deps.destinations.find(req.country);
     if (!destination) return err(domainError("unknown_country", `We can't deliver to "${req.country}" yet.`));
@@ -90,6 +97,7 @@ export function makeCheckout(deps: CheckoutDeps) {
       number: deps.newOrderNumber(),
       buyerId: req.buyerId,
       country: destination.country,
+      address: address.value,
       shippingMethod: req.shippingMethod,
       lines: priced.map((p) => p.line),
       pricing,
