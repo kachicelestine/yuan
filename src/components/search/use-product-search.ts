@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Product, ProductFilters, ProductSort } from "@/lib/catalog";
 import type { SearchAll } from "@/lib/types";
+import type { SponsoredItem } from "@/components/ads/sponsored";
 
 /** The query string for GET /api/search. Sorted keys keep equal searches equal. */
 export function searchParamsFor(text: string, f: ProductFilters, sort: ProductSort) {
@@ -22,7 +23,7 @@ export function searchParamsFor(text: string, f: ProductFilters, sort: ProductSo
   return p.toString();
 }
 
-type State = { key: string; products: Product[]; failed: boolean };
+type State = { key: string; products: Product[]; sponsored: SponsoredItem[]; failed: boolean };
 
 /**
  * Products for a search, fetched from the catalog as the shopper types. Requests are
@@ -40,10 +41,10 @@ export function useProductSearch(text: string, filters: ProductFilters, sort: Pr
       try {
         const res = await fetch(`/api/search?${key}`, { signal: controller.signal });
         if (!res.ok) throw new Error(`search ${res.status}`);
-        const body = (await res.json()) as { products: Product[] };
-        setState({ key, products: body.products, failed: false });
+        const body = (await res.json()) as { products: Product[]; sponsored?: SponsoredItem[] };
+        setState({ key, products: body.products, sponsored: body.sponsored ?? [], failed: false });
       } catch {
-        if (!controller.signal.aborted) setState((s) => ({ key, products: s?.products ?? [], failed: true }));
+        if (!controller.signal.aborted) setState((s) => ({ key, products: s?.products ?? [], sponsored: [], failed: true }));
       }
     }, 160);
     return () => {
@@ -52,8 +53,8 @@ export function useProductSearch(text: string, filters: ProductFilters, sort: Pr
     };
   }, [key]);
 
-  if (key === null) return { products: [], loading: false, failed: false };
-  return { products: state?.products ?? [], loading: state?.key !== key, failed: state?.key === key && state.failed };
+  if (key === null) return { products: [], sponsored: [], loading: false, failed: false };
+  return { products: state?.products ?? [], sponsored: state?.key === key ? state.sponsored : [], loading: state?.key !== key, failed: state?.key === key && state.failed };
 }
 
 const NOTHING: SearchAll = { videos: [], shops: [], live: [] };

@@ -89,10 +89,16 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
 
       {tab === "listings" && (
         <section aria-label="Listings" className="flex flex-col gap-2">
-          <Link href="/sell/listings/new" className="flex h-12 items-center justify-center gap-2 rounded-full bg-accent text-[15px] font-bold">
-            <Icon name="plus" className="size-5" />
-            New listing
-          </Link>
+          <div className="flex gap-2">
+            <Link href="/sell/listings/new" className="flex h-12 flex-1 items-center justify-center gap-2 rounded-full bg-accent text-[15px] font-bold">
+              <Icon name="plus" className="size-5" />
+              New listing
+            </Link>
+            <Link href="/sell/ads" className="glass-inset flex h-12 items-center justify-center gap-2 rounded-full px-5 text-[15px] font-semibold">
+              <Icon name="bolt" className="size-5" />
+              Promote
+            </Link>
+          </div>
           {listings.length === 0 ? (
             <p className="glass-inset rounded-[22px] p-4 text-sm text-ink-2">No listings yet. Start with your best seller: good photos and an honest title sell more than anything else.</p>
           ) : (

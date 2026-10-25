@@ -10,6 +10,7 @@ import { useMoney } from "@/components/price";
 import { ProductCard } from "@/components/product/product-card";
 import { useStore } from "@/components/providers";
 import { Sheet, type Detent } from "@/components/sheet";
+import { SponsoredCard, withSponsored } from "@/components/ads/sponsored";
 import { useProductSearch, useSearchAll } from "./use-product-search";
 import { brand } from "@/config/brand";
 import { trendingSearches, understand, type CategoryId, type ProductFilters, type ProductSort } from "@/lib/catalog";
@@ -62,7 +63,7 @@ export function SearchScreen({ categories, initialQuery = "", initialSnap = fals
   const terms = said.text;
   const filtered = Object.values(filters).some((v) => (Array.isArray(v) ? v.length : v !== undefined && v !== false));
   const searching = q !== "" || filtered;
-  const { products, loading } = useProductSearch(terms, effective, sort);
+  const { products, sponsored, loading } = useProductSearch(terms, effective, sort);
   const { videos, shops: factories, live, loading: finding } = useSearchAll(terms);
   const filterCount = Object.values(filters).reduce<number>((n, v) => n + (Array.isArray(v) ? v.length : v !== undefined && v !== false ? 1 : 0), 0);
 
@@ -204,11 +205,17 @@ export function SearchScreen({ categories, initialQuery = "", initialSnap = fals
               aria-busy={loading}
               className={`grid grid-cols-2 gap-2.5 transition-opacity duration-200 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ${loading ? "opacity-60" : ""}`}
             >
-              {products.map((p, i) => (
-                <li key={p.slug}>
-                  <ProductCard product={p} eager={i < 4} sizes="(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw" />
-                </li>
-              ))}
+              {withSponsored(products, sponsored).map((r, i) =>
+                r.kind === "sponsored" ? (
+                  <li key={`ad-${r.item.product.slug}`}>
+                    <SponsoredCard item={r.item} eager={i < 4} sizes="(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw" />
+                  </li>
+                ) : (
+                  <li key={r.product.slug}>
+                    <ProductCard product={r.product} eager={i < 4} sizes="(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw" />
+                  </li>
+                ),
+              )}
             </ul>
           ) : loading ? (
             <ul aria-busy="true" aria-label="Searching" className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">

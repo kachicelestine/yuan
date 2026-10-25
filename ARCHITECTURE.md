@@ -48,6 +48,7 @@ Dependencies point inward: presentation → server → application → domain. E
 | engagement | Coupons, coins, polls, chops, drops, reminders, rankings |
 | notifications | In-app notices and their emails, once per person per event |
 | affiliates | Creator codes, shops' creator commission rates, link clicks, and what each referred order owes its creator |
+| ads | Sponsored-listing campaigns, the slot auction and pacing, daily impressions, taps and spend |
 | live | Shows and their schedule, chat, auctions and lots, live-price holds |
 
 ## Decisions
@@ -81,9 +82,11 @@ Dependencies point inward: presentation → server → application → domain. E
 
 20. **Creator commissions ride on the release journal.** Affiliates owns codes, clicks, shop rates and commissions; it never moves money. The order stores the referral code in the checkout transaction (read from an http-only cookie that names a creator, nothing more), and `OrderPaid` turns it into one commission per shop at that shop's rate. When a parcel is delivered, payments asks affiliates through a `Referrals` port what the release owes a creator and posts it in the same `release:<order>:<shop>` journal: escrow → shop (less platform commission and creator commission) → `creator:<account>`. One journal, one reference, so a replayed event can't pay the creator without the shop or twice; `forRelease` attributes on demand, so the order of `OrderPaid` and `ShipmentDelivered` handling doesn't matter. Creators are paid through the same disbursement queue as shops (`kind = creator`, keyed by account).
 
+21. **Ads are decided per request, matched from cache, billed from the ledger.** Which advertised listings may fill a slot is an ordinary catalog search restricted to the advertised products, so it shares the search cache. Who wins is decided per request (never cached): campaigns over budget or ahead of their daily pace, or whose shop's balance can't cover a tap, drop out; the rest compete in a generalised second-price auction on bid × smoothed tap rate, one slot per shop. Each served slot carries an HMAC-signed token naming the campaign, product, price, time and a fresh nonce; a tap posts `ad-click:<nonce>` from `seller:<id>` to `platform:ads` with `postOnce`, so the ledger itself makes every impression billable once, and a token can't be replayed after 30 minutes or have its price changed.
+
 ## Status
 
-Built: markets, catalog (with search for products, shops and videos), identity, ordering (with the server-side bag), payments on Base, Solana and Tron with Protect and payouts, content (feed, uploads, encoding), merchants (seller applications, seller tools, admin), notifications, live (shows, chat, auctions, holds), affiliates (creator links and commissions), and the account side of engagement (coupon wallet, coins, check-ins, saved items, alerts, watches). Not yet: the rest of engagement (missions, badges, polls, chops, drops, rankings), sponsored listings, free samples for creators. Screens for unbuilt parts still read `src/fixtures` through `src/lib`, and say so in a comment where they do.
+Built: markets, catalog (with search for products, shops and videos), identity, ordering (with the server-side bag), payments on Base, Solana and Tron with Protect and payouts, content (feed, uploads, encoding), merchants (seller applications, seller tools, admin), notifications, live (shows, chat, auctions, holds), affiliates (creator links and commissions), ads (sponsored listings), and the account side of engagement (coupon wallet, coins, check-ins, saved items, alerts, watches). Not yet: the rest of engagement (missions, badges, polls, chops, drops, rankings), sponsored videos, free samples for creators. Screens for unbuilt parts still read `src/fixtures` through `src/lib`, and say so in a comment where they do.
 
 ## Risks to settle before launch
 

@@ -19,6 +19,8 @@ export type SearchCriteria = {
   bulk?: boolean;
   fast?: boolean;
   verified?: boolean;
+  /** Only these products (e.g. the ones shops are advertising). */
+  slugs?: readonly string[];
   sort: ProductSort;
   limit: number;
 };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { SponsoredCard, useCategorySponsored, withSponsored } from "@/components/ads/sponsored";
 import { ProductCard } from "@/components/product/product-card";
 import { Chip } from "@/components/search/filters-sheet";
 import { rankProducts, type Product, type ProductSort } from "@/lib/catalog";
@@ -12,10 +13,13 @@ const sorts: { id: ProductSort; label: string }[] = [
 ];
 
 /** A category's products, narrowed by subcategory chips and sorted. */
-export function CategoryShelf({ items, subcategories }: { items: Product[]; subcategories: string[] }) {
+export function CategoryShelf({ category, items, subcategories }: { category: string; items: Product[]; subcategories: string[] }) {
   const [sub, setSub] = useState<string | null>(null);
   const [sort, setSort] = useState<ProductSort>("sold");
   const products = useMemo(() => rankProducts(items, sub ?? "", {}, sort), [items, sub, sort]);
+  // Sponsored slots sit in the default view only, not in a narrowed or re-sorted one.
+  const ads = useCategorySponsored(category);
+  const shown = withSponsored(products, sub === null && sort === "sold" ? ads : []);
 
   return (
     <section aria-label="Products">
@@ -48,11 +52,17 @@ export function CategoryShelf({ items, subcategories }: { items: Product[]; subc
         </div>
       </div>
       <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-        {products.map((p, i) => (
-          <li key={p.slug}>
-            <ProductCard product={p} eager={i < 2} sizes="(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw" />
-          </li>
-        ))}
+        {shown.map((r, i) =>
+          r.kind === "sponsored" ? (
+            <li key={`ad-${r.item.product.slug}`}>
+              <SponsoredCard item={r.item} eager={i < 2} sizes="(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw" />
+            </li>
+          ) : (
+            <li key={r.product.slug}>
+              <ProductCard product={r.product} eager={i < 2} sizes="(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw" />
+            </li>
+          ),
+        )}
       </ul>
     </section>
   );

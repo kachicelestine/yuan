@@ -46,6 +46,8 @@ export const platform = {
   logistics: "platform:logistics",
   /** Coupons the platform paid for. */
   promotions: "platform:promotions",
+  /** What shops paid for sponsored listings. */
+  ads: "platform:ads",
   /** Rounding and refunds' leftovers, reconciled by hand. */
   adjustments: "platform:adjustments",
   payoutsPending: "pending:payouts",
@@ -80,6 +82,20 @@ export function sellerRelease(props: {
       { account: accounts.seller(props.sellerId), amount: money.cents(-(props.amount - fee - referral)) },
       ...(fee > 0 ? [{ account: platform.commission, amount: money.cents(-fee) }] : []),
       ...(referral > 0 && props.affiliate ? [{ account: accounts.creator(props.affiliate.creatorId), amount: money.cents(-referral) }] : []),
+    ],
+  });
+}
+
+/** A shop paid for a click on its sponsored listing, out of its balance. */
+export function adCharged(props: { id: string; reference: string; sellerId: string; amount: Cents; at: Date }) {
+  return journal({
+    id: props.id,
+    reference: props.reference,
+    memo: "Sponsored listing click",
+    at: props.at,
+    entries: [
+      { account: accounts.seller(props.sellerId), amount: props.amount },
+      { account: platform.ads, amount: money.cents(-props.amount) },
     ],
   });
 }

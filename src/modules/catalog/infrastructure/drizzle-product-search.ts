@@ -33,6 +33,10 @@ export class DrizzleProductSearch implements ProductSearch, ShopSearch {
     if (c.bulk) where.push(sql`jsonb_array_length(${products.tiers}) > 0`);
     if (c.fast) where.push(lte(products.leadMinDays, FAST_DAYS));
     if (c.verified) where.push(isNotNull(sellers.audited));
+    if (c.slugs) {
+      if (!c.slugs.length) return [];
+      where.push(inArray(products.slug, [...c.slugs]));
+    }
 
     const popularity = sql`coalesce(${products.soldCount}, ${products.reviewCount})`;
     const order: Record<ProductSort, SQL[]> = {

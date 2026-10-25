@@ -62,6 +62,9 @@ import { CatalogProductDirectory } from "./adapters/content-products";
 import { WalletCoupons } from "./adapters/coupons";
 import { IdentityEmails, MerchantWallets, OrderingPurchases, OrderingReferrals, OrderingTotals } from "./adapters/fulfilment";
 import { makeAffiliates } from "@/modules/affiliates";
+import { makeAds } from "@/modules/ads";
+import { DrizzleAdStatsRepository, DrizzleCampaignRepository } from "@/modules/ads/infrastructure/drizzle-ads-repositories";
+import { CatalogAdProducts, EscrowAdBilling, HmacSigner } from "./adapters/ads";
 import { affiliatesRepos, DrizzleCommissionRepository } from "@/modules/affiliates/infrastructure/drizzle-affiliates-repositories";
 import { CatalogForLive } from "./adapters/live";
 import { CatalogShops } from "./adapters/shops";
@@ -205,6 +208,25 @@ export function wire(db: Database, options: WireOptions = {}) {
     newId: () => newId(),
   });
 
+  const escrow = makeEscrow({
+    ledger: new DrizzleLedger(db),
+    disbursements: new DrizzleDisbursementRepository(db),
+    invoices: new DrizzleInvoiceRepository(db),
+    orders: new OrderingTotals(new DrizzleOrderRepository(db)),
+    wallets: new MerchantWallets(
+      () => onboarding,
+      () => affiliates,
+    ),
+    // A creator who referred the order is paid out of the shop's release.
+    referrals: { forRelease: (orderId: string, sellerId: string) => affiliates.forRelease(orderId, sellerId) },
+    // A transfer's record, its journal and its event commit together.
+    uow: unitOfWork(db, (tx) => ({ ledger: new DrizzleLedger(tx), disbursements: new DrizzleDisbursementRepository(tx), events: new OutboxEventLog(tx, () => clock.now()) })),
+    clock,
+    newId: () => newId(),
+    commissionRate: serverEnv.PLATFORM_COMMISSION,
+    payoutRail: "usdc-base",
+  });
+
   const bus = options.bus ?? liveBus(db);
   const live = makeLive({
     shows: new DrizzleShowRepository(db),
@@ -307,6 +329,15 @@ export function wire(db: Database, options: WireOptions = {}) {
 
     live,
     affiliates,
+    ads: makeAds({
+      campaigns: new DrizzleCampaignRepository(db),
+      stats: new DrizzleAdStatsRepository(db),
+      billing: new EscrowAdBilling(() => escrow),
+      products: new CatalogAdProducts(products),
+      signer: new HmacSigner(authSecret(), "ad-clicks"),
+      clock,
+      newId: () => newId(),
+    }),
     /** Live updates for viewers connected to this process (the stream route subscribes). */
     liveBus: bus,
     checkout: makeCheckout({
@@ -334,24 +365,7 @@ export function wire(db: Database, options: WireOptions = {}) {
       uow: unitOfWork(db, (tx) => ({ orders: new DrizzleOrderRepository(tx), shipments: new DrizzleShipmentRepository(tx), events: new OutboxEventLog(tx, () => clock.now()) })),
       clock,
     }),
-    escrow: makeEscrow({
-      ledger: new DrizzleLedger(db),
-      disbursements: new DrizzleDisbursementRepository(db),
-      invoices: new DrizzleInvoiceRepository(db),
-      orders: new OrderingTotals(new DrizzleOrderRepository(db)),
-      wallets: new MerchantWallets(
-        () => onboarding,
-        () => affiliates,
-      ),
-      // A creator who referred the order is paid out of the shop's release.
-      referrals: { forRelease: (orderId: string, sellerId: string) => affiliates.forRelease(orderId, sellerId) },
-      // A transfer's record, its journal and its event commit together.
-      uow: unitOfWork(db, (tx) => ({ ledger: new DrizzleLedger(tx), disbursements: new DrizzleDisbursementRepository(tx), events: new OutboxEventLog(tx, () => clock.now()) })),
-      clock,
-      newId: () => newId(),
-      commissionRate: serverEnv.PLATFORM_COMMISSION,
-      payoutRail: "usdc-base",
-    }),
+    escrow,
     notifications: makeNotifications({
       notifications: new DrizzleNotificationRepository(db),
       email: serverEnv.RESEND_API_KEY && serverEnv.EMAIL_FROM ? new ResendEmail({ apiKey: serverEnv.RESEND_API_KEY, from: serverEnv.EMAIL_FROM }) : new ConsoleEmail(),

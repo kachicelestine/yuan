@@ -74,7 +74,7 @@ async function CategoryBody({ params }: { params: PageProps<"/c/[id]">["params"]
             <Icon name="forward" className="size-4 text-ink-3" />
           </Link>
         )}
-        <CategoryShelf items={items} subcategories={category.subcategories} />
+        <CategoryShelf category={category.id} items={items} subcategories={category.subcategories} />
 
         {factories.length > 0 && (
           <section aria-labelledby="factories-h">

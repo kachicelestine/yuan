@@ -1,6 +1,6 @@
 import { domainError, err, money, ok, type Cents, type Clock, type DomainError, type EventLog, type Result } from "@/shared/kernel";
 import { cancelPayout, markSent, requestCreatorPayout, requestPayout, requestRefund, type Disbursement, type DisbursementError, type DisbursementSent } from "../domain/disbursement";
-import { accounts, disbursed, orderSettled, payoutCancelled, payoutRequested, refundOwed, sellerRelease } from "../domain/ledger";
+import { accounts, adCharged, disbursed, orderSettled, payoutCancelled, payoutRequested, refundOwed, sellerRelease } from "../domain/ledger";
 import type { DisbursementRepository, InvoiceRepository, Ledger } from "../domain/ports";
 import type { RailId } from "../domain/rails";
 
@@ -100,6 +100,14 @@ export function makeEscrow({ ledger, disbursements, invoices, orders, wallets, r
   return {
     available,
     creatorAvailable,
+
+    /** Sponsored-listing clicks are paid from the shop's balance; false if it can't cover it or was charged already. */
+    async chargeAds(e: { sellerId: string; amount: Cents; reference: string }): Promise<boolean> {
+      if ((await available(e.sellerId)) < e.amount) return false;
+      const j = adCharged({ id: newId(), ...e, at: clock.now() });
+      if (!j.ok) throw new Error(j.error.message);
+      return ledger.postOnce(j.value);
+    },
 
     /** ShipmentDelivered: the shop's share leaves escrow (and the creator's, if one referred the order). */
     async release(e: { orderId: string; sellerId: string; amount: Cents }): Promise<boolean> {
