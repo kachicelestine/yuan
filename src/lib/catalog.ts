@@ -2,8 +2,6 @@
 // small query modules it re-exports), so the fixtures in src/fixtures can be swapped
 // for the database without touching the UI.
 import { categories } from "@/fixtures/categories";
-import { teamBuys, flashDeals } from "@/fixtures/deals";
-import { liveRoom, auctionRoom } from "@/fixtures/live";
 import { notes } from "@/fixtures/notes";
 import { products } from "@/fixtures/products";
 import { profiles } from "@/fixtures/profiles";
@@ -18,7 +16,7 @@ export { priceHistory } from "./prices";
 export type { PricePoint } from "./prices";
 export { questionsFor, reviewSummary, reviewsFor, reviewsForSeller } from "./reviews";
 export type { ReviewSummary } from "./reviews";
-export { categories, sellers, products, videos, notes, liveRoom, auctionRoom, teamBuys, flashDeals, trendingSearches, snapSamples, snapFallback, towns };
+export { categories, sellers, products, videos, notes, trendingSearches, snapSamples, snapFallback, towns };
 export { daysToDelivery, matchesFilters, rankProducts, searchProducts, searchSellers, searchVideos, understand } from "./search";
 export type { ProductFilters, ProductSort, Understood } from "./search";
 

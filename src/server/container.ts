@@ -18,7 +18,8 @@ import {
   DrizzleVideoRepository,
 } from "@/modules/content/infrastructure/drizzle-content-repositories";
 import { FfmpegEncoder } from "@/modules/content/infrastructure/ffmpeg-encoder";
-import { makeChops, makeEngagement, makePolls, makeRewards, pollId } from "@/modules/engagement";
+import { makeChops, makeEngagement, makePolls, makePromos, makeRewards, pollId } from "@/modules/engagement";
+import { DrizzleDropRepository, DrizzlePromoHoldRepository, DrizzleReminderRepository, DrizzleTeamRepository } from "@/modules/engagement/infrastructure/drizzle-promo-repositories";
 import { DrizzleChopRepository } from "@/modules/engagement/infrastructure/drizzle-chop-repository";
 import { DrizzlePollRepository } from "@/modules/engagement/infrastructure/drizzle-poll-repository";
 import {
@@ -245,6 +246,29 @@ export function wire(db: Database, options: WireOptions = {}) {
     newCode: () => pollId(random),
   });
 
+  const promos = makePromos({
+    drops: new DrizzleDropRepository(db),
+    holds: new DrizzlePromoHoldRepository(db),
+    teams: new DrizzleTeamRepository(db),
+    reminders: new DrizzleReminderRepository(db),
+    products: {
+      livePrice: async (sellerId: string, slug: string) => {
+        const [p] = await products.findBySlugs([slug]);
+        return p && p.sellerId === sellerId && p.status === "active" ? p.price : null;
+      },
+    },
+    // Stock taken and the hold it buys (or a team filling, its holds and event) commit together.
+    uow: unitOfWork(db, (tx) => ({
+      drops: new DrizzleDropRepository(tx),
+      holds: new DrizzlePromoHoldRepository(tx),
+      teams: new DrizzleTeamRepository(tx),
+      events: new OutboxEventLog(tx, () => clock.now()),
+    })),
+    clock,
+    newId: () => newId(),
+    newCode: () => pollId(random),
+  });
+
   const bus = options.bus ?? liveBus(db);
   const live = makeLive({
     shows: new DrizzleShowRepository(db),
@@ -312,6 +336,7 @@ export function wire(db: Database, options: WireOptions = {}) {
     searchShops: makeSearchShops({ search: productSearch }),
     engagement,
     chops,
+    promos,
     rewards: makeRewards({
       coins: new DrizzleCoinRepository(db),
       activity: new AppActivity({
@@ -378,10 +403,10 @@ export function wire(db: Database, options: WireOptions = {}) {
     liveBus: bus,
     checkout: makeCheckout({
       catalog: pricing,
-      // The lowest price the buyer holds: a live price, an auction win or a finished chop.
+      // The lowest price the buyer holds: a live price, an auction win, a chop, a drop or a team.
       holds: {
         best: async (buyerId: string, slug: string) => {
-          const held = (await Promise.all([live.bestHold(buyerId, slug), chops.bestHold(buyerId, slug)])).filter((h) => h !== null);
+          const held = (await Promise.all([live.bestHold(buyerId, slug), chops.bestHold(buyerId, slug), promos.bestHold(buyerId, slug)])).filter((h) => h !== null);
           return held.length ? held.reduce((a, b) => (b.price < a.price ? b : a)) : null;
         },
       },

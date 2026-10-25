@@ -1,33 +1,4 @@
-// Scheduling for drops: Beijing-time fixtures turned into real instants and local labels.
-import { drops, festival } from "@/fixtures/drops";
-import type { Drop } from "@/lib/types";
-
-export { festival };
-
-const DAY = 86_400_000;
-const BEIJING = 8 * 3_600_000;
-
-/** Midnight today in Beijing, as a timestamp. */
-function beijingMidnight(now: number) {
-  const local = now + BEIJING;
-  return local - (local % DAY) - BEIJING;
-}
-
-export function dropAt(drop: Drop, now: number) {
-  const [h, m] = drop.time.split(":").map(Number);
-  return beijingMidnight(now) + drop.inDays * DAY + (h * 60 + m) * 60_000;
-}
-
-/** The next 11.11 at 00:00 Beijing time, or today's if it's running. */
-export function festivalAt(now: number) {
-  const year = new Date(now + BEIJING).getUTCFullYear();
-  const at = Date.UTC(year, festival.month, festival.day) - BEIJING;
-  return at + DAY > now ? at : Date.UTC(year + 1, festival.month, festival.day) - BEIJING;
-}
-
-export function upcomingDrops(now: number) {
-  return drops.map((drop) => ({ drop, at: dropAt(drop, now) })).sort((a, b) => a.at - b.at);
-}
+// Time helpers for drops: instants shown in the shopper's own time zone.
 
 /** Day key, weekday, date and time of an instant in a time zone. */
 export function localParts(at: number, timeZone: string) {

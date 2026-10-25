@@ -48,6 +48,7 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
       // Live prices and auction wins behind this order are used up.
       await app.live.useHolds(order.buyerId, [...new Set(order.lines.map((l) => l.slug))]);
       await app.chops.use(order.buyerId, [...new Set(order.lines.map((l) => l.slug))]);
+      await app.promos.use(order.buyerId, [...new Set(order.lines.map((l) => l.slug))]);
       // Real sales count into "sold" on the listing and into the rankings.
       if (await app.ratings.sales(orderId, order.lines.map((l) => ({ slug: l.slug, qty: l.qty })))) {
         await revalidateTags([...new Set(order.lines.map((l) => productTag(l.slug)))]);
@@ -95,6 +96,10 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
     ChopCompleted: async ({ id, payload }) => {
       const p = payload as { chopId: string; ownerId: string; slug: string; target: number };
       await notify([p.ownerId], { kind: "chop_done", title: `Chopped to ${usd(p.target)}!`, body: "Your friends got it to the target. It's yours at that price for 48 hours.", link: `/chop/${p.chopId}`, email: true }, id);
+    },
+    TeamFilled: async ({ id, payload }) => {
+      const p = payload as { teamId: string; members: string[]; teamPrice: number };
+      await notify(p.members, { kind: "team_full", title: `Your team is full: ${usd(p.teamPrice)} each`, body: "The team price is yours for 48 hours. Check out before it runs out.", link: `/team/${p.teamId}`, email: true }, id);
     },
     CommissionEarned: async ({ id, payload }) => {
       const p = payload as { creatorId: string; amount: number };
@@ -161,6 +166,22 @@ function recurringJobs(app: Services, dispatcher: OutboxDispatcher): ScheduledJo
       name: "live.lots",
       everyMs: 10_000,
       run: async () => void (await app.live.closeDueLots()),
+    },
+    {
+      // Drop claims nobody checked out go back into stock; teams that didn't fill close.
+      name: "promos.sweep",
+      everyMs: 60_000,
+      run: async () => void (await app.promos.sweep()),
+    },
+    {
+      // "Remind me": a notification 10 minutes before a drop (or the festival) opens.
+      name: "reminders.send",
+      everyMs: 60_000,
+      run: async () => {
+        for (const r of await app.promos.dueReminders()) {
+          await app.notifications.notify([r.accountId], { kind: "reminder", title: r.title, body: "Starting soon. Tap to get there first.", link: r.link, email: false }, `reminder:${r.key}:${r.accountId}`);
+        }
+      },
     },
     {
       // Chops that ran out of time give their reserved stock back.

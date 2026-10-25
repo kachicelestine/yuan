@@ -2,6 +2,7 @@ import type { CoinEntry, CoinReason, Reward, Watch } from "./coins";
 import type { Claim, Coupon } from "./coupon";
 import type { Poll, PollVote } from "./poll";
 import type { Chop, ChopCut, ChopOffer, ChopStatus } from "./chop";
+import type { Drop, Team, TeamMember, TeamOffer, TeamStatus } from "./drop";
 
 export interface CouponRepository {
   list(): Promise<Coupon[]>;
@@ -98,4 +99,77 @@ export interface ChopRepository {
   done(ownerId: string, slug: string): Promise<Chop[]>;
   /** Chops started and finished per offer. */
   stats(offerIds: readonly string[]): Promise<Map<string, { started: number; done: number }>>;
+}
+
+export interface DropRepository {
+  find(id: string): Promise<Drop | null>;
+  /** Inserts a drop, or saves a cancellation (stock moves only through take/give). */
+  save(drop: Drop): Promise<void>;
+  /** Drops not yet over (ending after `from`), soonest first; or a shop's own. */
+  list(filter: { from?: Date; sellerId?: string; limit: number }): Promise<Drop[]>;
+  /** Takes `qty` from the drop-price stock; false when there isn't that much left. */
+  take(id: string, qty: number): Promise<boolean>;
+  give(id: string, qty: number): Promise<void>;
+}
+
+/** A better price someone may check out at for a while: a drop claim or a full team. */
+export type PromoHold = Readonly<{
+  id: string;
+  accountId: string;
+  slug: string;
+  price: number;
+  qty: number;
+  source: "drop" | "team";
+  sourceId: string;
+  expiresAt: Date;
+  usedAt: Date | null;
+}>;
+
+export interface PromoHoldRepository {
+  add(hold: PromoHold): Promise<void>;
+  /** Units someone holds or bought through one drop or team. */
+  taken(accountId: string, source: PromoHold["source"], sourceId: string): Promise<number>;
+  /** The lowest live price this person holds for a product. */
+  best(accountId: string, slug: string, at: Date): Promise<PromoHold | null>;
+  use(accountId: string, slugs: readonly string[], at: Date): Promise<void>;
+  /** Unused holds that ran out, not yet given back to their drop. */
+  lapsed(at: Date, limit: number): Promise<PromoHold[]>;
+  /** Marks a lapsed hold as handled; false if another worker already did. */
+  retire(id: string): Promise<boolean>;
+}
+
+export interface TeamRepository {
+  offer(id: string): Promise<TeamOffer | null>;
+  offers(filter: { sellerId?: string; startable?: boolean; limit: number }): Promise<TeamOffer[]>;
+  saveOffer(offer: TeamOffer): Promise<void>;
+  reserve(offerId: string): Promise<boolean>;
+  release(offerId: string): Promise<void>;
+  find(id: string): Promise<Team | null>;
+  lock(id: string): Promise<Team | null>;
+  create(team: Team): Promise<boolean>;
+  transition(id: string, from: TeamStatus, to: TeamStatus, fullAt?: Date): Promise<boolean>;
+  members(teamId: string): Promise<TeamMember[]>;
+  addMember(member: TeamMember): Promise<boolean>;
+  /** Open teams for these offers, ending soonest first. */
+  open(offerIds: readonly string[], at: Date, limit: number): Promise<Team[]>;
+  /** The open team this person leads or joined for an offer, if any. */
+  openFor(accountId: string, offerId: string, at: Date): Promise<Team | null>;
+  lapsed(at: Date, limit: number): Promise<Team[]>;
+  stats(offerIds: readonly string[]): Promise<Map<string, { started: number; full: number }>>;
+}
+
+export type Reminder = Readonly<{ key: string; accountId: string; at: Date; title: string; link: string }>;
+
+export interface ReminderRepository {
+  set(reminder: Reminder): Promise<void>;
+  unset(key: string, accountId: string): Promise<void>;
+  /** Which of these keys this person has a reminder for. */
+  mine(accountId: string, keys: readonly string[]): Promise<Set<string>>;
+  /** How many people are waiting on each key. */
+  counts(keys: readonly string[]): Promise<Map<string, number>>;
+  /** Unsent reminders for things starting before `until`. */
+  due(until: Date, limit: number): Promise<Reminder[]>;
+  /** False when it was already sent. */
+  markSent(key: string, accountId: string, at: Date): Promise<boolean>;
+  removeKey(key: string): Promise<void>;
 }

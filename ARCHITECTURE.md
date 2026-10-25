@@ -86,7 +86,7 @@ Dependencies point inward: presentation → server → application → domain. E
 
 ## Status
 
-Built: markets, catalog (with search for products, shops and videos), identity, ordering (with the server-side bag), payments on Base, Solana and Tron with Protect and payouts, content (feed, uploads, encoding), merchants (seller applications, seller tools, admin), notifications, live (shows, chat, auctions, holds), affiliates (creator links and commissions), ads (sponsored listings), and engagement (coupon wallet, coins, check-ins, saved items, alerts, watches, polls, price chops, missions, badges, levels, rankings). Not yet: drops, team buys, collections on the account, sponsored videos, free samples for creators. Screens for unbuilt parts still read `src/fixtures` through `src/lib`, and say so in a comment where they do.
+Built: markets, catalog (with search for products, shops and videos), identity, ordering (with the server-side bag), payments on Base, Solana and Tron with Protect and payouts, content (feed, uploads, encoding), merchants (seller applications, seller tools, admin), notifications, live (shows, chat, auctions, holds), affiliates (creator links and commissions), ads (sponsored listings), and engagement (coupon wallet, coins, check-ins, saved items, alerts, watches, polls, price chops, drops, team buys, reminders, missions, badges, levels, rankings). Not yet: pre-orders and deposits, collections on the account, sponsored videos, free samples for creators. Screens for unbuilt parts still read `src/fixtures` through `src/lib`, and say so in a comment where they do.
 
 ## Risks to settle before launch
 

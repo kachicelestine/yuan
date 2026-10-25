@@ -148,6 +148,13 @@
       "when": 1792904780164,
       "tag": "0020_rankings",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792906073139,
+      "tag": "0021_drops_teams",
+      "breakpoints": true
     }
   ]
 }

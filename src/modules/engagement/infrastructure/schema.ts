@@ -187,3 +187,118 @@ export const chopCuts = engagementSchema.table(
   },
   (t) => [primaryKey({ columns: [t.chopId, t.cutter] }), index("chop_cuts_cutter_idx").on(t.cutter, t.at)],
 );
+
+export const dropKind = engagementSchema.enum("drop_kind", ["drop", "restock"]);
+
+/** A shop's scheduled drop (a price and stock for a while) or restock. */
+export const drops = engagementSchema.table(
+  "drops",
+  {
+    id: uuid().primaryKey(),
+    sellerId: text().notNull(),
+    slug: text().notNull(),
+    kind: dropKind().notNull(),
+    title: text().notNull(),
+    blurb: text().notNull(),
+    startsAt: timestamp({ withTimezone: true }).notNull(),
+    endsAt: timestamp({ withTimezone: true }).notNull(),
+    priceCents: integer(),
+    stock: integer(),
+    perPerson: integer().notNull(),
+    claimed: integer().notNull().default(0),
+    cancelled: boolean().notNull().default(false),
+    createdAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("drops_window_idx").on(t.endsAt, t.startsAt),
+    index("drops_seller_idx").on(t.sellerId, t.startsAt),
+    check("drops_claimed", sql`${t.claimed} >= 0 and (${t.stock} is null or ${t.claimed} <= ${t.stock})`),
+  ],
+);
+
+export const promoSource = engagementSchema.enum("promo_source", ["drop", "team"]);
+
+/** Prices someone may check out at for a while: drop claims and full teams. */
+export const promoHolds = engagementSchema.table(
+  "promo_holds",
+  {
+    id: uuid().primaryKey(),
+    accountId: uuid().notNull(),
+    slug: text().notNull(),
+    priceCents: integer().notNull(),
+    qty: integer().notNull(),
+    source: promoSource().notNull(),
+    sourceId: text().notNull(),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    usedAt: timestamp({ withTimezone: true }),
+    /** A lapsed hold that was handled (its stock given back). */
+    retiredAt: timestamp({ withTimezone: true }),
+  },
+  (t) => [
+    index("promo_holds_account_idx").on(t.accountId, t.slug),
+    index("promo_holds_source_idx").on(t.source, t.sourceId, t.accountId),
+    index("promo_holds_lapse_idx").on(t.expiresAt).where(sql`${t.usedAt} is null and ${t.retiredAt} is null`),
+  ],
+);
+
+export const teamOffers = engagementSchema.table(
+  "team_offers",
+  {
+    id: uuid().primaryKey(),
+    sellerId: text().notNull(),
+    slug: text().notNull(),
+    fullPriceCents: integer().notNull(),
+    teamPriceCents: integer().notNull(),
+    size: integer().notNull(),
+    hours: integer().notNull(),
+    remaining: integer().notNull(),
+    active: boolean().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (t) => [index("team_offers_seller_idx").on(t.sellerId, t.createdAt), check("team_offers_remaining", sql`${t.remaining} >= 0`)],
+);
+
+export const teamStatus = engagementSchema.enum("team_status", ["open", "full", "expired"]);
+
+export const teams = engagementSchema.table(
+  "teams",
+  {
+    id: text().primaryKey(),
+    offerId: uuid().notNull(),
+    slug: text().notNull(),
+    leaderId: uuid().notNull(),
+    leaderName: text().notNull(),
+    teamPriceCents: integer().notNull(),
+    size: integer().notNull(),
+    startedAt: timestamp({ withTimezone: true }).notNull(),
+    endsAt: timestamp({ withTimezone: true }).notNull(),
+    status: teamStatus().notNull(),
+    fullAt: timestamp({ withTimezone: true }),
+  },
+  (t) => [index("teams_open_idx").on(t.offerId, t.endsAt).where(sql`${t.status} = 'open'`)],
+);
+
+export const teamMembers = engagementSchema.table(
+  "team_members",
+  {
+    teamId: text().notNull(),
+    accountId: uuid().notNull(),
+    name: text().notNull(),
+    at: timestamp({ withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.teamId, t.accountId] }), index("team_members_account_idx").on(t.accountId)],
+);
+
+/** "Remind me": one per person per thing (a drop, a festival), sent once before it starts. */
+export const reminders = engagementSchema.table(
+  "reminders",
+  {
+    key: text().notNull(),
+    accountId: uuid().notNull(),
+    at: timestamp({ withTimezone: true }).notNull(),
+    title: text().notNull(),
+    link: text().notNull(),
+    sentAt: timestamp({ withTimezone: true }),
+  },
+  (t) => [primaryKey({ columns: [t.key, t.accountId] }), index("reminders_due_idx").on(t.at).where(sql`${t.sentAt} is null`)],
+);

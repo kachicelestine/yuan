@@ -1,11 +1,13 @@
 import { count } from "drizzle-orm";
 import { coupons as couponFixtures, rewardStore } from "@/fixtures/account";
 import { chops as chopFixtures } from "@/fixtures/chops";
+import { flashDeals, teamBuys } from "@/fixtures/deals";
+import { drops as dropFixtures } from "@/fixtures/drops";
 import { products as productFixtures } from "@/fixtures/products";
 import type { Database } from "@/shared/infrastructure/database";
 import { money } from "@/shared/kernel";
 import { newId } from "@/shared/kernel";
-import { chopOffers, coupons, rewards } from "./schema";
+import { chopOffers, coupons, drops, rewards, teamOffers } from "./schema";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -35,6 +37,42 @@ export async function seedChopOffers(db: Database) {
   });
   if (rows.length) await db.insert(chopOffers).values(rows);
   return { skipped: false, offers: rows.length };
+}
+
+/**
+ * The design-phase drops, night deals and team buys as real ones from the shops that sell
+ * those products: deals are live now, drops open on the days the fixtures give, in
+ * Beijing time. Pre-orders and pre-sales need deposits, which aren't built, so they're left out.
+ */
+export async function seedPromos(db: Database, now = new Date()) {
+  const [{ value: have }] = await db.select({ value: count() }).from(drops);
+  if (have > 0) return { skipped: true };
+  const product = (slug: string) => productFixtures.find((p) => p.slug === slug);
+  const beijingMidnight = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - 8 * 3_600_000;
+  const rows = [
+    ...flashDeals.flatMap((d) => {
+      const p = product(d.slug);
+      if (!p?.price) return [];
+      const stock = 200;
+      return [{ id: newId(), sellerId: p.sellerId, slug: p.slug, kind: "drop" as const, title: `Night deal: ${p.title}`, blurb: "Today only, while the stock lasts.", startsAt: new Date(now.getTime() - 3_600_000), endsAt: new Date(now.getTime() + 23 * 3_600_000), priceCents: money.fromDollars(d.dealPrice), stock, perPerson: 2, claimed: Math.round((stock * d.claimed) / 100), cancelled: false, createdAt: now }];
+    }),
+    ...dropFixtures.flatMap((d) => {
+      const p = product(d.slug);
+      if (!p?.price || (d.kind !== "drop" && d.kind !== "restock")) return [];
+      const [h, m] = d.time.split(":").map(Number);
+      const startsAt = new Date(beijingMidnight + d.inDays * 86_400_000 + (h * 60 + m) * 60_000);
+      const drop = d.kind === "drop";
+      return [{ id: newId(), sellerId: p.sellerId, slug: p.slug, kind: d.kind, title: d.title, blurb: d.blurb, startsAt, endsAt: new Date(startsAt.getTime() + 24 * 3_600_000), priceCents: drop ? money.fromDollars(Math.round(p.price * 0.85 * 100) / 100) : null, stock: drop ? 500 : null, perPerson: 1, claimed: 0, cancelled: false, createdAt: now }];
+    }),
+  ];
+  if (rows.length) await db.insert(drops).values(rows);
+  const offers = teamBuys.flatMap((t) => {
+    const p = product(t.slug);
+    if (!p?.price) return [];
+    return [{ id: newId(), sellerId: p.sellerId, slug: p.slug, fullPriceCents: money.fromDollars(p.price), teamPriceCents: money.fromDollars(t.teamPrice), size: t.size, hours: 24, remaining: 100, active: true, createdAt: now }];
+  });
+  if (offers.length) await db.insert(teamOffers).values(offers);
+  return { skipped: false, drops: rows.length, teamOffers: offers.length };
 }
 
 async function insertCoupons(db: Database) {

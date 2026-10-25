@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { AdsManager } from "@/components/sell/ads-manager";
 import { ChopOffersManager } from "@/components/sell/chop-offers-manager";
+import { DropsManager, TeamOffersManager } from "@/components/sell/drops-manager";
 import { SellFrame, SellSkeleton } from "@/components/sell/sell-frame";
 import { services } from "@/server/container";
 import { currentShop } from "@/server/shop";
@@ -23,10 +24,17 @@ async function Body() {
   const shop = await currentShop();
   if (!shop) redirect("/sell");
   const app = await services();
-  const [campaigns, listings, available, offers] = await Promise.all([app.ads.list(shop.sellerId), app.selling.listings(shop.sellerId), app.escrow.available(shop.sellerId), app.chops.sellerOffers(shop.sellerId)]);
+  const [campaigns, listings, available, offers, drops, teams] = await Promise.all([
+    app.ads.list(shop.sellerId),
+    app.selling.listings(shop.sellerId),
+    app.escrow.available(shop.sellerId),
+    app.chops.sellerOffers(shop.sellerId),
+    app.promos.sellerDrops(shop.sellerId),
+    app.promos.sellerTeamOffers(shop.sellerId),
+  ]);
   const live = listings.filter((l) => l.status === "active").map(({ slug, title, images, price }) => ({ slug, title, image: images[0], price: price ?? null }));
   return (
-    <SellFrame title="Promote" back="/sell" subtitle="Sponsored listings put you first in search; chops let shoppers and their friends win a lower price.">
+    <SellFrame title="Promote" back="/sell" subtitle="Sponsored listings put you first in search; drops, team buys and chops bring shoppers back with their friends.">
       <section aria-labelledby="ads-h" className="flex flex-col gap-2">
         <h2 id="ads-h" className="px-1 font-display text-xl font-bold">
           Sponsored listings
@@ -38,6 +46,18 @@ async function Body() {
           Chop with friends
         </h2>
         <ChopOffersManager offers={offers} listings={live} owner={shop.role === "owner"} />
+      </section>
+      <section aria-labelledby="drops-h" className="mt-6 flex flex-col gap-2">
+        <h2 id="drops-h" className="px-1 font-display text-xl font-bold">
+          Drops
+        </h2>
+        <DropsManager drops={drops} listings={live} owner={shop.role === "owner"} />
+      </section>
+      <section aria-labelledby="teams-h" className="mt-6 flex flex-col gap-2">
+        <h2 id="teams-h" className="px-1 font-display text-xl font-bold">
+          Team buys
+        </h2>
+        <TeamOffersManager offers={teams} listings={live} owner={shop.role === "owner"} />
       </section>
     </SellFrame>
   );
