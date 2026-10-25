@@ -399,7 +399,18 @@ export function wire(db: Database, options: WireOptions = {}) {
     chops,
     promos,
     boards: makeBoards({ boards: new DrizzleBoardRepository(db), clock, newCode: () => pollId(random) }),
-    blindBoxes: makeBlindBoxes({ boxes: new DrizzleBlindBoxRepository(db), clock, newId: () => newId(), random }),
+    blindBoxes: makeBlindBoxes({
+      boxes: new DrizzleBlindBoxRepository(db),
+      clock,
+      newId: () => newId(),
+      random,
+      listings: {
+        owns: async (sellerId: string, slug: string) => {
+          const [p] = await products.findBySlugs([slug]);
+          return !!p && p.sellerId === sellerId && p.status === "active" && p.price !== null;
+        },
+      },
+    }),
     rewards: makeRewards({
       coins: new DrizzleCoinRepository(db),
       activity: new AppActivity({

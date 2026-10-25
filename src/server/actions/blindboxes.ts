@@ -1,10 +1,13 @@
 "use server";
 
+import { revalidatePath, updateTag } from "next/cache";
+import { productTag } from "../cache-tags";
 import { z } from "zod";
-import type { MachineView } from "@/modules/engagement";
+import type { MachineView, SellerSeriesView } from "@/modules/engagement";
 import { services } from "../container";
 import { allow, RATE_LIMITED } from "../rate-limits";
 import { currentAccount } from "../session";
+import { currentShop } from "../shop";
 
 type Failure = { ok: false; code: string; message: string };
 const fail = (code: string, message: string): Failure => ({ ok: false, code, message });
@@ -51,4 +54,36 @@ export async function openBoxAction(caseId: string, index: number): Promise<{ ok
   if ("error" in s) return s.error!;
   const r = await s.app.blindBoxes.open(s.account.id, Case.parse(caseId), Index.parse(index));
   return r.ok ? { ok: true, figureId: r.value.figureId } : fail(r.error.code, r.error.message);
+}
+
+const SeriesForm = z.object({
+  slug: z.string().regex(/^[a-z0-9-]{1,80}$/),
+  title: z.string().max(120),
+  figures: z.array(z.object({ name: z.string().max(80), image: z.string().min(1).max(300), secret: z.boolean() })).min(2).max(25),
+  secretOdds: z.number().int().min(1).max(100_000),
+  shakesPerCase: z.number().int().min(0).max(5),
+});
+
+/** A shop starts selling one of its listings as blind boxes. */
+export async function createBoxSeriesAction(input: z.input<typeof SeriesForm>): Promise<{ ok: true; series: SellerSeriesView } | Failure> {
+  const shop = await currentShop();
+  if (!shop) return fail("forbidden", "Open your shop first.");
+  const p = SeriesForm.safeParse(input);
+  if (!p.success) return fail("invalid_series", "Check the series: 2 to 24 figures, each with a name and a photo.");
+  const r = await (await services()).blindBoxes.createSeries(shop.sellerId, p.data);
+  if (!r.ok) return fail(r.error.code, r.error.message);
+  // The listing's page links to its box machine.
+  updateTag(productTag(r.value.slug));
+  revalidatePath("/unbox");
+  return { ok: true, series: r.value };
+}
+
+export async function setBoxSeriesActiveAction(seriesId: string, active: boolean): Promise<{ ok: true; series: SellerSeriesView } | Failure> {
+  const shop = await currentShop();
+  if (!shop) return fail("forbidden", "Open your shop first.");
+  const r = await (await services()).blindBoxes.setActive(shop.sellerId, z.string().max(80).catch("").parse(seriesId), active === true);
+  if (!r.ok) return fail(r.error.code, r.error.message);
+  updateTag(productTag(r.value.slug));
+  revalidatePath("/unbox");
+  return { ok: true, series: r.value };
 }

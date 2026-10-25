@@ -1,8 +1,20 @@
 import { domainError, err, ok, type Clock, type Result } from "@/shared/kernel";
-import { holdBox, isFree, makeCase, odds, shakeHint, type Box, type BoxError, type Case, type Series } from "../domain/blindbox";
+import { holdBox, isFree, makeCase, odds, shakeHint, validSeries, type Box, type BoxError, type Case, type Figure, type Series } from "../domain/blindbox";
 import type { BlindBoxRepository } from "../domain/repositories";
 
-export type BlindBoxDeps = { boxes: BlindBoxRepository; clock: Clock; newId: () => string; random: () => number };
+export type BlindBoxDeps = {
+  boxes: BlindBoxRepository;
+  clock: Clock;
+  newId: () => string;
+  random: () => number;
+  /** Whether a live, priced listing belongs to the shop (the catalog knows). */
+  listings?: { owns(sellerId: string, slug: string): Promise<boolean> };
+};
+
+/** A shop's series, with how it's selling. */
+export type SellerSeriesView = { id: string; slug: string; title: string; poster: string; figures: Figure[]; secretOdds: number; shakesPerCase: number; active: boolean; cases: number; sold: number };
+
+export type SeriesInput = { slug: string; title: string; figures: { name: string; image: string; secret: boolean }[]; secretOdds: number; shakesPerCase: number };
 
 export type BoxSlot = "free" | "taken" | "held" | "mine";
 
@@ -18,7 +30,7 @@ export type MachineView = {
 
 export type OrderBox = { orderId: string; seriesTitle: string; caseNumber: number; index: number; figure: { name: string; image: string; secret: boolean } };
 
-export function makeBlindBoxes({ boxes, clock, newId, random }: BlindBoxDeps) {
+export function makeBlindBoxes({ boxes, clock, newId, random, listings }: BlindBoxDeps) {
   /** The case to sell from: the newest one with a free box, or a fresh one. */
   async function currentCase(s: Series): Promise<{ c: Case; taken: Box[] }> {
     const now = clock.now();
@@ -62,7 +74,40 @@ export function makeBlindBoxes({ boxes, clock, newId, random }: BlindBoxDeps) {
     return c && s && s.active && (!seriesId || s.id === seriesId) ? { c, s } : null;
   }
 
+  async function sellerView(s: Series): Promise<SellerSeriesView> {
+    return { id: s.id, slug: s.slug, title: s.title, poster: s.poster, figures: [...s.figures], secretOdds: s.secretOdds, shakesPerCase: s.shakesPerCase, active: s.active, ...(await boxes.seriesStats(s.id)) };
+  }
+
   return {
+    /** A shop starts selling a listing as blind boxes. One live series per listing. */
+    async createSeries(sellerId: string, input: SeriesInput): Promise<Result<SellerSeriesView, BoxError>> {
+      if (!listings || !(await listings.owns(sellerId, input.slug))) return err(domainError("invalid_series", "Pick one of your live, priced listings."));
+      if (await boxes.seriesFor(input.slug)) return err(domainError("invalid_series", "That listing already has a live series. Pause it first."));
+      const title = input.title.trim();
+      if (title.length < 2 || title.length > 60) return err(domainError("invalid_series", "Name the series (up to 60 characters)."));
+      const figures: Figure[] = input.figures.map((f, i) => ({ id: `f${i + 1}`, name: f.name.trim().slice(0, 40), image: f.image, secret: f.secret }));
+      if (figures.some((f) => f.name.length < 1 || !f.image)) return err(domainError("invalid_series", "Each figure needs a name and a photo."));
+      const s: Series = { id: newId(), sellerId, slug: input.slug, title, poster: figures[0]?.image ?? "", figures, secretOdds: figures.some((f) => f.secret) ? input.secretOdds : figures.length, shakesPerCase: input.shakesPerCase, active: true, createdAt: clock.now() };
+      const valid = validSeries(s);
+      if (!valid.ok) return valid;
+      await boxes.saveSeries(s);
+      return ok(await sellerView(s));
+    },
+
+    async sellerSeries(sellerId: string): Promise<SellerSeriesView[]> {
+      return Promise.all((await boxes.sellerSeries(sellerId)).map(sellerView));
+    },
+
+    /** Pauses or resumes a series. Boxes already sold still ship. */
+    async setActive(sellerId: string, seriesId: string, active: boolean): Promise<Result<SellerSeriesView, BoxError>> {
+      const s = await boxes.series(seriesId);
+      if (!s || s.sellerId !== sellerId) return err(domainError("not_found", "No such series."));
+      if (active && !s.active && (await boxes.seriesFor(s.slug))) return err(domainError("invalid_series", "That listing already has a live series."));
+      const next = { ...s, active };
+      await boxes.saveSeries(next);
+      return ok(await sellerView(next));
+    },
+
     series: () => boxes.activeSeries(),
     seriesFor: (slug: string) => boxes.seriesFor(slug),
 

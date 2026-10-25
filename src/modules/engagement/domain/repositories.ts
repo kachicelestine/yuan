@@ -204,6 +204,9 @@ export interface BlindBoxRepository {
   /** The active series sold as this listing, if any. */
   seriesFor(slug: string): Promise<Series | null>;
   activeSeries(): Promise<Series[]>;
+  sellerSeries(sellerId: string): Promise<Series[]>;
+  /** Cases opened and boxes sold so far. */
+  seriesStats(seriesId: string): Promise<{ cases: number; sold: number }>;
   saveSeries(series: Series): Promise<void>;
   /** The newest case of a series, with its boxes' states. */
   latestCase(seriesId: string): Promise<Case | null>;

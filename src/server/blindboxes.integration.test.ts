@@ -83,6 +83,26 @@ describe("blind boxes", () => {
     expect(await app().blindBoxes.paid(me, orderId, [{ slug: "art-toy-blind-box", qty: 2 }])).toBe(0);
   });
 
+  it("lets a shop start, pause and replace a series for its own listing", async () => {
+    const figures = ["a", "b", "c"].map((n) => ({ name: `Figure ${n}`, image: `/photos/${n}.jpg`, secret: false }));
+    const input = { slug: "art-toy-blind-box", title: "Spring Garden", figures, secretOdds: 3, shakesPerCase: 2 };
+    expect((await app().blindBoxes.createSeries("mei", input)).ok).toBe(false); // not their listing
+    const busy = await app().blindBoxes.createSeries("pals", input);
+    expect(!busy.ok && busy.error.message).toContain("already has a live series");
+    const [old] = await app().blindBoxes.sellerSeries("pals");
+    expect((await app().blindBoxes.setActive("pals", old.id, false)).ok).toBe(true);
+    const tooFew = await app().blindBoxes.createSeries("pals", { ...input, figures: figures.slice(0, 1) });
+    expect(tooFew.ok).toBe(false);
+    const made = await app().blindBoxes.createSeries("pals", { ...input, figures: [...figures, { name: "Gold", image: "/photos/g.jpg", secret: true }], secretOdds: 60 });
+    if (!made.ok) throw new Error(made.error.message);
+    expect(made.value).toMatchObject({ title: "Spring Garden", active: true, secretOdds: 60, cases: 0, sold: 0 });
+    expect((await app().blindBoxes.seriesFor("art-toy-blind-box"))?.id).toBe(made.value.id);
+    expect((await app().blindBoxes.setActive("pals", old.id, true)).ok).toBe(false); // one live series per listing
+    // Put things back for the next test.
+    await app().blindBoxes.setActive("pals", made.value.id, false);
+    await app().blindBoxes.setActive("pals", old.id, true);
+  });
+
   it("lets a hold run out, and opens a new case when one sells out", async () => {
     const [series] = await app().blindBoxes.series();
     const slow = newId();

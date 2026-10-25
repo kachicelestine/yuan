@@ -21,6 +21,19 @@ export class DrizzleBlindBoxRepository implements BlindBoxRepository {
     return this.db.select().from(blindSeries).where(eq(blindSeries.active, true)).orderBy(desc(blindSeries.createdAt));
   }
 
+  async sellerSeries(sellerId: string) {
+    return this.db.select().from(blindSeries).where(eq(blindSeries.sellerId, sellerId)).orderBy(desc(blindSeries.createdAt));
+  }
+
+  async seriesStats(seriesId: string) {
+    const [row] = await this.db
+      .select({ cases: sql<number>`count(distinct ${blindCases.id})::int`, sold: sql<number>`count(${blindBoxes.index}) filter (where ${blindBoxes.state} = 'sold')::int` })
+      .from(blindCases)
+      .leftJoin(blindBoxes, eq(blindBoxes.caseId, blindCases.id))
+      .where(eq(blindCases.seriesId, seriesId));
+    return { cases: row?.cases ?? 0, sold: row?.sold ?? 0 };
+  }
+
   async saveSeries(s: Series) {
     const row = { ...s, figures: [...s.figures] };
     await this.db.insert(blindSeries).values(row).onConflictDoUpdate({ target: blindSeries.id, set: { title: s.title, poster: s.poster, figures: row.figures, secretOdds: s.secretOdds, shakesPerCase: s.shakesPerCase, active: s.active } });
