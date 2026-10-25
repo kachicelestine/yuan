@@ -1,7 +1,7 @@
-import { and, asc, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lt, sql } from "drizzle-orm";
 import type { Database } from "@/shared/infrastructure/database";
 import { cents } from "@/shared/kernel/money";
-import type { CoinEntry, Reward, Watch } from "../domain/coins";
+import type { CoinEntry, CoinReason, Reward, Watch } from "../domain/coins";
 import type { Claim, Coupon } from "../domain/coupon";
 import type { ClaimRepository, CoinRepository, CouponRepository, ListKind, ListRepository, RewardRepository, WatchRepository } from "../domain/repositories";
 import { coinBalances, coinEntries, couponClaims, coupons, listItems, rewards, watches } from "./schema";
@@ -87,11 +87,23 @@ export class DrizzleListRepository implements ListRepository {
     return rows.map((r) => r.slug);
   }
 
-  async replace(accountId: string, kind: ListKind, slugs: readonly string[]) {
+  async replace(accountId: string, kind: ListKind, slugs: readonly string[], at: Date) {
     await this.db.transaction(async (tx) => {
-      await tx.delete(listItems).where(and(eq(listItems.accountId, accountId), eq(listItems.kind, kind)));
-      if (slugs.length) await tx.insert(listItems).values(slugs.map((slug, position) => ({ accountId, kind, slug, position })));
+      const where = and(eq(listItems.accountId, accountId), eq(listItems.kind, kind));
+      // Items already on the list keep the day they were added; only new ones are "now".
+      const added = new Map((await tx.select({ slug: listItems.slug, addedAt: listItems.addedAt }).from(listItems).where(where)).map((r) => [r.slug, r.addedAt]));
+      await tx.delete(listItems).where(where);
+      if (slugs.length) await tx.insert(listItems).values(slugs.map((slug, position) => ({ accountId, kind, slug, position, addedAt: added.get(slug) ?? at })));
     });
+  }
+
+  async addedBetween(kind: ListKind, from: Date, to: Date) {
+    const rows = await this.db
+      .select({ slug: listItems.slug, n: sql<number>`count(*)::int` })
+      .from(listItems)
+      .where(and(eq(listItems.kind, kind), gte(listItems.addedAt, from), lt(listItems.addedAt, to)))
+      .groupBy(listItems.slug);
+    return new Map(rows.map((r) => [r.slug, r.n]));
   }
 }
 
@@ -126,6 +138,18 @@ export class DrizzleRewardRepository implements RewardRepository {
 
 export class DrizzleCoinRepository implements CoinRepository {
   constructor(private readonly db: Database) {}
+
+  async earned(accountId: string) {
+    const [r] = await this.db
+      .select({ n: sql<number>`coalesce(sum(${coinEntries.amount}) filter (where ${coinEntries.amount} > 0), 0)::int` })
+      .from(coinEntries)
+      .where(eq(coinEntries.accountId, accountId));
+    return r?.n ?? 0;
+  }
+
+  async refs(accountId: string, reason: CoinReason) {
+    return (await this.db.select({ ref: coinEntries.ref }).from(coinEntries).where(and(eq(coinEntries.accountId, accountId), eq(coinEntries.reason, reason)))).map((r) => r.ref);
+  }
 
   async balance(accountId: string) {
     const [r] = await this.db.select({ balance: coinBalances.balance }).from(coinBalances).where(eq(coinBalances.accountId, accountId)).limit(1);

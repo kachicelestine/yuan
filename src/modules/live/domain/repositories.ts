@@ -28,6 +28,8 @@ export interface LotRepository {
   update(lot: Lot): Promise<boolean>;
   /** Open lots whose time is up. */
   due(at: Date, limit: number): Promise<Lot[]>;
+  /** How many lots this account won. */
+  wonBy(accountId: string): Promise<number>;
 }
 
 export interface HoldRepository {

@@ -83,6 +83,10 @@ const toLotRow = (l: Lot) => ({
 export class DrizzleLotRepository implements LotRepository {
   constructor(private readonly db: Database) {}
 
+  async wonBy(accountId: string) {
+    return this.db.$count(lots, and(eq(lots.status, "sold"), sql`${lots.topBid}->>'bidderId' = ${accountId}`));
+  }
+
   async find(id: string) {
     const [r] = await this.db.select().from(lots).where(eq(lots.id, id)).limit(1);
     return r ? toLot(r) : null;

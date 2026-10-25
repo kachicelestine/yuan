@@ -7,18 +7,21 @@ import { Icon, type IconName } from "@/components/icon";
 import { useMoney } from "@/components/price";
 import { useStore } from "@/components/providers";
 import { brand } from "@/config/brand";
-import { badges, checkinRewards, levelFor, missions, rewardStore } from "@/lib/account";
+import { checkinRewards, rewardStore } from "@/lib/account";
 import { plural } from "@/lib/format";
+import type { RewardsView } from "@/modules/engagement";
+import { claimMissionAction } from "@/server/actions/rewards";
 
 /** Coins, a daily streak, missions, a rewards store and badges. Coins become real coupons. */
-export function RewardsScreen() {
+export function RewardsScreen({ progress: initial }: { progress: RewardsView }) {
   const router = useRouter();
-  const { coins, checkin, coupons: wallet, account, checkIn, redeem } = useStore();
+  const { coins, checkin, coupons: wallet, account, checkIn, redeem, refreshAccount } = useStore();
+  const [progress, setProgress] = useState(initial);
   const [burst, setBurst] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, start] = useTransition();
   const money = useMoney();
-  const level = levelFor(coins);
+  const level = progress.level;
   const today = checkin.claimedToday ? checkin.streak - 1 : checkin.streak;
 
   // Coins are worth money, so they live on the account: signed out, these ask you to sign in.
@@ -30,6 +33,20 @@ export function RewardsScreen() {
       if (!earned) return;
       setBurst(earned);
       setTimeout(() => setBurst(null), 1400);
+    });
+  }
+
+  function claimMission(id: string) {
+    if (!account) return router.push("/signin?next=/rewards");
+    start(async () => {
+      const r = await claimMissionAction(id);
+      if (!r.ok) return setNotice(r.message);
+      setProgress(r.view);
+      const earned = progress.missions.find((m) => m.id === id)?.reward ?? 0;
+      setBurst(earned);
+      setTimeout(() => setBurst(null), 1400);
+      // The coin balance lives on the account; resync it on this device.
+      await refreshAccount();
     });
   }
 
@@ -55,7 +72,7 @@ export function RewardsScreen() {
       </header>
 
       <section aria-label="Your coins" className="relative overflow-hidden rounded-[30px] bg-[radial-gradient(120%_90%_at_10%_0%,#ffc53d33,transparent_55%),radial-gradient(90%_80%_at_100%_100%,#cc3a1744,transparent_60%)] p-5 ring-1 ring-white/10">
-        <p className="text-xs font-bold tracking-[0.1em] text-save">{level.current.name.toUpperCase()} MEMBER</p>
+        <p className="text-xs font-bold tracking-[0.1em] text-save">{level.name.toUpperCase()} MEMBER</p>
         <p className="mt-1 flex items-baseline gap-2">
           <span className="font-display text-[48px] leading-none font-extrabold tracking-[-0.03em]" aria-live="polite">
             {coins.toLocaleString("en-US")}
@@ -80,7 +97,7 @@ export function RewardsScreen() {
               <div className="h-full rounded-full bg-gradient-to-r from-save to-accent-light" style={{ width: `${level.progress * 100}%` }} />
             </div>
             <p className="mt-1.5 text-xs text-ink-2">
-              {plural(level.next.from - coins, "coin")} to {level.next.name}: free express on every order
+              Earn {plural(level.next.from - progress.earned, "more coin")} to reach {level.next.name}
             </p>
           </div>
         )}
@@ -129,25 +146,44 @@ export function RewardsScreen() {
           Missions
         </h2>
         <ul className="glass flex flex-col divide-y divide-line overflow-hidden rounded-[26px]">
-          {missions.map((m) => (
-            <li key={m.id}>
-              <Link href={m.href} className="flex items-center gap-3 px-4 py-3.5">
-                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-save/15 font-display text-xs font-extrabold text-save">+{m.reward}</span>
+          {progress.missions.map((m) => {
+            const ready = m.progress >= m.goal && !m.claimed;
+            const row = (
+              <>
+                <span className={`grid size-10 shrink-0 place-items-center rounded-full font-display text-xs font-extrabold ${m.claimed ? "bg-positive/15 text-positive" : "bg-save/15 text-save"}`}>
+                  {m.claimed ? <Icon name="check" className="size-4" /> : `+${m.reward}`}
+                </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold">{m.title}</span>
+                  <span className={`block text-sm font-semibold ${m.claimed ? "text-ink-2" : ""}`}>{m.title}</span>
                   <span className="mt-1.5 flex items-center gap-2">
                     <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
-                      <span className="block h-full rounded-full bg-save" style={{ width: `${(m.progress / m.goal) * 100}%` }} />
+                      <span className={`block h-full rounded-full ${m.claimed ? "bg-positive" : "bg-save"}`} style={{ width: `${(m.progress / m.goal) * 100}%` }} />
                     </span>
                     <span className="text-[11px] text-ink-3">
                       {m.progress}/{m.goal}
                     </span>
                   </span>
                 </span>
-                <Icon name="forward" className="size-4 text-ink-3" />
-              </Link>
-            </li>
-          ))}
+              </>
+            );
+            return (
+              <li key={m.id}>
+                {ready ? (
+                  <div className="flex items-center gap-3 px-4 py-3.5">
+                    {row}
+                    <button type="button" onClick={() => claimMission(m.id)} disabled={busy} className="h-9 shrink-0 rounded-full bg-save px-3.5 text-[13px] font-bold text-black disabled:opacity-50">
+                      Claim
+                    </button>
+                  </div>
+                ) : (
+                  <Link href={m.href} className="flex items-center gap-3 px-4 py-3.5">
+                    {row}
+                    {!m.claimed && <Icon name="forward" className="size-4 text-ink-3" />}
+                  </Link>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </section>
 
@@ -189,7 +225,7 @@ export function RewardsScreen() {
           Badges
         </h2>
         <ul className="grid grid-cols-3 gap-2.5">
-          {badges.map((b) => (
+          {progress.badges.map((b) => (
             <li key={b.id} className={`glass-inset flex flex-col items-center gap-2 rounded-[22px] px-2 py-4 text-center ${b.earned ? "" : "opacity-45"}`}>
               <span className={`grid size-14 place-items-center rounded-full ${b.earned ? "bg-[conic-gradient(from_180deg,#ffc53d,#ff7a52,#ffc53d)] text-black" : "bg-white/10 text-ink-2"}`}>
                 <Icon name={b.icon as IconName} className="size-6" />
@@ -204,7 +240,10 @@ export function RewardsScreen() {
       <p className="glass-inset mt-5 flex items-center gap-3 rounded-[22px] p-4 text-[13px] text-ink-2">
         <Icon name="users" className="size-6 shrink-0 text-accent-light" />
         <span>
-          <b className="font-semibold text-ink">Invite friends to {brand.name}.</b> They get $5 off their first order; you get 500 coins when it ships.
+          <b className="font-semibold text-ink">Share what you love on {brand.name}.</b> Orders from your link earn you a commission, and 500 coins on the first one.{" "}
+          <Link href="/creator" className="font-semibold text-agent">
+            Creator hub
+          </Link>
         </span>
       </p>
     </div>

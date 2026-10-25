@@ -37,6 +37,8 @@ export type EngagementSnapshot = {
   /** Usable coupon ids in the wallet. */
   coupons: string[];
   coins: number;
+  /** Coins earned over time; sets the member level. */
+  coinsEarned: number;
   checkin: Checkin;
 };
 
@@ -105,16 +107,22 @@ export function makeEngagement(d: EngagementDeps) {
       return held && coupon && isUsable(held, coupon, d.clock.now()) ? coupon : null;
     },
 
+    /** How many people saved each product in a window (for rankings). */
+    savesBetween(from: Date, to: Date) {
+      return d.lists.addedBetween("saved", from, to);
+    },
+
     async snapshot(accountId: string): Promise<EngagementSnapshot> {
-      const [saved, alerts, watches, coupons, coins, streak] = await Promise.all([
+      const [saved, alerts, watches, coupons, coins, coinsEarned, streak] = await Promise.all([
         d.lists.get(accountId, "saved"),
         d.lists.get(accountId, "alert"),
         d.watches.list(accountId),
         wallet(accountId),
         d.coins.balance(accountId),
+        d.coins.earned(accountId),
         checkin(accountId),
       ]);
-      return { saved, alerts, watches: watches.map((w) => ({ slug: w.slug, target: w.target / 100, autoBuy: w.autoBuy })), coupons, coins, checkin: streak };
+      return { saved, alerts, watches: watches.map((w) => ({ slug: w.slug, target: w.target / 100, autoBuy: w.autoBuy })), coupons, coins, coinsEarned, checkin: streak };
     },
 
     /** Saves the lists as the device has them now. */
@@ -124,8 +132,8 @@ export function makeEngagement(d: EngagementDeps) {
         if (!SLUG.test(w.slug) || !Number.isFinite(w.target) || w.target <= 0) continue;
         bySlug.set(w.slug, { slug: w.slug, target: money.fromDollars(w.target), autoBuy: w.autoBuy === true });
       }
-      await d.lists.replace(accountId, "saved", cleanSlugs(lists.saved));
-      await d.lists.replace(accountId, "alert", cleanSlugs(lists.alerts));
+      await d.lists.replace(accountId, "saved", cleanSlugs(lists.saved), d.clock.now());
+      await d.lists.replace(accountId, "alert", cleanSlugs(lists.alerts), d.clock.now());
       await d.watches.replace(accountId, [...bySlug.values()].slice(0, MAX_LIST));
     },
 

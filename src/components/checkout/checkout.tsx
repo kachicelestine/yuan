@@ -15,7 +15,7 @@ import { bestCoupon } from "@/lib/account";
 import { getProduct, getSeller, similarProducts } from "@/lib/catalog";
 import { haptic } from "@/lib/feedback";
 import { formatMoney } from "@/lib/format";
-import { rankProducts } from "@/lib/rankings";
+import type { Rankings } from "@/lib/rankings";
 import { checkoutAction } from "@/server/actions/checkout";
 import { useStored } from "@/lib/use-stored";
 import { BagSection, type BagGroup } from "./bag-section";
@@ -128,22 +128,7 @@ export function Checkout({ rails: available, signedIn }: { rails: string[]; sign
   }
 
   if (ready && cart.length === 0) {
-    return (
-      <div className="grid min-h-dvh place-items-center pt-safe pb-safe">
-        <EmptyState icon="bag" title="Your bag is empty" body="Tap Buy on anything in the feed or a live room and it lands here." primary={{ href: "/", label: "Back to the feed" }} secondary={{ href: "/rankings", label: "See what's selling" }}>
-          <p className="mb-2 text-left text-xs font-bold tracking-[0.1em] text-ink-3">SELLING FAST THIS WEEK</p>
-          <ul className="grid grid-cols-2 gap-2.5 text-left">
-            {rankProducts("hot", "week")
-              .slice(0, 4)
-              .map((r, i) => (
-                <li key={r.product.slug}>
-                  <ProductCard product={r.product} eager={i < 2} sizes="(min-width: 640px) 200px, 45vw" />
-                </li>
-              ))}
-          </ul>
-        </EmptyState>
-      </div>
-    );
+    return <EmptyBag />;
   }
 
   return (
@@ -330,3 +315,29 @@ export function Checkout({ rails: available, signedIn }: { rails: string[]; sign
   );
 }
 
+/** An empty bag suggests what's selling, from this week's rankings. */
+function EmptyBag() {
+  const [top, setTop] = useState<Extract<Rankings["rows"][number], { kind: "product" }>[]>([]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/rankings?board=hot&period=week", { signal: controller.signal })
+      .then((r) => (r.ok ? (r.json() as Promise<Rankings>) : null))
+      .then((r) => r && setTop(r.rows.flatMap((x) => (x.kind === "product" ? [x] : [])).slice(0, 4)))
+      .catch(() => {});
+    return () => controller.abort();
+  }, []);
+  return (
+      <div className="grid min-h-dvh place-items-center pt-safe pb-safe">
+        <EmptyState icon="bag" title="Your bag is empty" body="Tap Buy on anything in the feed or a live room and it lands here." primary={{ href: "/", label: "Back to the feed" }} secondary={{ href: "/rankings", label: "See what's selling" }}>
+          <p className="mb-2 text-left text-xs font-bold tracking-[0.1em] text-ink-3">BEST SELLERS</p>
+          <ul className="grid grid-cols-2 gap-2.5 text-left">
+            {top.map((r, i) => (
+                <li key={r.product.slug}>
+                  <ProductCard product={r.product} eager={i < 2} sizes="(min-width: 640px) 200px, 45vw" />
+                </li>
+              ))}
+          </ul>
+        </EmptyState>
+      </div>
+  );
+}

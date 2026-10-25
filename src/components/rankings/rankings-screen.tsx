@@ -2,22 +2,49 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon, VerifiedBadge } from "@/components/icon";
 import { useMoney } from "@/components/price";
-import { categories, getSellerProfile, type CategoryId } from "@/lib/catalog";
-import { boards, periods, rankProducts, rankSellers, type BoardId, type Move, type Period, type RankedProduct, type RankedSeller } from "@/lib/rankings";
+import { categories, type CategoryId } from "@/lib/catalog";
+import { boards, periods, type BoardId, type Move, type Period, type RankedProduct, type RankedSeller, type Rankings } from "@/lib/rankings";
+import { useNow } from "@/lib/use-now";
 
 const medals = ["#ffc53d", "#d5dae3", "#e0935f"];
 const shelves = categories.filter((c) => !["toys", "smarthome", "textiles"].includes(c.id));
 
 /** Leaderboards: best sellers, most saved, top rated and rising factories, by window and category. */
-export function RankingsScreen() {
+export function RankingsScreen({ initial }: { initial: Rankings }) {
   const [board, setBoard] = useState<BoardId>("hot");
   const [period, setPeriod] = useState<Period>("week");
   const [category, setCategory] = useState<CategoryId | undefined>();
-  const rows: (RankedProduct | RankedSeller)[] = board === "factories" ? rankSellers(period, category) : rankProducts(board, period, category);
+  const [data, setData] = useState(initial);
+  const [loading, setLoading] = useState(false);
+  const first = useRef(true);
+  const now = useNow(60_000);
+  const rows: (RankedProduct | RankedSeller)[] = data.rows;
   const meta = boards.find((b) => b.id === board)!;
+  const minutes = now === null ? null : Math.max(0, Math.round((now - new Date(data.updatedAt).getTime()) / 60_000));
+
+  // The first board arrives with the page; others load when picked.
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    const controller = new AbortController();
+    const q = new URLSearchParams({ board, period, ...(category ? { category } : {}) });
+    setLoading(true);
+    fetch(`/api/rankings?${q}`, { signal: controller.signal })
+      .then((r) => (r.ok ? (r.json() as Promise<Rankings>) : null))
+      .then((r) => {
+        if (r) setData(r);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [board, period, category]);
 
   return (
     <div className="mx-auto max-w-[1000px] px-3.5 pt-safe pb-36 lg:px-6 lg:pt-6 lg:pb-16">
@@ -30,7 +57,7 @@ export function RankingsScreen() {
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-1.5 text-xs font-bold tracking-[0.1em] text-save">
               <Icon name="trophy" className="size-4" />
-              UPDATED 12 MIN AGO
+              {minutes === null ? "UPDATED HOURLY" : minutes < 2 ? "UPDATED JUST NOW" : minutes < 60 ? `UPDATED ${minutes} MIN AGO` : `UPDATED ${Math.round(minutes / 60)} H AGO`}
             </p>
             <h1 className="font-display text-[34px] leading-tight font-extrabold tracking-[-0.03em]">Rankings</h1>
           </div>
@@ -81,10 +108,11 @@ export function RankingsScreen() {
         </div>
       </header>
 
+      {data.note && rows.length > 0 && <p className="mb-3 px-1 text-xs text-ink-2">{data.note}</p>}
       {rows.length === 0 ? (
-        <p className="glass rounded-[26px] p-6 text-center text-sm text-ink-2">Not enough sales in this category yet. Try another window or category.</p>
+        <p className="glass rounded-[26px] p-6 text-center text-sm text-ink-2">{loading ? "Loading…" : "Not enough sales in this category yet. Try another window or category."}</p>
       ) : (
-        <div key={`${board}-${period}-${category}`} className="flex animate-unfurl flex-col gap-3">
+        <div key={`${board}-${period}-${category}-${data.updatedAt}`} aria-busy={loading} className={`flex animate-unfurl flex-col gap-3 transition-opacity ${loading ? "opacity-60" : ""}`}>
           <ol className="grid grid-cols-2 gap-2.5 lg:grid-cols-3">
             {rows.slice(0, 3).map((r, i) => (
               <li key={r.kind === "product" ? r.product.slug : r.seller.id} className={i === 0 ? "col-span-2 lg:col-span-1" : ""}>
@@ -124,7 +152,7 @@ function MoveTag({ move }: { move: Move }) {
 function Podium({ row, rank, wide }: { row: RankedProduct | RankedSeller; rank: number; wide: boolean }) {
   const money = useMoney();
   const href = row.kind === "product" ? `/p/${row.product.slug}` : `/s/${row.seller.id}`;
-  const image = row.kind === "product" ? row.product.images[0] : (getSellerProfile(row.seller.id)?.cover ?? row.seller.avatar);
+  const image = row.kind === "product" ? row.product.images[0] : row.cover;
   const title = row.kind === "product" ? row.product.title : row.seller.name;
 
   return (

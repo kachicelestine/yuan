@@ -18,7 +18,9 @@ import {
   DrizzleVideoRepository,
 } from "@/modules/content/infrastructure/drizzle-content-repositories";
 import { FfmpegEncoder } from "@/modules/content/infrastructure/ffmpeg-encoder";
-import { makeEngagement } from "@/modules/engagement";
+import { makeChops, makeEngagement, makePolls, makeRewards, pollId } from "@/modules/engagement";
+import { DrizzleChopRepository } from "@/modules/engagement/infrastructure/drizzle-chop-repository";
+import { DrizzlePollRepository } from "@/modules/engagement/infrastructure/drizzle-poll-repository";
 import {
   DrizzleClaimRepository,
   DrizzleCoinRepository,
@@ -66,6 +68,7 @@ import { makeAds } from "@/modules/ads";
 import { DrizzleAdStatsRepository, DrizzleCampaignRepository } from "@/modules/ads/infrastructure/drizzle-ads-repositories";
 import { CatalogAdProducts, EscrowAdBilling, HmacSigner } from "./adapters/ads";
 import { affiliatesRepos, DrizzleCommissionRepository } from "@/modules/affiliates/infrastructure/drizzle-affiliates-repositories";
+import { AppActivity } from "./adapters/activity";
 import { CatalogForLive } from "./adapters/live";
 import { CatalogShops } from "./adapters/shops";
 import { MarketDestinations } from "./adapters/destinations";
@@ -227,6 +230,21 @@ export function wire(db: Database, options: WireOptions = {}) {
     payoutRail: "usdc-base",
   });
 
+  const chops = makeChops({
+    chops: new DrizzleChopRepository(db),
+    products: {
+      livePrice: async (sellerId: string, slug: string) => {
+        const [p] = await products.findBySlugs([slug]);
+        return p && p.sellerId === sellerId && p.status === "active" ? p.price : null;
+      },
+    },
+    // A chop, its reserved stock and its first cut (or a finishing cut and its event) commit together.
+    uow: unitOfWork(db, (tx) => ({ chops: new DrizzleChopRepository(tx), events: new OutboxEventLog(tx, () => clock.now()) })),
+    clock,
+    newId: () => newId(),
+    newCode: () => pollId(random),
+  });
+
   const bus = options.bus ?? liveBus(db);
   const live = makeLive({
     shows: new DrizzleShowRepository(db),
@@ -293,6 +311,24 @@ export function wire(db: Database, options: WireOptions = {}) {
     searchProducts: makeSearchProducts({ search: productSearch, sellers, clock }),
     searchShops: makeSearchShops({ search: productSearch }),
     engagement,
+    chops,
+    rewards: makeRewards({
+      coins: new DrizzleCoinRepository(db),
+      activity: new AppActivity({
+        orders: new DrizzleOrderRepository(db),
+        products,
+        reviews: content.reviews,
+        lists: new DrizzleListRepository(db),
+        polls: new DrizzlePollRepository(db),
+        chops: new DrizzleChopRepository(db),
+        lots: new DrizzleLotRepository(db),
+        commissions: new DrizzleCommissionRepository(db),
+        accounts: new DrizzleAccountRepository(db),
+      }),
+      clock,
+      newId: () => newId(),
+    }),
+    polls: makePolls({ polls: new DrizzlePollRepository(db), clock }),
     content: makeContentQueries({ ...content, clock }),
     interactions: makeInteractions({
       videos: content.videos,
@@ -342,7 +378,13 @@ export function wire(db: Database, options: WireOptions = {}) {
     liveBus: bus,
     checkout: makeCheckout({
       catalog: pricing,
-      holds: { best: (buyerId: string, slug: string) => live.bestHold(buyerId, slug) },
+      // The lowest price the buyer holds: a live price, an auction win or a finished chop.
+      holds: {
+        best: async (buyerId: string, slug: string) => {
+          const held = (await Promise.all([live.bestHold(buyerId, slug), chops.bestHold(buyerId, slug)])).filter((h) => h !== null);
+          return held.length ? held.reduce((a, b) => (b.price < a.price ? b : a)) : null;
+        },
+      },
       destinations: new MarketDestinations(countries),
       coupons: new WalletCoupons(engagement),
       // The order, its invoice and the coupon it takes are written in one transaction.

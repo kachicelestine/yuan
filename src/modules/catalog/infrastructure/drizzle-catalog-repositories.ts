@@ -5,7 +5,7 @@ import type { Category, CategoryId } from "../domain/category";
 import type { Product } from "../domain/product";
 import type { CategoryRepository, ProductRepository, SellerRepository } from "../domain/repositories";
 import type { Seller, SellerId } from "../domain/seller";
-import { appliedRatings, categories, products, sellers, type StoredOption } from "./schema";
+import { appliedRatings, appliedSales, categories, products, sellers, type StoredOption } from "./schema";
 
 const toCategory = (r: typeof categories.$inferSelect): Category => ({ ...r, id: r.id as CategoryId });
 
@@ -161,6 +161,22 @@ export class DrizzleProductRepository implements ProductRepository {
           updatedAt: new Date(),
         })
         .where(eq(products.slug, slug));
+      return true;
+    });
+  }
+
+  async applySales(orderId: string, lines: readonly { slug: string; qty: number }[]) {
+    return this.db.transaction(async (tx) => {
+      const fresh = await tx.insert(appliedSales).values({ orderId }).onConflictDoNothing().returning({ id: appliedSales.orderId });
+      if (!fresh.length) return false;
+      const bySlug = new Map<string, number>();
+      for (const l of lines) bySlug.set(l.slug, (bySlug.get(l.slug) ?? 0) + l.qty);
+      for (const [slug, qty] of bySlug) {
+        await tx
+          .update(products)
+          .set({ soldCount: sql`coalesce(${products.soldCount}, 0) + ${qty}` })
+          .where(eq(products.slug, slug));
+      }
       return true;
     });
   }

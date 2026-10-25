@@ -20,3 +20,9 @@ export const questionsTag = (slug: string) => `questions:${slug}`;
 
 /** The live lobby: shows starting, ending or scheduled. */
 export const LIVE_TAG = "live";
+
+/** Promotions shoppers can join: chop offers and drops. */
+export const PROMOS_TAG = "promos";
+
+/** Leaderboards; refreshed hourly, and when orders are paid. */
+export const RANKINGS_TAG = "rankings";

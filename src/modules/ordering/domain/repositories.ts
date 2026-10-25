@@ -8,6 +8,8 @@ export interface OrderRepository {
   findByNumber(number: string): Promise<Order | null>;
   /** A buyer's orders, newest first. */
   listByBuyer(buyerId: string, limit: number): Promise<Order[]>;
+  /** Units sold per product in orders paid between `from` (inclusive) and `to`. */
+  sales(from: Date, to: Date): Promise<{ slug: string; sellerId: string; units: number }[]>;
   /** Orders with at least one of the shop's lines, newest first (all lines included). */
   listBySeller(sellerId: string, statuses: readonly Order["status"][], limit: number): Promise<Order[]>;
   save(order: Order): Promise<void>;

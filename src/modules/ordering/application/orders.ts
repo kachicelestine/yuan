@@ -46,6 +46,10 @@ export function makeGetOrder(deps: { orders: OrderRepository }) {
     async list(buyerId: string, limit = 20): Promise<OrderView[]> {
       return (await deps.orders.listByBuyer(buyerId, limit)).map(toOrderView);
     },
+    /** Units sold per product in orders paid in a window (for rankings). */
+    sales(from: Date, to: Date) {
+      return deps.orders.sales(from, to);
+    },
     /** For background work acting on the platform's behalf (notifications); never for a request. */
     async internal(id: string): Promise<OrderView | null> {
       const o = await deps.orders.findById(id);

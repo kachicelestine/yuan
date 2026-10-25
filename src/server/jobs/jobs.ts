@@ -47,6 +47,11 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
       if (!order) return;
       // Live prices and auction wins behind this order are used up.
       await app.live.useHolds(order.buyerId, [...new Set(order.lines.map((l) => l.slug))]);
+      await app.chops.use(order.buyerId, [...new Set(order.lines.map((l) => l.slug))]);
+      // Real sales count into "sold" on the listing and into the rankings.
+      if (await app.ratings.sales(orderId, order.lines.map((l) => ({ slug: l.slug, qty: l.qty })))) {
+        await revalidateTags([...new Set(order.lines.map((l) => productTag(l.slug)))]);
+      }
       // A creator link behind it earns a commission per shop, settled at delivery.
       await app.affiliates.attribute(orderId);
       for (const parcel of await app.fulfilment.forOrder(orderId)) {
@@ -87,6 +92,10 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
       else if (p.accountId) await notify([p.accountId], { kind: "refund_sent", title: `${usd(p.amount)} refunded`, body: "Your refund has been sent to your wallet.", link: "/me", email: true }, id);
     },
 
+    ChopCompleted: async ({ id, payload }) => {
+      const p = payload as { chopId: string; ownerId: string; slug: string; target: number };
+      await notify([p.ownerId], { kind: "chop_done", title: `Chopped to ${usd(p.target)}!`, body: "Your friends got it to the target. It's yours at that price for 48 hours.", link: `/chop/${p.chopId}`, email: true }, id);
+    },
     CommissionEarned: async ({ id, payload }) => {
       const p = payload as { creatorId: string; amount: number };
       await notify([p.creatorId], { kind: "commission", title: `You earned ${usd(p.amount)}`, body: "An order from your link was delivered. It's in your creator balance.", link: "/creator", email: false }, id);
@@ -152,6 +161,12 @@ function recurringJobs(app: Services, dispatcher: OutboxDispatcher): ScheduledJo
       name: "live.lots",
       everyMs: 10_000,
       run: async () => void (await app.live.closeDueLots()),
+    },
+    {
+      // Chops that ran out of time give their reserved stock back.
+      name: "chops.expire",
+      everyMs: 5 * 60_000,
+      run: async () => void (await app.chops.expire()),
     },
     {
       // Parcels nobody confirmed or disputed are taken as delivered, which pays the shop.

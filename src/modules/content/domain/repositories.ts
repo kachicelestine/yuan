@@ -58,6 +58,8 @@ export interface NoteRepository {
 
 export interface ReviewRepository {
   forProduct(slug: string, limit: number): Promise<Review[]>;
+  /** How many reviews this account has written. */
+  countByAuthor(accountId: string): Promise<number>;
   forSeller(sellerId: string, limit: number): Promise<Review[]>;
   /** Every rating for a product (for star counts), cheap to read. */
   ratings(slug: string): Promise<number[]>;

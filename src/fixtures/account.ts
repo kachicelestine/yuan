@@ -1,7 +1,7 @@
 // Fixture data for the design phase: one shopper's account (orders in transit, rewards,
 // coupons, boards, creator earnings and a business quote request).
 import { avatar, square } from "@/lib/images";
-import type { Badge, Board, BusinessRfq, Coupon, CreatorLink, Mission, RewardItem, Shipment } from "@/lib/types";
+import type { Board, BusinessRfq, Coupon, RewardItem, Shipment } from "@/lib/types";
 import { people } from "./people";
 
 export const demoShipment: Shipment = {
@@ -41,34 +41,10 @@ export const coupons: Coupon[] = [
   { id: "street8", title: "8% off", detail: "Canton Street Lab, 2+ items", value: 0.08, percent: true, minSpend: 60, sellerId: "streetlab", expires: "Nov 20" },
 ];
 
-export const missions: Mission[] = [
-  { id: "watch-live", title: "Watch a live room for 5 minutes", reward: 50, progress: 3, goal: 5, href: "/live" },
-  { id: "review", title: "Review something you bought", reward: 200, progress: 0, goal: 1, href: "/me" },
-  { id: "follow", title: "Follow 3 factories", reward: 30, progress: 1, goal: 3, href: "/c" },
-  { id: "share", title: "Share a product with a friend", reward: 20, progress: 0, goal: 1, href: "/" },
-  { id: "invite", title: "Invite a friend who places an order", reward: 500, progress: 0, goal: 1, href: "/rewards" },
-];
-
-export const badges: Badge[] = [
-  { id: "early", name: "Early bird", detail: "Joined in the first month", earned: true, icon: "sparkle" },
-  { id: "solar", name: "Solar pioneer", detail: "Bought your first solar gear", earned: true, icon: "sun" },
-  { id: "captain", name: "Team captain", detail: "Filled a team buy", earned: true, icon: "users" },
-  { id: "owl", name: "Night owl", detail: "Caught 5 night deals", earned: false, icon: "clock" },
-  { id: "bidder", name: "Hammer time", detail: "Won a live auction", earned: false, icon: "gavel" },
-  { id: "globe", name: "Globetrotter", detail: "Shipped to 3 countries", earned: false, icon: "globe" },
-];
-
 export const rewardStore: RewardItem[] = [
   { id: "r-ship", title: "Free express shipping", cost: 800, couponId: "freeship" },
   { id: "r-5", title: "$5 off any order over $50", cost: 500, couponId: "welcome5" },
   { id: "r-25", title: "$25 off Voltgrid Power", cost: 2000, couponId: "voltgrid25" },
-];
-
-export const levels = [
-  { name: "Bronze", from: 0 },
-  { name: "Silver", from: 1000 },
-  { name: "Gold", from: 2500 },
-  { name: "Jade", from: 6000 },
 ];
 
 /** Daily check-in rewards for days 1–7 of a streak. */
@@ -81,25 +57,6 @@ export const boards: Board[] = [
   { id: "off-grid", name: "Off-grid in a weekend", owner: "Lin Outdoors", ownerAvatar: people.lin, slugs: ["wind-turbine-600w", "hybrid-inverter-6kw", "wall-battery-5kwh", "solar-panel-450w-bifacial"], followers: 12400 },
   { id: "fit-check", name: "Fit check essentials", owner: "Sora K.", ownerAvatar: people.sora, slugs: ["hoodie-heavyweight", "jacket-oversized-utility", "trainers-cloud-knit", "bag-sling-tech"], followers: 31800 },
   { id: "glow-up", name: "Glow-up under $30", owner: "Yan Beauty", ownerAvatar: avatar("1534751516642-a1af1ef26a56"), slugs: ["lip-set-velvet", "serum-niacinamide", "cream-ceramide", "serum-bakuchiol"], followers: 8700 },
-];
-
-/** Weekly creator earnings in USD, oldest first. */
-export const creatorWeeks = [
-  { week: "Sep 1", earned: 84 },
-  { week: "Sep 8", earned: 112 },
-  { week: "Sep 15", earned: 96 },
-  { week: "Sep 22", earned: 148 },
-  { week: "Sep 29", earned: 171 },
-  { week: "Oct 6", earned: 205 },
-  { week: "Oct 13", earned: 262 },
-  { week: "Oct 20", earned: 307 },
-];
-
-export const creatorLinks: CreatorLink[] = [
-  { slug: "power-station-2kwh", commission: 0.06, clicks: 4210, orders: 38, earned: 1366 },
-  { slug: "hoodie-heavyweight", commission: 0.12, clicks: 3880, orders: 141, earned: 575 },
-  { slug: "drone-mini-4k", commission: 0.08, clicks: 2950, orders: 52, earned: 911 },
-  { slug: "lip-set-velvet", commission: 0.15, clicks: 1870, orders: 111, earned: 250 },
 ];
 
 export const sampleOffers = ["projector-mini-1080p", "smartwatch-amoled", "bag-sling-tech", "serum-bakuchiol"];

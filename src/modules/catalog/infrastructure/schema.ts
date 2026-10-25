@@ -86,6 +86,12 @@ export const products = catalogSchema.table(
 );
 
 /** Reviews already counted in a product's rating, so a redelivered event counts once. */
+/** Orders already counted into products' sold counts (OrderPaid is delivered at least once). */
+export const appliedSales = catalogSchema.table("applied_sales", {
+  orderId: uuid().primaryKey(),
+  appliedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+});
+
 export const appliedRatings = catalogSchema.table("applied_ratings", {
   reviewId: text().primaryKey(),
   appliedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),

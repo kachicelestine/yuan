@@ -52,6 +52,8 @@ type Store = {
   claimCoupon: (id: string) => Promise<void>;
   /** Coins and check-ins need an account: signed out, both are zero. */
   coins: number;
+  /** Coins earned over time, which sets the member level. */
+  coinsEarned: number;
   checkin: Checkin;
   /** Coins earned, or null when signed out. */
   checkIn: () => Promise<number | null>;
@@ -82,6 +84,7 @@ const KEYS = {
   watches: "app.watches",
   coupons: "app.coupons",
   coins: "app.coins",
+  coinsEarned: "app.coins-earned",
   checkin: "app.checkin",
   /** Which account this device's copy belongs to. */
   owner: "app.account",
@@ -90,7 +93,7 @@ const KEYS = {
 } as const;
 
 /** What signing out forgets: the account keeps it, and the next person on this device shouldn't see it. */
-const ACCOUNT_KEYS = [KEYS.cart, KEYS.orders, KEYS.saved, KEYS.alerts, KEYS.watches, KEYS.coupons, KEYS.coins, KEYS.checkin, KEYS.owner, KEYS.unsaved];
+const ACCOUNT_KEYS = [KEYS.cart, KEYS.orders, KEYS.saved, KEYS.alerts, KEYS.watches, KEYS.coupons, KEYS.coins, KEYS.coinsEarned, KEYS.checkin, KEYS.owner, KEYS.unsaved];
 
 const NO_CHECKIN: Checkin = { streak: 0, claimedToday: false };
 
@@ -151,6 +154,7 @@ export function StoreProvider({ markets: packed, children }: { markets: PackedMa
   const [watches] = useStored<Watch[]>(KEYS.watches, []);
   const [coupons, setCoupons] = useStored<string[]>(KEYS.coupons, ["welcome5"]);
   const [coins] = useStored<number>(KEYS.coins, 0);
+  const [coinsEarned] = useStored<number>(KEYS.coinsEarned, 0);
   const [checkin] = useStored<Checkin>(KEYS.checkin, NO_CHECKIN);
 
   // The device data as of the last render, for sync code that runs outside it.
@@ -171,6 +175,7 @@ export function StoreProvider({ markets: packed, children }: { markets: PackedMa
     writeStored(KEYS.watches, state.watches);
     writeStored(KEYS.coupons, state.coupons);
     writeStored(KEYS.coins, state.coins);
+    writeStored(KEYS.coinsEarned, state.coinsEarned);
     writeStored(KEYS.checkin, state.checkin);
     write(KEYS.owner, state.accountId);
     confirmed.current = JSON.stringify(deviceData({ cart: lines, saved: state.saved, alerts: state.alerts, watches: state.watches }));
@@ -373,6 +378,7 @@ export function StoreProvider({ markets: packed, children }: { markets: PackedMa
       coupons,
       claimCoupon,
       coins,
+      coinsEarned,
       checkin,
       checkIn,
       redeem,
@@ -399,6 +405,7 @@ export function StoreProvider({ markets: packed, children }: { markets: PackedMa
       coupons,
       claimCoupon,
       coins,
+      coinsEarned,
       checkin,
       checkIn,
       redeem,

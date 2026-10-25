@@ -28,5 +28,7 @@ export interface ProductRepository {
   slugExists(slug: string): Promise<boolean>;
   /** Folds one review's stars into the product's average, once per review id. */
   applyRating(reviewId: string, slug: string, rating: number): Promise<boolean>;
+  /** Adds a paid order's quantities to its products' sold counts; a second delivery changes nothing. */
+  applySales(orderId: string, lines: readonly { slug: string; qty: number }[]): Promise<boolean>;
   save(product: Product): Promise<void>;
 }

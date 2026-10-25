@@ -1,9 +1,9 @@
 // Account queries over the fixtures: shipments, rewards, coupons, boards, creator stats and RFQs.
 import { products } from "@/fixtures/products";
 import type { Coupon } from "./types";
-import { badges, boards, businessRfqs, checkinRewards, coupons, creatorLinks, creatorWeeks, demoShipment, levels, missions, rewardStore, sampleOffers } from "@/fixtures/account";
+import { boards, businessRfqs, checkinRewards, coupons, demoShipment, rewardStore, sampleOffers } from "@/fixtures/account";
 
-export { badges, boards, businessRfqs, checkinRewards, coupons, creatorLinks, creatorWeeks, demoShipment, levels, missions, rewardStore, sampleOffers };
+export { boards, businessRfqs, checkinRewards, coupons, demoShipment, rewardStore, sampleOffers };
 
 export function getBoard(id: string) {
   return boards.find((b) => b.id === id);
@@ -11,14 +11,6 @@ export function getBoard(id: string) {
 
 export function getCoupon(id: string) {
   return coupons.find((c) => c.id === id);
-}
-
-/** The level for a coin balance, and progress toward the next one (0–1). */
-export function levelFor(coins: number) {
-  const index = levels.findLastIndex((l) => coins >= l.from);
-  const current = levels[index];
-  const next = levels[index + 1];
-  return { current, next, progress: next ? (coins - current.from) / (next.from - current.from) : 1 };
 }
 
 /**

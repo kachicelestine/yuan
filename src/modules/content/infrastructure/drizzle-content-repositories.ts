@@ -252,6 +252,10 @@ const toReview = (r: typeof reviews.$inferSelect): Review => r;
 export class DrizzleReviewRepository implements ReviewRepository {
   constructor(private readonly db: Database) {}
 
+  async countByAuthor(accountId: string) {
+    return this.db.$count(reviews, eq(reviews.authorId, accountId));
+  }
+
   async forProduct(slug: string, limit: number) {
     const rows = await this.db.select().from(reviews).where(eq(reviews.productSlug, slug)).orderBy(desc(reviews.helpful), desc(reviews.createdAt)).limit(limit);
     return rows.map(toReview);

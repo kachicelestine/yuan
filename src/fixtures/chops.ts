@@ -37,14 +37,3 @@ export const chops: Chop[] = [
     ],
   },
 ];
-
-/** Friends who answer an invite in the demo, in order. */
-export const chopHelpers = [
-  { name: "Ada", avatar: people.amara },
-  { name: "Tunde", avatar: people.kofi },
-  { name: "Wen", avatar: people.lin },
-  { name: "Priya", avatar: people.ravi },
-  { name: "Yuki", avatar: people.sora },
-  { name: "Leo", avatar: people.jun },
-  { name: "Zara", avatar: people.mia },
-];

@@ -1,8 +1,11 @@
 import { count } from "drizzle-orm";
 import { coupons as couponFixtures, rewardStore } from "@/fixtures/account";
+import { chops as chopFixtures } from "@/fixtures/chops";
+import { products as productFixtures } from "@/fixtures/products";
 import type { Database } from "@/shared/infrastructure/database";
 import { money } from "@/shared/kernel";
-import { coupons, rewards } from "./schema";
+import { newId } from "@/shared/kernel";
+import { chopOffers, coupons, rewards } from "./schema";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -19,6 +22,19 @@ export async function seedEngagement(db: Database) {
   if (!haveCoupons) await insertCoupons(db);
   if (!haveRewards) await db.insert(rewards).values(rewardStore.map((r) => ({ id: r.id, title: r.title, cost: r.cost, couponId: r.couponId })));
   return { skipped: false, coupons: couponFixtures.length, rewards: rewardStore.length };
+}
+
+/** The design-phase chops become offers from the shops that sell those products. */
+export async function seedChopOffers(db: Database) {
+  const [{ value: have }] = await db.select({ value: count() }).from(chopOffers);
+  if (have > 0) return { skipped: true };
+  const rows = chopFixtures.flatMap((c) => {
+    const p = productFixtures.find((x) => x.slug === c.slug);
+    if (!p?.price) return [];
+    return [{ id: newId(), sellerId: p.sellerId, slug: p.slug, fullPriceCents: money.fromDollars(p.price), targetCents: money.fromDollars(c.target), cuts: c.cuts, hours: 24, remaining: 50, active: true, createdAt: new Date("2026-10-20T00:00:00Z") }];
+  });
+  if (rows.length) await db.insert(chopOffers).values(rows);
+  return { skipped: false, offers: rows.length };
 }
 
 async function insertCoupons(db: Database) {

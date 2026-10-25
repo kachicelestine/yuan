@@ -13,7 +13,8 @@ import type { Watch } from "@/components/product/price-history";
 import { ProductTile } from "@/components/product/product-tile";
 import { glassLevel, useStore } from "@/components/providers";
 import { brand } from "@/config/brand";
-import { demoShipment, levelFor } from "@/lib/account";
+import { demoShipment } from "@/lib/account";
+import { levelOf } from "@/modules/engagement";
 import { getProduct, products } from "@/lib/catalog";
 import { plural } from "@/lib/format";
 import { photo } from "@/lib/images";
@@ -53,12 +54,12 @@ export function MeScreen({
   const money = useMoney();
   const router = useRouter();
   const [signingOut, startSignOut] = useTransition();
-  const { ready, saved, glass, setGlass, coins, coupons: wallet, refreshAccount } = useStore();
+  const { ready, saved, glass, setGlass, coins, coinsEarned, coupons: wallet, refreshAccount } = useStore();
   const [watches, setWatches] = useStored<Watch[]>("app.watches", []);
   const [boards] = useStored<unknown[]>("app.boards", []);
   const savedProducts = products.filter((p) => saved.includes(p.slug));
   const level = glassLevel(glass);
-  const tier = levelFor(coins);
+  const tier = levelOf(coinsEarned);
 
   const tiles: { href: string; label: string; icon: IconName; note?: string; badge?: number }[] = [
     { href: `/orders/${orders[0]?.number ?? demoShipment.orderId}`, label: "Orders", icon: "truck", note: account ? plural(orders.length, "order") : "Sample" },
@@ -85,7 +86,7 @@ export function MeScreen({
         <div className="min-w-0 flex-1">
           <h1 className="font-display text-[28px] leading-tight font-extrabold tracking-[-0.03em]">{account ? "Hi again" : "Hi there"}</h1>
           <p className="flex min-w-0 items-center gap-2 text-sm text-ink-2">
-            <span className="shrink-0 rounded-full bg-save/15 px-2 py-0.5 text-[11px] font-bold text-save">{tier.current.name}</span>
+            <span className="shrink-0 rounded-full bg-save/15 px-2 py-0.5 text-[11px] font-bold text-save">{tier.name}</span>
             <span className="truncate">{account ? account.label : "Guest on this device"}</span>
           </p>
         </div>

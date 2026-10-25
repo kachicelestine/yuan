@@ -146,13 +146,10 @@ export type Coupon = {
   expires: string;
 };
 
-export type Mission = { id: string; title: string; reward: number; progress: number; goal: number; href: string };
-export type Badge = { id: string; name: string; detail: string; earned: boolean; icon: string };
 export type RewardItem = { id: string; title: string; cost: number; couponId: string };
 
 export type Board = { id: string; name: string; owner: string; ownerAvatar: string; slugs: string[]; followers?: number };
 
-export type CreatorLink = { slug: string; commission: number; clicks: number; orders: number; earned: number };
 
 export type Quote = { sellerId: string; unitPrice: number; moq: number; leadDays: number; sample: number; note: string };
 export type BusinessRfq = { id: string; item: string; qty: number; port: string; incoterm: "FOB" | "CIF" | "DDP"; status: "quoting" | "accepted"; quotes: Quote[] };
@@ -222,16 +219,6 @@ export type Gift = {
 };
 
 /** A "this or that?" poll friends vote on before the asker buys. */
-export type Poll = {
-  id: string;
-  by: string;
-  avatar?: string;
-  question: string;
-  hoursLeft: number;
-  options: { slug: string; votes: number; voters: string[] }[];
-  comments: { name: string; avatar: string; text: string; pick: number }[];
-};
-
 export type LiveKind = "show" | "tour" | "auction";
 
 export type LiveRoomData = {

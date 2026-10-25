@@ -3,7 +3,7 @@ import type { Cents } from "@/shared/kernel";
 /** Coins for days 1–7 of a check-in streak; day 7 and beyond pay the last amount. */
 export const CHECKIN_REWARDS = [10, 10, 20, 20, 30, 30, 100] as const;
 
-export type CoinReason = "checkin" | "reward" | "adjustment";
+export type CoinReason = "checkin" | "reward" | "mission" | "adjustment";
 
 /**
  * One movement of coins. `ref` makes it happen once: a check-in's ref is its day,

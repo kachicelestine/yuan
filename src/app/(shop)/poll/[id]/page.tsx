@@ -1,30 +1,40 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { PollScreen } from "@/components/poll/poll-screen";
-import { getPoll, polls } from "@/lib/polls";
+import { services } from "@/server/container";
+import { currentAccount } from "@/server/session";
+import { readVoter } from "@/server/voter";
 
+export const metadata: Metadata = { title: "Ask friends", description: "Vote with one tap, no sign-up." };
+
+// Polls are made by people as they shop, so nothing is prerendered; the placeholder lets the shell build.
 export function generateStaticParams() {
-  return [...polls.map((p) => ({ id: p.id })), { id: "mine" }];
-}
-
-export async function generateMetadata({ params }: PageProps<"/poll/[id]">): Promise<Metadata> {
-  const { id } = await params;
-  return { title: getPoll(id)?.question ?? "Ask friends", description: "Vote with one tap, no sign-up." };
+  return [{ id: "aaaaaaaa" }];
 }
 
 export default function PollPage({ params }: PageProps<"/poll/[id]">) {
   return (
-    <Suspense fallback={<div className="mx-auto max-w-[620px] px-3.5 pt-20"><div className="skeleton h-[480px] rounded-[30px]" /></div>}>
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-[620px] px-3.5 pt-20">
+          <div className="skeleton h-[480px] rounded-[30px]" />
+        </div>
+      }
+    >
       <PollBody params={params} />
     </Suspense>
   );
 }
 
-// "mine" lives in the browser, so the client screen fills it in; fixture polls render here.
 async function PollBody({ params }: { params: PageProps<"/poll/[id]">["params"] }) {
+  await connection();
   const { id } = await params;
-  const poll = getPoll(id) ?? null;
-  if (!poll && id !== "mine") notFound();
-  return <PollScreen fixture={poll} />;
+  const app = await services();
+  const account = await currentAccount();
+  const poll = await app.polls.view(id, { voter: account?.id ?? (await readVoter()), accountId: account?.id ?? null });
+  if (!poll) notFound();
+  const products = await app.catalog.getProductsBySlugs(poll.options.map((o) => o.slug));
+  return <PollScreen initial={poll} products={Object.fromEntries(products.map((p) => [p.slug, { title: p.title, image: p.images[0], price: p.price ?? null }]))} />;
 }

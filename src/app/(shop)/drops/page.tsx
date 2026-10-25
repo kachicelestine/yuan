@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { Suspense } from "react";
+import { ChopOffers } from "@/components/drops/chop-offers";
 import { DropsCalendar } from "@/components/drops/drops-calendar";
 import { NightDeals, type Deal } from "@/components/drops/night-deals";
 import { RemindButton } from "@/components/drops/remind-button";
@@ -8,8 +10,9 @@ import { TeamBuyCard } from "@/components/drops/team-buy-card";
 import { Icon } from "@/components/icon";
 import { Price } from "@/components/price";
 import { auctionRoom, flashDeals, getProduct, getSeller, teamBuys } from "@/lib/catalog";
-import { chops, priceAfter } from "@/lib/chops";
 import { photo } from "@/lib/images";
+import { getProducts } from "@/server/catalog";
+import { getChopOffers } from "@/server/promos";
 
 export const metadata: Metadata = { title: "Drops" };
 
@@ -40,48 +43,9 @@ export default function DropsPage() {
           Chop it with friends
         </h2>
         <p className="mb-3 text-sm text-ink-2">Every friend who taps takes the same slice off. The target and the clock never move.</p>
-        <ul className="no-scrollbar -mx-3.5 flex gap-2.5 overflow-x-auto px-3.5 lg:mx-0 lg:grid lg:grid-cols-3 lg:px-0">
-          {chops.map((c) => {
-            const product = getProduct(c.slug);
-            if (!product) return null;
-            const done = c.friends.length;
-            return (
-              <li key={c.id} className="w-[260px] shrink-0 lg:w-auto">
-                <Link href={`/chop/${c.id}`} className="glass flex h-full flex-col gap-3 rounded-[26px] p-3">
-                  <span className="flex items-center gap-3">
-                    <Image src={product.images[0]} alt="" width={64} height={64} sizes="64px" className="size-16 shrink-0 rounded-2xl object-cover" />
-                    <span className="min-w-0">
-                      <span className="line-clamp-2 text-sm leading-snug font-semibold">{product.title}</span>
-                      <span className="mt-0.5 flex items-baseline gap-1.5">
-                        <Price usd={priceAfter(c, product, done)} className="font-display text-lg font-extrabold" />
-                        <span className="text-xs text-ink-2">
-                          → <Price usd={c.target} className="font-bold text-save" />
-                        </span>
-                      </span>
-                    </span>
-                  </span>
-                  <span className="flex gap-0.5" aria-label={`${done} of ${c.cuts} cuts`}>
-                    {Array.from({ length: c.cuts }, (_, i) => (
-                      <span key={i} className={`h-1.5 flex-1 rounded-full ${i < done ? "bg-accent-light" : "bg-white/12"}`} />
-                    ))}
-                  </span>
-                  <span className="flex items-center gap-2 text-xs text-ink-2">
-                    <span className="flex -space-x-1.5">
-                      {c.friends.map((f) => (
-                        <Image key={f.name} src={f.avatar} alt="" width={22} height={22} sizes="22px" className="size-[22px] rounded-full object-cover ring-2 ring-surface" />
-                      ))}
-                    </span>
-                    {c.cuts - done} cuts to go
-                    <span className="ml-auto flex h-8 items-center gap-1 rounded-full bg-accent px-3 font-bold text-white">
-                      <Icon name="scissors" className="size-3.5" />
-                      Chop
-                    </span>
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <Suspense fallback={<div className="skeleton h-[150px] rounded-[26px]" />}>
+          <ChopOfferList />
+        </Suspense>
       </section>
 
       <section aria-labelledby="team-buys">
@@ -150,3 +114,8 @@ export default function DropsPage() {
   );
 }
 
+async function ChopOfferList() {
+  const [offers, products] = await Promise.all([getChopOffers(), getProducts({ limit: 200 })]);
+  const bySlug = new Map(products.map((p) => [p.slug, p]));
+  return <ChopOffers items={offers.flatMap((offer) => { const p = bySlug.get(offer.slug); return p ? [{ offer, product: { title: p.title, image: p.images[0] } }] : []; })} />;
+}

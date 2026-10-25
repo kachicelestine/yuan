@@ -1,0 +1,1 @@
+ALTER TYPE "engagement"."coin_reason" ADD VALUE 'mission';
