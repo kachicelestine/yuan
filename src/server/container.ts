@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { brand } from "@/config/brand";
 import { serverEnv } from "@/config/server-env";
-import { makeCatalogQueries, makeRatings, makeSearchProducts, makeSearchShops, makeSelling } from "@/modules/catalog";
+import { makeCatalogQueries, makeRatings, makeSearchProducts, makeSearchShops, makeSelling, type SellerId } from "@/modules/catalog";
 import { DrizzleCategoryRepository, DrizzleProductRepository, DrizzleSellerRepository } from "@/modules/catalog/infrastructure/drizzle-catalog-repositories";
 import { DrizzleProductSearch } from "@/modules/catalog/infrastructure/drizzle-product-search";
 import { makeContentQueries, makeInteractions, makeModeration, makeUploads, type VideoEncoder } from "@/modules/content";
@@ -65,6 +65,8 @@ import { CatalogProductDirectory } from "./adapters/content-products";
 import { WalletCoupons } from "./adapters/coupons";
 import { IdentityEmails, MerchantWallets, OrderingPurchases, OrderingReferrals, OrderingTotals } from "./adapters/fulfilment";
 import { makeAffiliates, makeSamples } from "@/modules/affiliates";
+import { makeMessaging } from "@/modules/messaging";
+import { DrizzleConversationRepository, DrizzleMessageRepository } from "@/modules/messaging/infrastructure/drizzle-messaging-repositories";
 import { DrizzleSampleRepository } from "@/modules/affiliates/infrastructure/drizzle-sample-repository";
 import { makeAds } from "@/modules/ads";
 import { DrizzleAdStatsRepository, DrizzleCampaignRepository } from "@/modules/ads/infrastructure/drizzle-ads-repositories";
@@ -391,6 +393,15 @@ export function wire(db: Database, options: WireOptions = {}) {
 
     live,
     affiliates,
+    messaging: makeMessaging({
+      conversations: new DrizzleConversationRepository(db),
+      messages: new DrizzleMessageRepository(db),
+      shops: { exists: async (sellerId: string) => (await sellers.findById(sellerId as SellerId)) !== null },
+      // A message, the conversation's latest line and its event commit together.
+      uow: unitOfWork(db, (tx) => ({ conversations: new DrizzleConversationRepository(tx), messages: new DrizzleMessageRepository(tx), events: new OutboxEventLog(tx, () => clock.now()) })),
+      clock,
+      newId: () => newId(),
+    }),
     samples: makeSamples({
       samples: new DrizzleSampleRepository(db),
       members: { runsShop: async (accountId: string, sellerId: string) => (await onboarding.members(sellerId)).includes(accountId) },

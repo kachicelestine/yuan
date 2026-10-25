@@ -184,7 +184,7 @@ export function OrderJourney({
             <button type="button" onClick={() => setSheet("half")} className="glass-inset h-11 flex-1 rounded-full text-sm font-semibold">
               Report a problem
             </button>
-            <Link href="/inbox/voltgrid" className="glass-inset flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full text-sm font-semibold">
+            <Link href={placed ? `/inbox/${placed.lines[0]?.sellerId}?about=${placed.lines[0]?.slug}` : "/inbox/voltgrid"} className="glass-inset flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full text-sm font-semibold">
               <Icon name="chat" className="size-4" />
               Message seller
             </Link>

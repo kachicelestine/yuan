@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import { InboxBadge } from "@/components/shell/unread";
 import { Icon, type IconName } from "@/components/icon";
 import { useMoney } from "@/components/price";
 import { useStore } from "@/components/providers";
@@ -45,9 +46,9 @@ export function DiscoverBoard({ notes, categories }: { notes: BoardNote[]; categ
               <span className="size-1.5 rounded-full bg-like" />
               Live now
             </Link>
-            <Link href="/inbox" aria-label="Inbox, 3 unread chats" className="glass relative grid size-10 place-items-center rounded-full lg:hidden">
+            <Link href="/inbox" aria-label="Inbox" className="glass relative grid size-10 place-items-center rounded-full lg:hidden">
               <Icon name="chat" className="size-5" />
-              <span className="absolute -top-0.5 -right-0.5 grid size-[18px] place-items-center rounded-full bg-accent text-[10px] font-bold">3</span>
+              <InboxBadge />
             </Link>
           </div>
         </div>

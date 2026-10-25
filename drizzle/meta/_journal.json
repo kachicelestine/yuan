@@ -162,6 +162,13 @@
       "when": 1792906861848,
       "tag": "0022_samples",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792908070617,
+      "tag": "0023_messaging",
+      "breakpoints": true
     }
   ]
 }

@@ -91,6 +91,9 @@ export function OrderParcels({ order, parcels, shops, reviewed }: Props) {
                   {shop?.name ?? p.sellerId}
                 </Link>
                 <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${STATUS[p.status].tone}`}>{STATUS[p.status].label}</span>
+                <Link href={`/inbox/${p.sellerId}?about=${lines[0]?.slug ?? ""}`} aria-label={`Message ${shop?.name ?? "the shop"}`} className="glass-inset grid size-9 shrink-0 place-items-center rounded-full">
+                  <Icon name="chat" className="size-4" />
+                </Link>
               </header>
 
               {p.tracking && (

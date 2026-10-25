@@ -100,6 +100,16 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
       const p = payload as { chopId: string; ownerId: string; slug: string; target: number };
       await notify([p.ownerId], { kind: "chop_done", title: `Chopped to ${usd(p.target)}!`, body: "Your friends got it to the target. It's yours at that price for 48 hours.", link: `/chop/${p.chopId}`, email: true }, id);
     },
+    // A new message tells the other side, at most once an hour per conversation.
+    MessageSent: async ({ payload }) => {
+      const p = payload as { conversationId: string; from: "buyer" | "shop"; buyerId: string; sellerId: string; preview: string; at: string };
+      const hour = new Date(p.at).toISOString().slice(0, 13);
+      if (p.from === "buyer") {
+        await notify(await shopPeople(p.sellerId), { kind: "message", title: "New message from a buyer", body: p.preview, link: `/sell/inbox/${p.conversationId}`, email: true }, `msg:${p.conversationId}:shop:${hour}`);
+      } else {
+        await notify([p.buyerId], { kind: "message", title: "The shop replied", body: p.preview, link: `/inbox/${p.sellerId}`, email: true }, `msg:${p.conversationId}:buyer:${hour}`);
+      }
+    },
     SampleRequested: async ({ id, payload }) => {
       const p = payload as { sellerId: string; slug: string };
       await notify(await shopPeople(p.sellerId), { kind: "sample", title: "A creator asked for a sample", body: "Ship it with tracking, or decline and say why.", link: "/sell/ads#samples-h", email: true }, id);

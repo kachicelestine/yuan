@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { InboxBadge } from "@/components/shell/unread";
 import { Icon } from "@/components/icon";
 import { ShipTo } from "@/components/market/ship-to";
 import { useStore } from "@/components/providers";
@@ -60,9 +61,9 @@ export function TopBar() {
       </form>
       <div className="flex items-center gap-2.5">
         <ShipTo variant="chip" />
-        <Link href="/inbox" aria-label="Inbox, 3 unread chats" className="glass relative grid size-11 place-items-center rounded-full">
+        <Link href="/inbox" aria-label="Inbox" className="glass relative grid size-11 place-items-center rounded-full">
           <Icon name="chat" className="size-5" />
-          <span className="absolute -top-0.5 -right-0.5 grid size-[18px] place-items-center rounded-full bg-accent text-[10px] font-bold">3</span>
+          <InboxBadge />
         </Link>
         <Link href="/me" className="glass grid size-11 place-items-center rounded-full" aria-label="Your account">
           <Icon name="user" className="size-5" />

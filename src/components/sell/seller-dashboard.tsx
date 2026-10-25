@@ -66,6 +66,9 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
           <Icon name="live" className="size-4" />
           Go live
         </Link>
+        <Link href="/sell/inbox" aria-label="Messages from buyers" className="glass-inset grid size-9 shrink-0 place-items-center rounded-full">
+          <Icon name="chat" className="size-4" />
+        </Link>
         <Link href={`/s/${seller.id}`} aria-label="View shop" className="glass-inset grid size-9 shrink-0 place-items-center rounded-full">
           <Icon name="store" className="size-4" />
         </Link>

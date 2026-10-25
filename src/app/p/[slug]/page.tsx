@@ -91,15 +91,20 @@ async function ProductBody({ params }: { params: PageProps<"/p/[slug]">["params"
 
           <section aria-label="Buy" className="glass-sheet flex flex-col gap-4 rounded-t-[34px] px-4 pt-5 pb-6 lg:sticky lg:top-[92px] lg:max-w-[520px] lg:flex-[1_1_400px] lg:rounded-[32px] lg:p-6">
             {seller && (
-              <Link href={`/s/${seller.id}`} className="flex items-center gap-2 text-[13px] text-ink-2">
-                <Image src={seller.avatar} alt="" width={24} height={24} sizes="24px" className="size-6 rounded-full object-cover" />
-                <b className="text-ink">{seller.name}</b>
-                {seller.verified && <VerifiedBadge />}
-                <span className="truncate">
-                  · {seller.kind} · {seller.city}
-                </span>
-                <Icon name="forward" className="ml-auto size-4 shrink-0" />
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link href={`/s/${seller.id}`} className="flex min-w-0 flex-1 items-center gap-2 text-[13px] text-ink-2">
+                  <Image src={seller.avatar} alt="" width={24} height={24} sizes="24px" className="size-6 rounded-full object-cover" />
+                  <b className="text-ink">{seller.name}</b>
+                  {seller.verified && <VerifiedBadge />}
+                  <span className="truncate">
+                    · {seller.kind} · {seller.city}
+                  </span>
+                </Link>
+                <Link href={`/inbox/${seller.id}?about=${product.slug}`} className="glass-inset flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold">
+                  <Icon name="chat" className="size-3.5" />
+                  Message
+                </Link>
+              </div>
             )}
             <h1 className="font-display text-[26px] leading-[1.1] font-extrabold tracking-[-0.02em] text-balance lg:text-[32px]">{product.title}</h1>
             <p className="flex items-center gap-1.5 text-sm text-ink-2">

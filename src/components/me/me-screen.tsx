@@ -15,6 +15,7 @@ import { glassLevel, useStore } from "@/components/providers";
 import { brand } from "@/config/brand";
 import { demoShipment } from "@/lib/account";
 import { levelOf } from "@/modules/engagement";
+import { useUnread } from "@/components/shell/unread";
 import { getProduct, products } from "@/lib/catalog";
 import { plural } from "@/lib/format";
 import { photo } from "@/lib/images";
@@ -60,11 +61,12 @@ export function MeScreen({
   const savedProducts = products.filter((p) => saved.includes(p.slug));
   const level = glassLevel(glass);
   const tier = levelOf(coinsEarned);
+  const { chats } = useUnread();
 
   const tiles: { href: string; label: string; icon: IconName; note?: string; badge?: number }[] = [
     { href: `/orders/${orders[0]?.number ?? demoShipment.orderId}`, label: "Orders", icon: "truck", note: account ? plural(orders.length, "order") : "Sample" },
     { href: "/notifications", label: "Notifications", icon: "bell", badge: unread || undefined, note: account ? undefined : "Sign in" },
-    { href: "/inbox", label: "Inbox", icon: "chat", badge: 3 },
+    { href: "/inbox", label: "Inbox", icon: "chat", badge: chats || undefined },
     { href: "/rewards", label: "Rewards", icon: "gift", note: `${coins.toLocaleString("en-US")} coins` },
     { href: "/coupons", label: "Coupons", icon: "card", note: `${wallet.length} ready` },
     { href: "/collections", label: "Collections", icon: "bookmark", note: plural(3 + boards.length, "board") },

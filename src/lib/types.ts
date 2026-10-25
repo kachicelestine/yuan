@@ -87,32 +87,6 @@ export type Review = Omit<ReviewView, "verified"> & Partial<Pick<ReviewView, "ve
 /** A buyer's question about a product; the answer is null until someone replies. */
 export type Question = QuestionView;
 
-export type ChatMessage = {
-  id: string;
-  from: "me" | "seller";
-  /** Shown text (translated for the shopper when the seller wrote in another language). */
-  text: string;
-  /** The seller's own words, when `text` is a translation. */
-  original?: string;
-  at: string;
-  product?: string;
-  image?: string;
-};
-
-export type Thread = { sellerId: string; unread: number; messages: ChatMessage[] };
-
-export type Activity = {
-  id: string;
-  kind: "price" | "live" | "reply" | "order" | "team" | "coins" | "restock";
-  title: string;
-  body: string;
-  at: string;
-  image?: string;
-  href: string;
-  unread?: boolean;
-  group: "Today" | "Earlier";
-};
-
 export type JourneyStep = { label: string; detail: string; at?: string; image?: string };
 
 /** An order on its way: where it is, how it travels, and what Protect covers. */
