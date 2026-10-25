@@ -35,6 +35,8 @@ export const LIMITS = {
   events: [120, 60],
   /** Creator link clicks, per IP. */
   ref: [30, 60],
+  /** Questions to the Ask assistant, per account (each one costs model tokens). */
+  ask: [30, 60 * 60],
   /** Shop ads clicks, per IP. */
   "ads.click": [120, 60],
 } as const satisfies Record<string, readonly [number, number]>;

@@ -35,6 +35,10 @@ const schema = z
     AUTH_SECRET: optional(z.string().min(32, "must be at least 32 characters")),
     /** Show sign-in codes on screen instead of emailing them. Local development only. */
     AUTH_DEV_CODES: z.stringbool().default(false),
+    /** Anthropic API key for the Ask assistant; without one, Ask is switched off. */
+    ANTHROPIC_API_KEY: optional(z.string().startsWith("sk-ant-", "must be an Anthropic key (sk-ant-…)")),
+    /** The Claude model behind Ask. */
+    ASK_MODEL: z.string().min(3).default("claude-opus-5-5"),
     /** Resend (resend.com) API key and sender, for sign-in emails. */
     RESEND_API_KEY: optional(z.string().startsWith("re_", "must be a Resend key (re_…)")),
     EMAIL_FROM: optional(z.string().min(3)),

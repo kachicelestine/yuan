@@ -21,6 +21,7 @@
     "check": "pnpm typecheck && pnpm lint && pnpm test"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.1.0",
     "@electric-sql/pglite": "^0.5.10",
     "aws4fetch": "1.0.20",
     "drizzle-orm": "^0.45.4",

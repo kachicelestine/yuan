@@ -185,8 +185,8 @@ export function MeScreen({
         {watches.length === 0 ? (
           <p className="text-sm text-ink-2">
             None yet. Set one on any product page, or{" "}
-            <Link href="/ask?q=Buy%20the%20power%20station%20if%20it%20drops%20under%20%24540" className="font-semibold text-ink underline">
-              ask your agent
+            <Link href="/ask?q=Tell%20me%20if%20the%20power%20station%20drops%20under%20%24540" className="font-semibold text-ink underline">
+              ask the assistant
             </Link>
             .
           </p>

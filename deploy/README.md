@@ -77,6 +77,10 @@ Live rooms work without this (chat, products and auctions, over the cover photo)
 
 MediaMTX checks every publish and every viewer with the app (`/api/live/auth`): only the show's stream key can publish, and only while the show is live can anyone watch.
 
+### 6. Ask, the shopping assistant (optional)
+
+Ask runs on Claude. Create an API key at console.anthropic.com (set a monthly spend limit there), put it in `.env` as `ANTHROPIC_API_KEY=sk-ant-…`, and run `deploy/scripts/deploy.sh`. Without a key, Ask says it isn't switched on. Only signed-in shoppers can ask, 30 questions an hour each. `ASK_MODEL` picks the model (default `claude-opus-5-5`; `claude-sonnet-5-5` or `claude-haiku-5-5` cost less per question).
+
 ## Day to day
 
 | Task | Command (on the server, in `/opt/lychee`) |
