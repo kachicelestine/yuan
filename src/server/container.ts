@@ -67,6 +67,9 @@ import { WalletCoupons } from "./adapters/coupons";
 import { IdentityEmails, MerchantWallets, OrderingPurchases, OrderingReferrals, OrderingTotals } from "./adapters/fulfilment";
 import { makeAffiliates, makeSamples } from "@/modules/affiliates";
 import { makeMessaging } from "@/modules/messaging";
+import { makeSourcing } from "@/modules/sourcing";
+import { DrizzleQuoteRepository, DrizzleRfqRepository } from "@/modules/sourcing/infrastructure/drizzle-sourcing-repositories";
+import type { PriceHolds } from "@/modules/ordering";
 import { DrizzleConversationRepository, DrizzleMessageRepository } from "@/modules/messaging/infrastructure/drizzle-messaging-repositories";
 import { DrizzleSampleRepository } from "@/modules/affiliates/infrastructure/drizzle-sample-repository";
 import { makeAds } from "@/modules/ads";
@@ -289,6 +292,35 @@ export function wire(db: Database, options: WireOptions = {}) {
     newKey: () => randomBytes(24).toString("base64url"),
   });
 
+  const searchShops = makeSearchShops({ search: productSearch });
+  const sourcing = makeSourcing({
+    rfqs: new DrizzleRfqRepository(db),
+    quotes: new DrizzleQuoteRepository(db),
+    shops: {
+      match: async (text: string, limit: number) => (await searchShops(text, limit)).filter((s) => s.matching > 0).map((s) => s.id),
+      sellerOf: async (slug: string) => {
+        const [p] = await products.findBySlugs([slug]);
+        return p && p.status === "active" ? p.sellerId : null;
+      },
+    },
+    // A request or quote and its event commit together.
+    uow: unitOfWork(db, (tx) => ({ rfqs: new DrizzleRfqRepository(tx), quotes: new DrizzleQuoteRepository(tx), events: new OutboxEventLog(tx, () => clock.now()) })),
+    clock,
+    newId: () => newId(),
+    newCode: () => pollId(random),
+  });
+
+  // The lowest price the buyer holds for this many units: a live price, an auction win, a
+  // chop, a drop or a team, or an accepted quote. Checkout and the bag both use it.
+  const holds: PriceHolds = {
+    best: async (buyerId: string, slug: string, qty: number) => {
+      const held = (await Promise.all([live.bestHold(buyerId, slug), chops.bestHold(buyerId, slug), promos.bestHold(buyerId, slug), sourcing.bestHold(buyerId, slug, qty)])).filter(
+        (h): h is NonNullable<typeof h> => h !== null && qty <= h.qty && qty >= ("minQty" in h ? h.minQty : 1),
+      );
+      return held.length ? held.reduce((a, b) => (b.price < a.price ? b : a)) : null;
+    },
+  };
+
   const checkInvoice = makeCheckInvoice({
     network,
     invoices: new DrizzleInvoiceRepository(db),
@@ -337,7 +369,8 @@ export function wire(db: Database, options: WireOptions = {}) {
     ratings: makeRatings({ products }),
     selling: makeSelling({ products, categories: new DrizzleCategoryRepository(db), sellers, photos: storage, clock, newId: () => newId() }),
     searchProducts: makeSearchProducts({ search: productSearch, sellers, clock }),
-    searchShops: makeSearchShops({ search: productSearch }),
+    searchShops,
+    sourcing,
     engagement,
     chops,
     promos,
@@ -391,7 +424,7 @@ export function wire(db: Database, options: WireOptions = {}) {
     storage,
     privateStorage,
     onboarding,
-    cart: makeCart({ carts: new DrizzleCartRepository(db), catalog: pricing }),
+    cart: makeCart({ carts: new DrizzleCartRepository(db), catalog: pricing, holds }),
 
     live,
     affiliates,
@@ -431,13 +464,7 @@ export function wire(db: Database, options: WireOptions = {}) {
     liveBus: bus,
     checkout: makeCheckout({
       catalog: pricing,
-      // The lowest price the buyer holds: a live price, an auction win, a chop, a drop or a team.
-      holds: {
-        best: async (buyerId: string, slug: string) => {
-          const held = (await Promise.all([live.bestHold(buyerId, slug), chops.bestHold(buyerId, slug), promos.bestHold(buyerId, slug)])).filter((h) => h !== null);
-          return held.length ? held.reduce((a, b) => (b.price < a.price ? b : a)) : null;
-        },
-      },
+      holds,
       destinations: new MarketDestinations(countries),
       coupons: new WalletCoupons(engagement),
       // The order, its invoice and the coupon it takes are written in one transaction.

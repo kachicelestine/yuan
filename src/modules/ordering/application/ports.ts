@@ -9,7 +9,8 @@ export type CatalogLine = Readonly<{
   title: string;
   image: string;
   sellerId: string;
-  unitPrice: Cents;
+  /** Null for a listing sold by quote: only a held price (an accepted quote) can buy it. */
+  unitPrice: Cents | null;
   minOrder: number;
   dutyRate: number;
   shipsFrom: string;
@@ -22,10 +23,17 @@ export interface OrderCatalog {
   priceLine(slug: string, option: string | null, qty: number): Promise<Result<CatalogLine, CatalogLineError>>;
 }
 
-/** Special prices one buyer holds (a live price they tapped, an auction they won). */
+/** A special price one buyer holds, for up to `qty` units (and at least `minQty`). */
+export type PriceHold = Readonly<{ price: Cents; qty: number; minQty?: number }>;
+
+/** Special prices one buyer holds (a live price they tapped, an auction they won, a quote they accepted). */
 export interface PriceHolds {
-  best(buyerId: string, slug: string): Promise<{ price: Cents; qty: number } | null>;
+  /** The lowest held price that applies to buying `qty` units. */
+  best(buyerId: string, slug: string, qty: number): Promise<PriceHold | null>;
 }
+
+/** Whether a hold covers buying `qty` units. */
+export const holdCovers = (h: PriceHold, qty: number) => qty <= h.qty && qty >= (h.minQty ?? 1);
 
 export interface Destinations {
   find(country: string): Promise<Destination | null>;

@@ -2,7 +2,7 @@ import { domainError, err, ok, type Cents, type Clock, type DomainError, type Re
 import { MAX_QTY, placeOrder, type OrderError, type OrderLine } from "../domain/order";
 import { priceOrder, type PricedLine, type Pricing, type ShippingMethod } from "../domain/pricing";
 import type { CouponCatalog } from "../domain/repositories";
-import type { CatalogLineError, CheckoutScope, Destinations, OrderCatalog, PriceHolds, UnitOfWork } from "./ports";
+import { holdCovers, type CatalogLineError, type CheckoutScope, type Destinations, type OrderCatalog, type PriceHolds, type UnitOfWork } from "./ports";
 
 export type CheckoutRequest = Readonly<{
   /** The signed-in buyer, from the session (never from the request body). */
@@ -60,10 +60,12 @@ export function makeCheckout(deps: CheckoutDeps) {
       const r = await deps.catalog.priceLine(l.slug, l.option, l.qty);
       if (!r.ok) return r;
       const c = r.value;
-      // A held price (live, or an auction win) applies when it's lower, up to its quantity.
-      const hold = deps.holds ? await deps.holds.best(req.buyerId, l.slug) : null;
-      const held = hold !== null && l.qty <= hold.qty && hold.price < c.unitPrice;
-      const unitPrice = held ? hold.price : c.unitPrice;
+      // A held price (live, an auction win, an accepted quote) applies when it's lower, for
+      // the quantities it covers; for a listing sold by quote it's the only price.
+      const hold = deps.holds ? await deps.holds.best(req.buyerId, l.slug, l.qty) : null;
+      const held = hold !== null && holdCovers(hold, l.qty) && (c.unitPrice === null || hold.price < c.unitPrice);
+      if (!held && c.unitPrice === null) return err(domainError("quote_only", `${c.title} is sold by quote; request one from the shop.`));
+      const unitPrice = held ? hold.price : c.unitPrice!;
       if (!held && l.qty < c.minOrder) return err(domainError("below_min_order", `${c.title} has a minimum order of ${c.minOrder}.`));
       priced.push({
         line: { productId: c.productId, slug: c.slug, title: c.title, image: c.image, sellerId: c.sellerId, option: l.option, unitPrice, qty: l.qty },

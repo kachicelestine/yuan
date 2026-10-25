@@ -35,7 +35,7 @@ async function SellBody() {
       </SellFrame>
     );
   }
-  const [page, listings, orders, questions, available, payouts, wallet, program] = await Promise.all([
+  const [page, listings, orders, questions, available, payouts, wallet, program, requests] = await Promise.all([
     app.catalog.getSeller(shop.sellerId),
     app.selling.listings(shop.sellerId),
     app.sellerOrders.list(shop.sellerId),
@@ -44,6 +44,7 @@ async function SellBody() {
     app.escrow.payouts(shop.sellerId),
     app.onboarding.payoutWallet(shop.sellerId),
     app.affiliates.shopProgram(shop.sellerId),
+    app.sourcing.inbox(shop.sellerId),
   ]);
   // What Protect still holds for parcels not yet confirmed, as it will reach the shop.
   const held = orders.filter((o) => o.shipment && ["awaiting_shipment", "shipped", "disputed"].includes(o.shipment.status)).reduce((n, o) => n + o.shipment!.amount, 0);
@@ -60,7 +61,7 @@ async function SellBody() {
   if (!page) redirect("/me");
   return (
     <SellFrame title="Your shop">
-      <SellerDashboard seller={page.seller} storefront={page.storefront} listings={listings} orders={orders} questions={questions} money={money} />
+      <SellerDashboard seller={page.seller} storefront={page.storefront} listings={listings} orders={orders} questions={questions} money={money} newRequests={requests.filter((r) => r.status === "open" && !r.mine).length} />
     </SellFrame>
   );
 }

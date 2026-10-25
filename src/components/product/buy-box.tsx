@@ -1,5 +1,7 @@
 "use client";
 
+import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
@@ -9,6 +11,7 @@ import { ShipTo } from "@/components/market/ship-to";
 import { useMoney } from "@/components/price";
 import { useStore } from "@/components/providers";
 import { SellerCouponChip } from "@/components/rewards/coupon-wallet";
+import { Sheet, type Detent } from "@/components/sheet";
 import { brand } from "@/config/brand";
 import { unitPrice, type Product } from "@/lib/catalog";
 import { landedCost, shiftDelivery } from "@/lib/landed";
@@ -21,17 +24,22 @@ type Props = {
 
 const noSubscribe = () => () => {};
 
+// Only listings sold by quote need the request form, and only once the sheet opens.
+const RfqForm = dynamic(() => import("@/components/business/rfq-form").then((m) => m.RfqForm), { loading: () => <div className="skeleton mt-3 h-80 rounded-[22px]" /> });
+
 export function BuyBox({ product, variant = "page" }: Props) {
   const router = useRouter();
   const onClient = useSyncExternalStore(noSubscribe, () => true, () => false);
-  const { addToCart, market } = useStore();
+  const { addToCart, market, account } = useStore();
   const money = useMoney();
   const options = product.options ?? [];
   const [choices, setChoices] = useState(() => options.map((o) => o.defaultIndex ?? 0));
   const [qty, setQty] = useState(product.moq ?? 1);
   const [dutiesNow, setDutiesNow] = useState(true);
   const [added, setAdded] = useState(false);
-  const [quoted, setQuoted] = useState(false);
+  // Listings sold by quote: the request sheet, and the request once sent.
+  const [quoteSheet, setQuoteSheet] = useState<Detent>("closed");
+  const [quoted, setQuoted] = useState<string | null>(null);
 
   useEffect(() => {
     if (!added) return;
@@ -63,13 +71,19 @@ export function BuyBox({ product, variant = "page" }: Props) {
   }
 
   const actions = quoteOnly ? (
-    <button
-      type="button"
-      onClick={() => setQuoted(true)}
-      className="h-[52px] flex-1 rounded-full bg-accent text-[15px] font-bold shadow-[inset_0_1px_0_rgb(255_255_255/0.35)]"
-    >
-      {quoted ? "Request sent · reply within 24 h" : "Request a landed quote"}
-    </button>
+    quoted ? (
+      <Link href={`/business#rfq-${quoted}`} className="grid h-[52px] flex-1 place-items-center rounded-full bg-white/15 text-[15px] font-bold">
+        Request sent · see quotes
+      </Link>
+    ) : (
+      <button
+        type="button"
+        onClick={() => setQuoteSheet("full")}
+        className="h-[52px] flex-1 rounded-full bg-accent text-[15px] font-bold shadow-[inset_0_1px_0_rgb(255_255_255/0.35)]"
+      >
+        Request a quote
+      </button>
+    )
   ) : (
     <>
       <button type="button" onClick={add} className="glass-inset h-[52px] flex-1 rounded-full text-[15px] font-semibold" aria-live="polite">
@@ -271,6 +285,31 @@ export function BuyBox({ product, variant = "page" }: Props) {
         </>
       ) : (
         <div className="edge-bottom pb-safe sticky bottom-0 -mx-4 mt-auto flex gap-2 px-4 pt-5">{actions}</div>
+      )}
+      {quoteOnly && (
+        <Sheet detent={quoteSheet} onDetent={setQuoteSheet} label={`Request a quote for ${product.title}`}>
+          <div className="flex min-h-0 flex-1 flex-col">
+            <header className="flex shrink-0 touch-none items-center gap-3 px-4 pt-1 pb-1">
+              <h2 className="flex-1 font-display text-[22px] font-bold">Request a quote</h2>
+              <button type="button" onClick={() => setQuoteSheet("closed")} aria-label="Close" className="glass-inset grid size-9 place-items-center rounded-full">
+                <Icon name="close" className="size-[18px]" />
+              </button>
+            </header>
+            <div data-sheet-scroll className="pb-safe min-h-0 flex-1 overflow-y-auto px-4">
+              <p className="text-[13px] text-ink-2">{product.title}. The shop quotes a price per unit for your quantity; if you accept, it&apos;s held for you for 7 days.</p>
+              <RfqForm
+                signedIn={!!account}
+                next={`/p/${product.slug}`}
+                slug={product.slug}
+                item={product.title}
+                onSent={(r) => {
+                  setQuoted(r.id);
+                  setQuoteSheet("closed");
+                }}
+              />
+            </div>
+          </div>
+        </Sheet>
       )}
     </div>
   );

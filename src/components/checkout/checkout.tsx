@@ -12,7 +12,8 @@ import { useStore, type CartLine } from "@/components/providers";
 import { couponHeadline } from "@/components/rewards/coupon-wallet";
 import { DEFAULT_RAIL, RAILS, type RailId } from "@/modules/payments";
 import { bestCoupon } from "@/lib/account";
-import { getProduct, getSeller, similarProducts } from "@/lib/catalog";
+import { getSeller } from "@/lib/catalog";
+import { useProducts, useSimilar } from "@/components/product/use-products";
 import { haptic } from "@/lib/feedback";
 import { formatMoney } from "@/lib/format";
 import type { Rankings } from "@/lib/rankings";
@@ -49,12 +50,15 @@ export function Checkout({ rails: available, signedIn }: { rails: string[]; sign
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
+  // The bag's listings from the catalog, for where each ships from, its shop and its duty rate.
+  const listed = new Map(useProducts(cart.map((l) => l.slug)).products.map((p) => [p.slug, p]));
+  const getProduct = (slug: string) => listed.get(slug);
   const subtotal = cart.reduce((sum, l) => sum + l.unitPrice * l.qty, 0);
   // Each shipping origin is a parcel; combining repacks them into one box at our hub.
   const groups = cart.reduce<BagGroup[]>((list, line) => {
     const product = getProduct(line.slug);
-    const origin = product?.shipsFrom ?? "China";
-    const seller = product ? getSeller(product.sellerId)?.name : undefined;
+    const origin = product?.shipsFrom || "China";
+    const seller = product ? (product.seller ?? getSeller(product.sellerId))?.name : undefined;
     const group = list.find((g) => g.origin === origin);
     if (group) {
       group.lines.push(line);
@@ -74,8 +78,7 @@ export function Checkout({ rails: available, signedIn }: { rails: string[]; sign
   const duties = duty + (subtotal + shipCost + duty) * market.vat;
   const total = subtotal - discount + shipCost + (dutiesNow ? duties : 0);
   const railName = RAILS.find((r) => r.id === pay)?.asset ?? "USDC";
-  const firstProduct = cart[0] ? getProduct(cart[0].slug) : undefined;
-  const pairs = firstProduct ? similarProducts(firstProduct, 6).filter((p) => !cart.some((l) => l.slug === p.slug)) : [];
+  const pairs = useSimilar(cart[0]?.slug ?? null).filter((p) => !cart.some((l) => l.slug === p.slug));
 
   function saveForLater(line: CartLine) {
     setLater([...later.filter((l) => l.key !== line.key), line]);

@@ -1,9 +1,9 @@
-// Account queries over the fixtures: shipments, rewards, coupons and RFQs.
+// Account queries over the fixtures: the sample shipment, check-in rewards and coupon copy.
 import { products } from "@/fixtures/products";
 import type { Coupon } from "./types";
-import { businessRfqs, checkinRewards, coupons, demoShipment, rewardStore } from "@/fixtures/account";
+import { checkinRewards, coupons, demoShipment, rewardStore } from "@/fixtures/account";
 
-export { businessRfqs, checkinRewards, coupons, demoShipment, rewardStore };
+export { checkinRewards, coupons, demoShipment, rewardStore };
 
 export function getCoupon(id: string) {
   return coupons.find((c) => c.id === id);

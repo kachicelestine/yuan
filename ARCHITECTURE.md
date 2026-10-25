@@ -50,6 +50,7 @@ Dependencies point inward: presentation → server → application → domain. E
 | affiliates | Creator codes, shops' creator commission rates, link clicks, and what each referred order owes its creator |
 | ads | Sponsored-listing campaigns, the slot auction and pacing, daily impressions, taps and spend |
 | messaging | Conversations between shoppers and shops, messages, each side's read mark |
+| sourcing | Wholesale requests for quotes, shops' quotes, accepted quotes held as prices for checkout |
 | live | Shows and their schedule, chat, auctions and lots, live-price holds |
 
 ## Decisions
@@ -87,7 +88,7 @@ Dependencies point inward: presentation → server → application → domain. E
 
 ## Status
 
-Built: markets, catalog (with search for products, shops and videos), identity, ordering (with the server-side bag), payments on Base, Solana and Tron with Protect and payouts, content (feed, uploads, encoding), merchants (seller applications, seller tools, admin), notifications, live (shows, chat, auctions, holds), affiliates (creator links, commissions and free samples), ads (sponsored listings), messaging (shopper–shop chat), and engagement (coupon wallet, coins, check-ins, saved items, alerts, watches, polls, price chops, drops, team buys, reminders, missions, badges, levels, rankings, collections). Not yet: pre-orders and deposits, sponsored videos. Screens for unbuilt parts still read `src/fixtures` through `src/lib`, and say so in a comment where they do.
+Built: markets, catalog (with search for products, shops and videos), identity, ordering (with the server-side bag), payments on Base, Solana and Tron with Protect and payouts, content (feed, uploads, encoding), merchants (seller applications, seller tools, admin), notifications, live (shows, chat, auctions, holds), affiliates (creator links, commissions and free samples), ads (sponsored listings), messaging (shopper–shop chat), sourcing (requests for quotes), and engagement (coupon wallet, coins, check-ins, saved items, alerts, watches, polls, price chops, drops, team buys, reminders, missions, badges, levels, rankings, collections). Not yet: pre-orders and deposits, sponsored videos. Screens for unbuilt parts still read `src/fixtures` through `src/lib`, and say so in a comment where they do.
 
 ## Risks to settle before launch
 

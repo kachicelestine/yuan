@@ -9,7 +9,6 @@ export class CatalogPricing implements OrderCatalog {
   async priceLine(slug: string, option: string | null, qty: number): Promise<Result<CatalogLine, CatalogLineError>> {
     const p = await this.products.findBySlug(slug);
     if (!p) return err(domainError("unknown_product", `"${slug}" isn't for sale any more.`));
-    if (p.price === null) return err(domainError("quote_only", `${p.title} is sold by quote; message the seller.`));
 
     // The bag stores picked values as "M · Ink", one label per option in order.
     const picked = option ? option.split(" · ") : [];
@@ -27,7 +26,7 @@ export class CatalogPricing implements OrderCatalog {
       title: p.title,
       image: p.images[0],
       sellerId: p.sellerId,
-      unitPrice: unitPrice(p, qty, delta),
+      unitPrice: p.price === null ? null : unitPrice(p, qty, delta),
       minOrder: p.minOrder,
       dutyRate: p.dutyRate,
       shipsFrom: p.shipsFrom,

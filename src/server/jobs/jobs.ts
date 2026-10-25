@@ -52,6 +52,7 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
       await app.live.useHolds(order.buyerId, [...new Set(order.lines.map((l) => l.slug))]);
       await app.chops.use(order.buyerId, [...new Set(order.lines.map((l) => l.slug))]);
       await app.promos.use(order.buyerId, [...new Set(order.lines.map((l) => l.slug))]);
+      await app.sourcing.use(order.buyerId, [...new Set(order.lines.map((l) => l.slug))]);
       // Real sales count into "sold" on the listing and into the rankings.
       if (await app.ratings.sales(orderId, order.lines.map((l) => ({ slug: l.slug, qty: l.qty })))) {
         await revalidateTags([...new Set(order.lines.map((l) => productTag(l.slug)))]);
@@ -109,6 +110,21 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
       } else {
         await notify([p.buyerId], { kind: "message", title: "The shop replied", body: p.preview, link: `/inbox/${p.sellerId}`, email: true }, `msg:${p.conversationId}:buyer:${hour}`);
       }
+    },
+    // Wholesale: shops hear about requests sent to them; buyers about quotes; the shop about a yes.
+    RfqOpened: async ({ id, payload }) => {
+      const p = payload as { rfqId: string; sellerIds: string[]; item: string; qty: number };
+      for (const sellerId of p.sellerIds) {
+        await notify(await shopPeople(sellerId), { kind: "rfq", title: "New quote request", body: `${p.qty.toLocaleString("en-US")} × ${p.item}. Quote within 14 days.`, link: `/sell/quotes/${p.rfqId}`, email: true }, `${id}:${sellerId}`);
+      }
+    },
+    QuoteOffered: async ({ id, payload }) => {
+      const p = payload as { rfqId: string; buyerId: string; item: string; updated: boolean };
+      await notify([p.buyerId], { kind: "rfq", title: p.updated ? "A shop updated its quote" : "You have a new quote", body: p.item, link: `/business#rfq-${p.rfqId}`, email: !p.updated }, id);
+    },
+    QuoteAccepted: async ({ id, payload }) => {
+      const p = payload as { rfqId: string; sellerId: string; item: string };
+      await notify(await shopPeople(p.sellerId), { kind: "rfq", title: "Your quote was accepted", body: `${p.item}. The buyer has a week to check out at your price.`, link: `/sell/quotes/${p.rfqId}`, email: true }, id);
     },
     SampleRequested: async ({ id, payload }) => {
       const p = payload as { sellerId: string; slug: string };
@@ -233,6 +249,12 @@ function recurringJobs(app: Services, dispatcher: OutboxDispatcher): ScheduledJo
           await app.notifications.notify([r.accountId], { kind: "reminder", title: r.title, body: "Starting soon. Tap to get there first.", link: r.link, email: false }, `reminder:${r.key}:${r.accountId}`);
         }
       },
+    },
+    {
+      // Quote requests close after their two weeks.
+      name: "rfqs.expire",
+      everyMs: DAY / 24,
+      run: async () => void (await app.sourcing.expire()),
     },
     {
       // Chops that ran out of time give their reserved stock back.

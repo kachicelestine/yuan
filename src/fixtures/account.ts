@@ -1,7 +1,7 @@
 // Fixture data for the design phase: one shopper's account (orders in transit, rewards,
-// coupons, boards, creator earnings and a business quote request).
+// coupons, boards and creator earnings).
 import { avatar, square } from "@/lib/images";
-import type { Board, BusinessRfq, Coupon, RewardItem, Shipment } from "@/lib/types";
+import type { Board, Coupon, RewardItem, Shipment } from "@/lib/types";
 import { people } from "./people";
 
 export const demoShipment: Shipment = {
@@ -60,19 +60,3 @@ export const boards: Board[] = [
 ];
 
 export const sampleOffers = ["projector-mini-1080p", "smartwatch-amoled", "bag-sling-tech", "serum-bakuchiol"];
-
-export const businessRfqs: BusinessRfq[] = [
-  {
-    id: "RFQ-088",
-    item: "Custom tote bags, debossed logo",
-    qty: 1000,
-    port: "Tema, Ghana",
-    incoterm: "CIF",
-    status: "quoting",
-    quotes: [
-      { sellerId: "baigou", unitPrice: 19.4, moq: 300, leadDays: 18, sample: 25, note: "Vegetable-tanned leather, logo die included" },
-      { sellerId: "streetlab", unitPrice: 14.9, moq: 500, leadDays: 21, sample: 15, note: "Canvas with leather trim, screen-printed logo" },
-      { sellerId: "yiwu", unitPrice: 9.8, moq: 1000, leadDays: 25, sample: 10, note: "Woven polypropylene, printed logo" },
-    ],
-  },
-];

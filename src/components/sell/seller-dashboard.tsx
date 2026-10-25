@@ -24,6 +24,8 @@ type Props = {
   orders: SellerOrderView[];
   questions: (QuestionView & { at: string })[];
   money: ShopMoney;
+  /** Open quote requests this shop hasn't answered. */
+  newRequests?: number;
 };
 
 const STATUS: Record<ListingView["status"], string> = { active: "Live", draft: "Draft", archived: "Archived" };
@@ -38,7 +40,7 @@ const PARCEL: Record<string, { label: string; tone: string }> = {
 };
 
 /** Everything a shop runs on: listings, orders, buyers' questions and the storefront. */
-export function SellerDashboard({ seller, storefront, listings, orders, questions, money: funds }: Props) {
+export function SellerDashboard({ seller, storefront, listings, orders, questions, money: funds, newRequests = 0 }: Props) {
   const params = useSearchParams();
   const [tab, setTab] = useState<Tab>((params.get("tab") as Tab) || "listings");
   const money = useMoney();
@@ -65,6 +67,10 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
         <Link href="/sell/live" className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-live/90 px-3.5 text-[13px] font-bold">
           <Icon name="live" className="size-4" />
           Go live
+        </Link>
+        <Link href="/sell/quotes" aria-label={newRequests ? `Quote requests, ${newRequests} new` : "Quote requests"} className="glass-inset relative grid size-9 shrink-0 place-items-center rounded-full">
+          <Icon name="factory" className="size-4" />
+          {newRequests > 0 && <span className="absolute -top-1 -right-1 rounded-full bg-accent px-1.5 text-[10px] font-bold text-white">{newRequests}</span>}
         </Link>
         <Link href="/sell/inbox" aria-label="Messages from buyers" className="glass-inset grid size-9 shrink-0 place-items-center rounded-full">
           <Icon name="chat" className="size-4" />

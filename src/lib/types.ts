@@ -125,8 +125,6 @@ export type RewardItem = { id: string; title: string; cost: number; couponId: st
 export type Board = { id: string; name: string; owner: string; ownerAvatar: string; slugs: string[]; followers?: number };
 
 
-export type Quote = { sellerId: string; unitPrice: number; moq: number; leadDays: number; sample: number; note: string };
-export type BusinessRfq = { id: string; item: string; qty: number; port: string; incoterm: "FOB" | "CIF" | "DDP"; status: "quoting" | "accepted"; quotes: Quote[] };
 
 export type DropKind = "drop" | "restock" | "preorder" | "presale";
 
