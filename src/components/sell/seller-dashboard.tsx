@@ -159,6 +159,22 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
                     </li>
                   ))}
                 </ul>
+                {o.gift && (
+                  <div className="mt-2.5 rounded-2xl bg-like/10 p-3 text-[13px] leading-snug">
+                    <span className="mb-0.5 flex items-center gap-1.5 text-[11px] font-semibold text-like">
+                      <Icon name="gift" className="size-3.5" />
+                      Gift for {o.gift.recipientName}
+                      {o.gift.waiting ? " · waiting for their address" : ""}
+                    </span>
+                    {o.gift.message && <span className="block">Print on the card: “{o.gift.message}”</span>}
+                    {o.gift.hidePrice && <span className="block text-ink-2">Leave prices and invoices out of the parcel.</span>}
+                    {o.gift.chooseOption && (
+                      <span className="block text-ink-2">
+                        {o.gift.chooseOption}: {o.gift.choice ?? "they're choosing"}
+                      </span>
+                    )}
+                  </div>
+                )}
                 {o.address && o.shipment?.status === "awaiting_shipment" && (
                   <address className="mt-2.5 rounded-2xl bg-white/[0.05] p-3 text-[13px] leading-snug not-italic">
                     <span className="mb-0.5 block text-[11px] font-semibold text-ink-3">Ship to</span>
@@ -170,7 +186,7 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
                     {[o.address.city, o.address.region, o.address.postcode].filter(Boolean).join(", ")}, {o.country}
                   </address>
                 )}
-                {o.shipment?.status === "awaiting_shipment" && o.status === "paid" && <ShipForm orderId={o.id} />}
+                {o.shipment?.status === "awaiting_shipment" && o.status === "paid" && o.address && <ShipForm orderId={o.id} />}
                 {o.shipment?.tracking && (
                   <p className="mt-2 text-xs text-ink-2">
                     {o.shipment.carrier} · <span className="font-mono">{o.shipment.tracking}</span>

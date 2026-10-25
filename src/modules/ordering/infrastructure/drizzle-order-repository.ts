@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
 import type { Database } from "@/shared/infrastructure/database";
 import { cents } from "@/shared/kernel/money";
+import type { ShippingAddress } from "../domain/address";
 import type { Order } from "../domain/order";
 import type { OrderRepository } from "../domain/repositories";
 import { orderLines, orders } from "./schema";
@@ -81,6 +82,11 @@ export class DrizzleOrderRepository implements OrderRepository {
         qty: l.qty,
       })),
     };
+  }
+
+  async setAddress(orderId: string, address: ShippingAddress) {
+    const rows = await this.db.update(orders).set({ address }).where(and(eq(orders.id, orderId), isNull(orders.address))).returning({ id: orders.id });
+    return rows.length > 0;
   }
 
   async transition(orderId: string, from: Order["status"], to: Order["status"]) {

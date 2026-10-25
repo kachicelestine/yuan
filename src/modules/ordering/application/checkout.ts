@@ -1,5 +1,6 @@
 import { domainError, err, ok, type Cents, type Clock, type DomainError, type Result } from "@/shared/kernel";
 import { cleanAddress, type AddressError, type AddressInput } from "../domain/address";
+import { createGift, type GiftError, type GiftInput } from "../domain/gift";
 import { MAX_QTY, placeOrder, type OrderError, type OrderLine } from "../domain/order";
 import { priceOrder, type PricedLine, type Pricing, type ShippingMethod } from "../domain/pricing";
 import type { CouponCatalog } from "../domain/repositories";
@@ -10,8 +11,10 @@ export type CheckoutRequest = Readonly<{
   buyerId: string;
   lines: readonly { slug: string; option: string | null; qty: number }[];
   country: string;
-  /** Where it goes, in `country`. */
-  address: AddressInput;
+  /** Where it goes, in `country`; null for a gift, whose recipient adds it. */
+  address: AddressInput | null;
+  /** Makes the order a gift: the recipient gets a link to add their address. */
+  gift?: GiftInput;
   shippingMethod: ShippingMethod;
   combineParcels: boolean;
   payDutiesNow: boolean;
@@ -27,6 +30,7 @@ export type CheckoutError =
   | CatalogLineError
   | OrderError
   | AddressError
+  | GiftError
   | DomainError<"too_many_lines" | "unknown_country" | "below_min_order" | "rail_unavailable" | "invalid_amount" | "coupon_unavailable">;
 
 export const MAX_LINES = 50;
@@ -41,6 +45,8 @@ export type CheckoutDeps = {
   clock: Clock;
   newId: () => string;
   newOrderNumber: () => string;
+  /** The secret for a gift's link. */
+  newToken: () => string;
 };
 
 /**
@@ -56,7 +62,10 @@ export function makeCheckout(deps: CheckoutDeps) {
       return err(domainError("invalid_quantity", `Quantities must be whole numbers from 1 to ${MAX_QTY}.`));
     }
 
-    const address = cleanAddress(req.address);
+    // A gift's address comes later, from the recipient; everyone else gives one now.
+    if (req.gift && req.address) return err(domainError("invalid_gift", "The recipient adds their own address."));
+    if (!req.gift && !req.address) return err(domainError("invalid_address", "Add where it should be delivered."));
+    const address = req.address ? cleanAddress(req.address) : ok(null);
     if (!address.ok) return address;
 
     const destination = await deps.destinations.find(req.country);
@@ -106,9 +115,12 @@ export function makeCheckout(deps: CheckoutDeps) {
     });
     if (!placed.ok) return placed;
     const { order, event } = placed.value;
+    const gift = req.gift ? createGift({ orderId: order.id, token: deps.newToken(), senderId: req.buyerId, input: req.gift, at: deps.clock.now() }) : null;
+    if (gift && !gift.ok) return gift;
 
-    return deps.uow.run(async ({ orders, payments, coupons, events }) => {
+    return deps.uow.run(async ({ orders, gifts, payments, coupons, events }) => {
       await orders.save(order);
+      if (gift?.ok) await gifts.save(gift.value);
       await events.record(order.id, event);
       // Re-checked inside the transaction: another checkout may have used it a moment ago.
       if (pricing.couponId && !(await coupons.reserve(req.buyerId, pricing.couponId, order.id))) {

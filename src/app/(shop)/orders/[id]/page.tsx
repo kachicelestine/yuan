@@ -33,11 +33,12 @@ async function OrderBody({ params }: { params: PageProps<"/orders/[id]">["params
   const app = await services();
   const placed = await app.getOrder.byNumber(id, account.id);
   if (!placed) notFound();
-  const [parcels, sellers, reviewed] = await Promise.all([
+  const [parcels, sellers, reviewed, gift] = await Promise.all([
     app.fulfilment.forOrder(placed.id),
     getSellers(),
     app.interactions.reviewed(placed.id, [...new Set(placed.lines.map((l) => l.slug))]),
+    app.gifts.forSender(account.id, placed.id),
   ]);
   const shops = Object.fromEntries(sellers.filter((s) => parcels.some((p) => p.sellerId === s.id)).map((s) => [s.id, { name: s.name, avatar: s.avatar }]));
-  return <OrderJourney placed={placed} parcels={parcels} shops={shops} reviewed={reviewed} />;
+  return <OrderJourney placed={placed} parcels={parcels} shops={shops} reviewed={reviewed} gift={gift} />;
 }

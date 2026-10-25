@@ -172,23 +172,6 @@ export type BlindBoxSeries = {
   figures: BlindBoxFigure[];
 };
 
-export type GiftTheme = { id: string; label: string; seal: string; bg: string };
-
-/** A gift sent by link: the recipient adds their own address and, if allowed, picks the option. */
-export type Gift = {
-  id: string;
-  slug: string;
-  from: string;
-  avatar?: string;
-  to: string;
-  /** Recipient's market code. */
-  market: string;
-  theme: string;
-  message: string;
-  hidePrice: boolean;
-  theyChoose: boolean;
-  wrap: boolean;
-};
 
 /** A "this or that?" poll friends vote on before the asker buys. */
 export type LiveKind = "show" | "tour" | "auction";

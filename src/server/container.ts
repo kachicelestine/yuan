@@ -42,7 +42,8 @@ import { makeOnboarding } from "@/modules/merchants";
 import { DrizzleApplicationRepository, DrizzleMembershipRepository } from "@/modules/merchants/infrastructure/drizzle-merchants-repositories";
 import { DrizzleCountryRepository, DrizzleFxRateRepository } from "@/modules/markets/infrastructure/drizzle-markets-repository";
 import { OpenErApiRateSource } from "@/modules/markets/infrastructure/open-er-api-rate-source";
-import { makeCancelUnpaidOrder, makeCart, makeCheckout, makeFulfilment, makeGetOrder, makeMarkOrderPaid, makeSellerOrders, orderNumber } from "@/modules/ordering";
+import { makeCancelUnpaidOrder, makeCart, makeCheckout, makeFulfilment, makeGetOrder, makeGifts, makeMarkOrderPaid, makeSellerOrders, orderNumber } from "@/modules/ordering";
+import { DrizzleGiftRepository } from "@/modules/ordering/infrastructure/drizzle-gift-repository";
 import { DrizzleCartRepository } from "@/modules/ordering/infrastructure/drizzle-cart-repository";
 import { DrizzleOrderRepository } from "@/modules/ordering/infrastructure/drizzle-order-repository";
 import { DrizzleShipmentRepository } from "@/modules/ordering/infrastructure/drizzle-shipment-repository";
@@ -470,6 +471,7 @@ export function wire(db: Database, options: WireOptions = {}) {
       // The order, its invoice and the coupon it takes are written in one transaction.
       uow: unitOfWork(db, (tx) => ({
         orders: new DrizzleOrderRepository(tx),
+        gifts: new DrizzleGiftRepository(tx),
         payments: { request: makeRequestPayment({ network, invoices: new DrizzleInvoiceRepository(tx), clock, newId: () => newId(), newTag }) },
         coupons: { reserve: (buyerId: string, couponId: string, orderId: string) => new DrizzleClaimRepository(tx).reserve(buyerId, couponId, orderId) },
         events: new OutboxEventLog(tx, () => clock.now()),
@@ -477,9 +479,17 @@ export function wire(db: Database, options: WireOptions = {}) {
       clock,
       newId: () => newId(),
       newOrderNumber: () => orderNumber("LY", random),
+      newToken: () => randomBytes(18).toString("base64url"),
     }),
     getOrder: makeGetOrder({ orders: new DrizzleOrderRepository(db) }),
-    sellerOrders: makeSellerOrders({ orders: new DrizzleOrderRepository(db), shipments: new DrizzleShipmentRepository(db) }),
+    sellerOrders: makeSellerOrders({ orders: new DrizzleOrderRepository(db), shipments: new DrizzleShipmentRepository(db), gifts: new DrizzleGiftRepository(db) }),
+    gifts: makeGifts({
+      gifts: new DrizzleGiftRepository(db),
+      orders: new DrizzleOrderRepository(db),
+      // The address, the claimed gift and its event commit together.
+      uow: unitOfWork(db, (tx) => ({ orders: new DrizzleOrderRepository(tx), gifts: new DrizzleGiftRepository(tx), events: new OutboxEventLog(tx, () => clock.now()) })),
+      clock,
+    }),
     fulfilment: makeFulfilment({
       orders: new DrizzleOrderRepository(db),
       shipments: new DrizzleShipmentRepository(db),

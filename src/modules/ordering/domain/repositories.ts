@@ -1,6 +1,8 @@
 import type { Shipment, ShipmentStatus } from "./shipment";
 import type { CartItem } from "./cart";
 import type { Order } from "./order";
+import type { ShippingAddress } from "./address";
+import type { Gift } from "./gift";
 import type { CouponRule } from "./pricing";
 
 export interface OrderRepository {
@@ -15,6 +17,14 @@ export interface OrderRepository {
   save(order: Order): Promise<void>;
   /** Moves an order between states only if it's still in `from`; false when someone else got there first. */
   transition(orderId: string, from: Order["status"], to: Order["status"]): Promise<boolean>;
+  /** Sets the delivery address of an order that has none yet (a gift); false if it already has one. */
+  setAddress(orderId: string, address: ShippingAddress): Promise<boolean>;
+}
+
+export interface GiftRepository {
+  save(gift: Gift): Promise<void>;
+  byToken(token: string): Promise<Gift | null>;
+  forOrders(orderIds: readonly string[]): Promise<Gift[]>;
 }
 
 export interface ShipmentRepository {

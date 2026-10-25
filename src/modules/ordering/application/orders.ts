@@ -1,7 +1,7 @@
 import { domainError, err, ok, type Clock, type EventLog, type Result } from "@/shared/kernel";
 import { cancelUnpaid, markPaid, type Order, type OrderError, type OrderStatus } from "../domain/order";
 import type { ShippingAddress } from "../domain/address";
-import type { OrderRepository, ShipmentRepository } from "../domain/repositories";
+import type { GiftRepository, OrderRepository, ShipmentRepository } from "../domain/repositories";
 import { AUTO_CONFIRM_DAYS, openShipments, type Shipment } from "../domain/shipment";
 import { pricingInDollars } from "./checkout";
 
@@ -108,6 +108,8 @@ export type SellerOrderView = {
   subtotal: number;
   /** This shop's parcel (paid orders only). */
   shipment: ShipmentView | null;
+  /** For a gift: who it's for, the card to print, and what they picked. Never the recipient's link. */
+  gift: { recipientName: string; message: string; hidePrice: boolean; chooseOption: string | null; choice: string | null; waiting: boolean } | null;
 };
 
 /** A parcel as buyers and shops see it. */
@@ -141,11 +143,12 @@ export const toShipmentView = (s: Shipment): ShipmentView => ({
 });
 
 /** A shop's orders. Other shops' lines in the same order stay hidden. */
-export function makeSellerOrders(deps: { orders: OrderRepository; shipments: ShipmentRepository }) {
+export function makeSellerOrders(deps: { orders: OrderRepository; shipments: ShipmentRepository; gifts?: GiftRepository }) {
   return {
     async list(sellerId: string, limit = 100): Promise<SellerOrderView[]> {
       const list = await deps.orders.listBySeller(sellerId, ["paid", "awaiting_payment", "completed"], limit);
       const parcels = await Promise.all(list.map((o) => deps.shipments.find(o.id, sellerId)));
+      const gifts = new Map((deps.gifts ? await deps.gifts.forOrders(list.map((o) => o.id)) : []).map((g) => [g.orderId, g]));
       return list.map((o, i) => {
         const lines = o.lines.filter((l) => l.sellerId === sellerId);
         return {
@@ -160,6 +163,10 @@ export function makeSellerOrders(deps: { orders: OrderRepository; shipments: Shi
           lines: lines.map((l) => ({ slug: l.slug, title: l.title, image: l.image, option: l.option, unitPrice: l.unitPrice / 100, qty: l.qty, sellerId: l.sellerId })),
           subtotal: lines.reduce((n, l) => n + l.unitPrice * l.qty, 0) / 100,
           shipment: parcels[i] ? toShipmentView(parcels[i]) : null,
+          gift: (() => {
+            const g = gifts.get(o.id);
+            return g ? { recipientName: g.recipientName, message: g.message, hidePrice: g.hidePrice, chooseOption: g.chooseOption, choice: g.choice, waiting: g.claimedAt === null } : null;
+          })(),
         };
       });
     },

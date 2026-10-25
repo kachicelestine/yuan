@@ -12,7 +12,8 @@ import { brand } from "@/config/brand";
 import { demoShipment } from "@/lib/account";
 import { getProduct, type Shipment } from "@/lib/catalog";
 import { shiftDelivery } from "@/lib/landed";
-import type { OrderView, ShipmentView } from "@/modules/ordering";
+import type { GiftSummary, OrderView, ShipmentView } from "@/modules/ordering";
+import { GiftPanel } from "./gift-panel";
 import { OrderParcels } from "./order-parcels";
 
 const problems = ["It hasn't arrived", "It arrived damaged", "It's not as described", "Wrong item or size", "Something else"];
@@ -41,8 +42,11 @@ export function OrderJourney({
   parcels = [],
   shops = {},
   reviewed = [],
+  gift = null,
 }: {
   placed?: OrderView | null;
+  /** When the order is a gift the buyer sent. */
+  gift?: GiftSummary | null;
   /** One per shop once the order is paid. */
   parcels?: ShipmentView[];
   shops?: Record<string, { name: string; avatar: string }>;
@@ -192,6 +196,7 @@ export function OrderJourney({
         )}
       </section>
 
+      {placed && gift && <GiftPanel gift={gift} paid={placed.status === "paid" || placed.status === "completed"} />}
       {placed && parcels.length > 0 && <OrderParcels order={placed} parcels={parcels} shops={shops} reviewed={reviewed} />}
 
       <section aria-labelledby="items-h" className={parcels.length > 0 ? "hidden" : "mt-5"}>

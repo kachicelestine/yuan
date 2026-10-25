@@ -1,7 +1,8 @@
 import { sql } from "drizzle-orm";
-import { char, check, index, integer, jsonb, pgSchema, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, char, check, index, integer, jsonb, pgSchema, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { ShippingAddress } from "../domain/address";
 import { ORDER_STATUSES } from "../domain/order";
+import { GIFT_THEMES } from "../domain/gift";
 import { DISPUTE_REASONS, SHIPMENT_STATUSES } from "../domain/shipment";
 import { SHIPPING_METHODS } from "../domain/pricing";
 
@@ -106,3 +107,26 @@ export const shipments = orderingSchema.table(
     check("shipments_amount", sql`${t.amountCents} >= 0`),
   ],
 );
+
+export const giftTheme = orderingSchema.enum("gift_theme", GIFT_THEMES);
+export const giftClaimer = orderingSchema.enum("gift_claimer", ["recipient", "sender"]);
+
+/** An order paid by one person for another, who adds the address through a private link. */
+export const gifts = orderingSchema.table("gifts", {
+  orderId: uuid()
+    .primaryKey()
+    .references(() => orders.id, { onDelete: "cascade" }),
+  token: text().notNull().unique(),
+  senderId: uuid().notNull(),
+  fromName: text().notNull(),
+  recipientName: text().notNull(),
+  theme: giftTheme().notNull(),
+  message: text().notNull(),
+  hidePrice: boolean().notNull(),
+  chooseOption: text(),
+  choice: text(),
+  claimedAt: timestamp({ withTimezone: true }),
+  claimedBy: giftClaimer(),
+  thanks: text(),
+  createdAt: timestamp({ withTimezone: true }).notNull(),
+});

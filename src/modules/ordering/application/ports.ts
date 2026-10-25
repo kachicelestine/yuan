@@ -1,5 +1,5 @@
 import type { Cents, DomainError, EventLog, Result } from "@/shared/kernel";
-import type { OrderRepository } from "../domain/repositories";
+import type { GiftRepository, OrderRepository } from "../domain/repositories";
 import type { Destination } from "../domain/pricing";
 
 /** A product as checkout needs it, priced by the catalog for a quantity and option. */
@@ -58,4 +58,4 @@ export interface CouponReservations {
   reserve(buyerId: string, couponId: string, orderId: string): Promise<boolean>;
 }
 
-export type CheckoutScope = { orders: OrderRepository; payments: PaymentRequester; coupons: CouponReservations; events: EventLog };
+export type CheckoutScope = { orders: OrderRepository; gifts: GiftRepository; payments: PaymentRequester; coupons: CouponReservations; events: EventLog };

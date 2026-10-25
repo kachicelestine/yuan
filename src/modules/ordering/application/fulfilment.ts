@@ -57,6 +57,8 @@ export function makeFulfilment({ orders, shipments, uow, clock }: FulfilmentDeps
     async ship(sellerId: string, orderId: string, parcel: { carrier: string; tracking: string }): Promise<Result<ShipmentView, FulfilmentError>> {
       const s = await shipments.find(orderId, sellerId);
       if (!s) return missing();
+      // A gift waits for its recipient's address.
+      if (!(await orders.findById(orderId))?.address) return err(domainError("not_shippable", "Wait for the delivery address: the recipient hasn't added it yet."));
       const r = ship(s, parcel, clock.now());
       if (!r.ok) return r;
       await commit(r.value.shipment, r.value.event);

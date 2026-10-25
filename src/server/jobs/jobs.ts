@@ -59,8 +59,13 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
       }
       // A creator link behind it earns a commission per shop, settled at delivery.
       await app.affiliates.attribute(orderId);
+      // A gift waits for its recipient's address before the shop can ship.
+      const gift = (await app.gifts.forOrders([orderId])).get(orderId);
       for (const parcel of await app.fulfilment.forOrder(orderId)) {
-        await notify(await shopPeople(parcel.sellerId), { kind: "order_paid", title: `New order ${order.number}`, body: `${usd(parcel.amount * 100)} paid and held by Protect. Ship it to ${order.country} and add the tracking number.`, link: "/sell?tab=orders", email: true }, `${id}:${parcel.sellerId}`);
+        const body = gift
+          ? `A gift for ${gift.recipientName} in ${order.country}, ${usd(parcel.amount * 100)} held by Protect. We'll tell you when their address is in; then ship it with the card.`
+          : `${usd(parcel.amount * 100)} paid and held by Protect. Ship it to ${order.country} and add the tracking number.`;
+        await notify(await shopPeople(parcel.sellerId), { kind: "order_paid", title: `New ${gift ? "gift " : ""}order ${order.number}`, body, link: "/sell?tab=orders", email: true }, `${id}:${parcel.sellerId}`);
       }
     },
     ShipmentShipped: async ({ id, payload }) => {
@@ -110,6 +115,16 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
       } else {
         await notify([p.buyerId], { kind: "message", title: "The shop replied", body: p.preview, link: `/inbox/${p.sellerId}`, email: true }, `msg:${p.conversationId}:buyer:${hour}`);
       }
+    },
+    // A gift's address is in: its shops can ship, and the sender hears it's been claimed.
+    GiftClaimed: async ({ id, payload }) => {
+      const p = payload as { orderId: string; senderId: string; recipientName: string; by: "recipient" | "sender" };
+      const order = await app.getOrder.internal(p.orderId);
+      if (!order) return;
+      for (const sellerId of new Set(order.lines.map((l) => l.sellerId))) {
+        await notify(await shopPeople(sellerId), { kind: "order_paid", title: `Ship gift ${order.number}`, body: `${p.recipientName}'s address is in. Ship it with the printed card.`, link: "/sell?tab=orders", email: true }, `${id}:${sellerId}`);
+      }
+      if (p.by === "recipient") await notify([p.senderId], { kind: "gift", title: `${p.recipientName} opened your gift`, body: "They added their address, so it ships next.", link: `/orders/${order.number}`, email: true }, id);
     },
     // Wholesale: shops hear about requests sent to them; buyers about quotes; the shop about a yes.
     RfqOpened: async ({ id, payload }) => {
