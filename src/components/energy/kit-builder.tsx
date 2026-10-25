@@ -6,7 +6,8 @@ import { useState } from "react";
 import { Icon } from "@/components/icon";
 import { useMoney } from "@/components/price";
 import { useStore } from "@/components/providers";
-import { getProduct, unitPrice } from "@/lib/catalog";
+import { useProducts } from "@/components/product/use-products";
+import { unitPrice } from "@/lib/catalog";
 import { kitOutcome, kitParts, profileFor, sizeKit, type Kit } from "@/lib/energy";
 import { photo } from "@/lib/images";
 import { landedCost } from "@/lib/landed";
@@ -32,7 +33,12 @@ export function KitBuilder() {
   const sized = sizeKit({ monthlyBillUsd: billUsd, market: market.code, backupHours: backup, wind });
   const kit: Kit = { panels: sized.panels, inverters: sized.inverters, batteries: sized.batteries, turbine: sized.turbine, ...overrides };
   const outcome = kitOutcome(kit, market.code, sized.dailyUse);
-  const lines = parts.map((p) => ({ ...p, product: getProduct(p.slug)!, qty: kit[p.key] })).filter((l) => l.product);
+  // Today's listings from the catalog; a part that's no longer for sale drops out.
+  const listed = useProducts(parts.map((p) => p.slug)).products;
+  const lines = parts.flatMap((p) => {
+    const product = listed.find((x) => x.slug === p.slug);
+    return product && product.price !== undefined ? [{ ...p, product, qty: kit[p.key] }] : [];
+  });
   const items = lines.reduce((n, l) => n + unitPrice(l.product, l.qty) * l.qty, 0);
   const landed = landedCost(items, 0.05, market);
   const paybackYears = outcome.monthlySaving > 0 ? landed.total / (outcome.monthlySaving * 12) : Infinity;

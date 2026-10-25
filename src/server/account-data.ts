@@ -7,7 +7,7 @@ import type { Services } from "./container";
 export type AccountState = EngagementSnapshot & { accountId: string; cart: CartLineView[] };
 
 /** What a device sends: the parts the buyer edits freely. Coins never come from a device. */
-export type DeviceData = { cart: CartItem[]; saved: string[]; alerts: string[]; watches: WatchView[] };
+export type DeviceData = { cart: CartItem[]; saved: string[]; alerts: string[]; watches: WatchView[]; following: string[] };
 
 /** The account's items in their order, then the device's new ones. */
 const union = (account: readonly string[], device: readonly string[]) => [...new Set([...account, ...device])];
@@ -32,6 +32,7 @@ export function accountData(app: Pick<Services, "cart" | "engagement">) {
       await app.engagement.replaceLists(accountId, {
         saved: union(current.saved, device.saved),
         alerts: union(current.alerts, device.alerts),
+        following: union(current.following, device.following),
         watches: [...new Map([...current.watches, ...device.watches].map((w) => [w.slug, w])).values()],
       });
       // Free coupons only: anyone could claim them, so taking the device's word is safe.

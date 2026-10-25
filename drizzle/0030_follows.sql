@@ -1,0 +1,1 @@
+ALTER TYPE "engagement"."list_kind" ADD VALUE 'follow';

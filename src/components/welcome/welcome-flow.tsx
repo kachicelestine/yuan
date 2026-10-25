@@ -5,36 +5,29 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useFeedPrefs } from "@/components/feed/feed-prefs";
-import { Icon, type IconName } from "@/components/icon";
+import { Icon } from "@/components/icon";
 import { Flag } from "@/components/market/flag";
 import { Confetti } from "@/components/motion/confetti";
 import { useMoney } from "@/components/price";
 import { useStore } from "@/components/providers";
 import { brand } from "@/config/brand";
-import { categories, products, type CategoryId } from "@/lib/catalog";
+import { categories, type CategoryId } from "@/lib/catalog";
 import { capDensity } from "@/lib/images";
 import { useStored } from "@/lib/use-stored";
 
-type Step = "hello" | "country" | "interests" | "alerts" | "account" | "done";
-const order: Step[] = ["hello", "country", "interests", "alerts", "account", "done"];
+type Step = "hello" | "country" | "interests" | "account" | "done";
+const order: Step[] = ["hello", "country", "interests", "account", "done"];
 
-const alertKinds: { id: string; label: string; detail: string; icon: IconName }[] = [
-  { id: "prices", label: "Price drops", detail: "When something you watch gets cheaper", icon: "bell" },
-  { id: "drops", label: "Drops and 11.11", detail: "Ten minutes before anything you set a reminder for", icon: "calendar" },
-  { id: "live", label: "Lives you follow", detail: "When a seller you follow goes live", icon: "live" },
-  { id: "orders", label: "Order updates", detail: "Packed, shipped, in customs, out for delivery", icon: "truck" },
-];
-
-const strip = (offset: number) => products.filter((_, i) => i % 3 === offset).slice(0, 8);
 
 /** First run: where you are, what you like, what to tell you about, and a welcome coupon. */
-export function WelcomeFlow() {
+/** `photos`: product photos from the catalog for the moving wall on the first screen. */
+export function WelcomeFlow({ photos }: { photos: string[] }) {
+  const strip = (offset: number) => photos.filter((_, i) => i % 3 === offset).slice(0, 8);
   const router = useRouter();
   const money = useMoney();
   const { markets, market, setMarket, claimCoupon } = useStore();
   const { prefs, lean } = useFeedPrefs();
   const [step, setStep] = useState<Step>("hello");
-  const [alerts, setAlerts] = useStored<string[]>("app.notify", ["orders"]);
   const [, setOnboarded] = useStored<boolean>("app.onboarded", false);
   const at = order.indexOf(step);
   const next = () => setStep(order[at + 1]);
@@ -42,15 +35,6 @@ export function WelcomeFlow() {
 
   function toggleInterest(id: CategoryId) {
     lean(id, prefs.more.includes(id) ? null : "more");
-  }
-
-  async function allowAlerts() {
-    try {
-      if ("Notification" in window && Notification.permission === "default") await Notification.requestPermission();
-    } catch {
-      // Some browsers only allow this from an installed app; the choices are saved either way.
-    }
-    next();
   }
 
   /** Keeps the welcome coupon, then signs in and comes back home. */
@@ -73,8 +57,8 @@ export function WelcomeFlow() {
           <button type="button" onClick={back} aria-label="Back" className="glass grid size-11 shrink-0 place-items-center rounded-full">
             <Icon name="back" className="size-5" />
           </button>
-          <ol aria-label={`Step ${at} of 4`} className="flex flex-1 gap-1.5">
-            {[1, 2, 3, 4].map((n) => (
+          <ol aria-label={`Step ${at} of 3`} className="flex flex-1 gap-1.5">
+            {[1, 2, 3].map((n) => (
               <li key={n} className={`h-1 flex-1 rounded-full transition-colors duration-500 ${n <= at ? "bg-white" : "bg-white/15"}`} />
             ))}
           </ol>
@@ -89,8 +73,8 @@ export function WelcomeFlow() {
           <div aria-hidden="true" className="-mx-5 mt-4 flex flex-col gap-2.5 overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_15%,#000_85%,transparent)]">
             {[0, 1, 2].map((row) => (
               <div key={row} className={`flex w-max gap-2.5 motion-safe:animate-marquee ${row % 2 ? "[animation-direction:reverse] [animation-duration:38s]" : ""}`}>
-                {[...strip(row), ...strip(row)].map((p, i) => (
-                  <Image key={`${p.slug}-${i}`} src={p.images[0]} alt="" width={96} height={118} sizes="96px" loading={i < 6 ? "eager" : undefined} className="h-[118px] w-[96px] shrink-0 rounded-[20px] object-cover" />
+                {[...strip(row), ...strip(row)].map((src, i) => (
+                  <Image key={`${src}-${i}`} src={src} alt="" width={96} height={118} sizes="96px" loading={i < 6 ? "eager" : undefined} className="h-[118px] w-[96px] shrink-0 rounded-[20px] object-cover" />
                 ))}
               </div>
             ))}
@@ -171,43 +155,6 @@ export function WelcomeFlow() {
           <button type="button" onClick={next} disabled={prefs.more.length < 3} className="mb-4 h-[52px] shrink-0 rounded-full bg-accent text-[15px] font-bold disabled:opacity-40">
             {prefs.more.length < 3 ? `Pick ${3 - prefs.more.length} more` : "Continue"}
           </button>
-        </section>
-      )}
-
-      {step === "alerts" && (
-        <section aria-labelledby="w-alerts" className="flex flex-1 flex-col motion-safe:animate-rise">
-          <h1 id="w-alerts" className="mt-4 font-display text-[30px] leading-tight font-extrabold tracking-[-0.03em]">
-            What should we tell you about?
-          </h1>
-          <p className="mt-1 text-[15px] text-ink-2">Only these, and never more than twice a day outside your orders.</p>
-          <ul className="glass mt-5 flex flex-col divide-y divide-line rounded-[24px]">
-            {alertKinds.map((k) => {
-              const on = alerts.includes(k.id);
-              return (
-                <li key={k.id}>
-                  <label className="flex cursor-pointer items-center gap-3 px-4 py-3.5">
-                    <Icon name={k.icon} className="size-5 text-ink-2" />
-                    <span className="min-w-0 flex-1">
-                      <b className="block text-[15px] font-semibold">{k.label}</b>
-                      <span className="block text-xs text-ink-2">{k.detail}</span>
-                    </span>
-                    <input type="checkbox" role="switch" checked={on} onChange={() => setAlerts((list) => (list.includes(k.id) ? list.filter((a) => a !== k.id) : [...list, k.id]))} className="peer sr-only" />
-                    <span className="relative h-7 w-12 shrink-0 rounded-full bg-white/20 transition-colors peer-checked:bg-positive peer-focus-visible:ring-2 peer-focus-visible:ring-white">
-                      <span className={`absolute top-1 left-1 size-5 rounded-full bg-white transition-transform duration-500 ease-spring ${on ? "translate-x-5" : ""}`} />
-                    </span>
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
-          <div className="mt-auto flex flex-col gap-2 pt-6 pb-4">
-            <button type="button" onClick={allowAlerts} className="h-[52px] rounded-full bg-accent text-[15px] font-bold">
-              Turn on notifications
-            </button>
-            <button type="button" onClick={next} className="h-11 text-sm font-semibold text-ink-2">
-              Not now
-            </button>
-          </div>
         </section>
       )}
 

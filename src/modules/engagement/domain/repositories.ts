@@ -27,7 +27,8 @@ export interface ClaimRepository {
   releaseForOrder(orderId: string): Promise<void>;
 }
 
-export type ListKind = "saved" | "alert";
+/** saved and alert hold product slugs; follow holds shop ids. */
+export type ListKind = "saved" | "alert" | "follow";
 
 /** Per-account sets of product slugs: saved items and price alerts. */
 export interface ListRepository {
@@ -36,6 +37,8 @@ export interface ListRepository {
   replace(accountId: string, kind: ListKind, slugs: readonly string[], at: Date): Promise<void>;
   /** How many people added each product to this kind of list between `from` and `to`. */
   addedBetween(kind: ListKind, from: Date, to: Date): Promise<Map<string, number>>;
+  /** How many accounts have each item on this kind of list. */
+  counts(kind: ListKind): Promise<Map<string, number>>;
 }
 
 export interface WatchRepository {

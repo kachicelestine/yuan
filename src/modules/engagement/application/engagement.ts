@@ -33,6 +33,8 @@ export type WatchView = { slug: string; target: number; autoBuy: boolean };
 export type EngagementSnapshot = {
   saved: string[];
   alerts: string[];
+  /** Shops the account follows. */
+  following: string[];
   watches: WatchView[];
   /** Usable coupon ids in the wallet. */
   coupons: string[];
@@ -129,26 +131,32 @@ export function makeEngagement(d: EngagementDeps) {
       return due;
     },
 
+    /** How many accounts follow each shop. */
+    followerCounts() {
+      return d.lists.counts("follow");
+    },
+
     /** How many people saved each product in a window (for rankings). */
     savesBetween(from: Date, to: Date) {
       return d.lists.addedBetween("saved", from, to);
     },
 
     async snapshot(accountId: string): Promise<EngagementSnapshot> {
-      const [saved, alerts, watches, coupons, coins, coinsEarned, streak] = await Promise.all([
+      const [saved, alerts, following, watches, coupons, coins, coinsEarned, streak] = await Promise.all([
         d.lists.get(accountId, "saved"),
         d.lists.get(accountId, "alert"),
+        d.lists.get(accountId, "follow"),
         d.watches.list(accountId),
         wallet(accountId),
         d.coins.balance(accountId),
         d.coins.earned(accountId),
         checkin(accountId),
       ]);
-      return { saved, alerts, watches: watches.map((w) => ({ slug: w.slug, target: w.target / 100, autoBuy: w.autoBuy })), coupons, coins, coinsEarned, checkin: streak };
+      return { saved, alerts, following, watches: watches.map((w) => ({ slug: w.slug, target: w.target / 100, autoBuy: w.autoBuy })), coupons, coins, coinsEarned, checkin: streak };
     },
 
     /** Saves the lists as the device has them now. */
-    async replaceLists(accountId: string, lists: { saved: readonly string[]; alerts: readonly string[]; watches: readonly WatchView[] }) {
+    async replaceLists(accountId: string, lists: { saved: readonly string[]; alerts: readonly string[]; watches: readonly WatchView[]; following?: readonly string[] }) {
       const bySlug = new Map<string, Watch>();
       for (const w of lists.watches) {
         if (!SLUG.test(w.slug) || !Number.isFinite(w.target) || w.target <= 0) continue;
@@ -156,6 +164,7 @@ export function makeEngagement(d: EngagementDeps) {
       }
       await d.lists.replace(accountId, "saved", cleanSlugs(lists.saved), d.clock.now());
       await d.lists.replace(accountId, "alert", cleanSlugs(lists.alerts), d.clock.now());
+      if (lists.following) await d.lists.replace(accountId, "follow", cleanSlugs(lists.following), d.clock.now());
       await d.watches.replace(accountId, [...bySlug.values()].slice(0, MAX_LIST));
     },
 

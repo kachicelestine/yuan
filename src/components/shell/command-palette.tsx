@@ -16,7 +16,7 @@ type Command = { id: string; group: string; label: string; hint?: string; icon?:
 const pages: { label: string; href: string; icon: IconName; hint?: string }[] = [
   { label: "For You", href: "/", icon: "home" },
   { label: "Discover", href: "/discover", icon: "compass" },
-  { label: "Live now", href: "/live", icon: "live" },
+  { label: "Live shows", href: "/live", icon: "live" },
   { label: "Drops and 11.11", href: "/drops", icon: "bolt" },
   { label: "Rankings", href: "/rankings", icon: "trophy" },
   { label: "Compare", href: "/compare", icon: "compare" },

@@ -11,7 +11,8 @@ import { useMoney } from "@/components/price";
 import { useStore } from "@/components/providers";
 import { useMakePoll } from "@/components/poll/poll-screen";
 import { Sheet, type Detent } from "@/components/sheet";
-import { getProduct, productsInCategory, type Product } from "@/lib/catalog";
+import { useProducts, useSimilar } from "@/components/product/use-products";
+import type { Product } from "@/lib/catalog";
 import { compareLimit, compareRows, verdict, type CompareRow } from "@/lib/compare";
 import { capDensity } from "@/lib/images";
 import { useStored } from "@/lib/use-stored";
@@ -83,16 +84,17 @@ export function CompareScreen() {
   const [diffOnly, setDiffOnly] = useState(false);
   const [picker, setPicker] = useState<Detent>("closed");
   const makePoll = useMakePoll();
-  const shared = params.get("ids")?.split(",").filter((s) => getProduct(s));
+  const shared = params.get("ids")?.split(",").filter((s) => /^[a-z0-9-]{1,80}$/.test(s));
   const slugs = shared?.length ? shared.slice(0, compareLimit) : stored;
-  const items = slugs.map((s) => getProduct(s)).filter((p): p is Product => !!p);
+  // Listings from the catalog; any that were taken down drop out.
+  const items = useProducts(slugs).products;
   const rows = compareRows(items, market, money);
   const pick = verdict(items, rows);
   const groups = [...new Set(rows.map((r) => r.group))];
   const differs = (r: CompareRow) => new Set(r.cells.map((c) => c.text)).size > 1;
   const cols = items.length < compareLimit && items.length > 0 ? items.length + 1 : items.length;
   const grid = { gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` };
-  const candidates = items[0] ? productsInCategory(items[0].category).filter((p) => !slugs.includes(p.slug)) : [];
+  const candidates = useSimilar(items[0]?.slug ?? null).filter((p) => !slugs.includes(p.slug));
 
   const sharedKey = shared?.join() ?? "";
 

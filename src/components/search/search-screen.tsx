@@ -36,14 +36,14 @@ const KIND_LABEL = { show: "Live shopping", tour: "Factory tour", auction: "Live
 type Category = { id: CategoryId; label: string; image: string };
 
 /** Search everything: products with filters and sort, videos, factories and live rooms. */
-export function SearchScreen({ categories, initialQuery = "", initialSnap = false }: { categories: Category[]; initialQuery?: string; initialSnap?: boolean }) {
+export function SearchScreen({ categories, initialQuery = "", initialSnap = false, snapEnabled = false }: { categories: Category[]; initialQuery?: string; initialSnap?: boolean; snapEnabled?: boolean }) {
   const router = useRouter();
   const [query, setQuery] = useState(initialQuery);
   const [tab, setTab] = useState<Tab>("products");
   const [filters, setFilters] = useState<ProductFilters>({});
   const [sort, setSort] = useState<ProductSort>("best");
   const [sheet, setSheet] = useState<Detent>("closed");
-  const [snap, setSnap] = useState(initialSnap);
+  const [snap, setSnap] = useState(initialSnap && snapEnabled);
   const [voice, setVoice] = useState(false);
   const [recent, setRecent] = useStored<string[]>("app.recent-searches", []);
   const { markets, market } = useStore();
@@ -116,7 +116,7 @@ export function SearchScreen({ categories, initialQuery = "", initialSnap = fals
             <button type="button" onClick={() => setVoice(true)} aria-label="Search by voice" className="grid size-10 place-items-center rounded-full">
               <Icon name="mic" className="size-5" />
             </button>
-            <button type="button" onClick={() => setSnap(true)} aria-label="Search with a photo" className="grid size-10 place-items-center rounded-full">
+            <button type="button" onClick={() => setSnap(true)} aria-label="Search with a photo" className={`grid size-10 place-items-center rounded-full ${snapEnabled ? "" : "hidden"}`}>
               <Icon name="camera" className="size-5" />
             </button>
           </label>
@@ -197,7 +197,7 @@ export function SearchScreen({ categories, initialQuery = "", initialSnap = fals
 
       <div className="px-3.5 pt-4 lg:px-6">
         {!searching ? (
-          <Landing categories={categories} recent={recent} onClearRecent={() => setRecent([])} onPick={run} onSnap={() => setSnap(true)} />
+          <Landing categories={categories} recent={recent} onClearRecent={() => setRecent([])} onPick={run} onSnap={snapEnabled ? () => setSnap(true) : null} />
         ) : tab === "products" ? (
           products.length ? (
             <ul
@@ -355,26 +355,28 @@ function Landing({
   recent: string[];
   onClearRecent: () => void;
   onPick: (q: string) => void;
-  onSnap: () => void;
+  onSnap: (() => void) | null;
 }) {
   return (
     <div className="flex flex-col gap-6">
+      {onSnap && (
       <button type="button" onClick={onSnap} className="glass relative flex items-center gap-4 overflow-hidden rounded-[28px] p-4 text-left">
         <span className="glass glass-prominent grid size-14 shrink-0 place-items-center rounded-full">
           <Icon name="camera" className="size-7" />
         </span>
         <span className="flex-1">
           <span className="block font-display text-lg font-bold">Snap to search</span>
-          <span className="block text-[13px] text-ink-2">Point your camera at anything and find the factory that makes it.</span>
+          <span className="block text-[13px] text-ink-2">Point your camera at something and find it in the catalog.</span>
         </span>
         <Icon name="forward" className="size-5 text-ink-2" />
       </button>
+      )}
 
-      <Link href="/ask" className="glass relative -mt-3 flex items-center gap-4 overflow-hidden rounded-[28px] p-4">
+      <Link href="/ask" className={`glass relative flex ${onSnap ? "-mt-3" : ""} items-center gap-4 overflow-hidden rounded-[28px] p-4`}>
         <AgentOrb className="size-14 shrink-0" />
         <span className="flex-1">
           <span className="block font-display text-lg font-bold">Ask {brand.name}</span>
-          <span className="block text-[13px] text-ink-2">Describe what you need. Your agent finds, compares and prices it to your door.</span>
+          <span className="block text-[13px] text-ink-2">Describe what you need. The assistant finds, compares and prices it to your door.</span>
         </span>
         <Icon name="forward" className="size-5 text-ink-2" />
       </Link>
@@ -402,19 +404,18 @@ function Landing({
 
       <section aria-labelledby="trending-h">
         <h2 id="trending-h" className="mb-2 text-[15px] font-bold">
-          Trending this week
+          Ideas to search
         </h2>
-        <ol className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
-          {trendingSearches.map((t, i) => (
+        <ul className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+          {trendingSearches.map((t) => (
             <li key={t}>
               <button type="button" onClick={() => onPick(t)} className="flex h-12 w-full items-center gap-3 border-b border-line text-left text-[15px]">
-                <span className={`w-5 font-display text-lg font-extrabold ${i < 3 ? "text-accent-light" : "text-ink-3"}`}>{i + 1}</span>
+                <Icon name="search" className="size-4 text-ink-3" />
                 <span className="flex-1">{t}</span>
-                {i < 3 && <Icon name="bolt" filled className="size-4 text-accent-light" />}
               </button>
             </li>
           ))}
-        </ol>
+        </ul>
       </section>
 
       <section aria-labelledby="cats-h">
@@ -445,10 +446,10 @@ function NoResults({ query, onPick }: { query: string; onPick: (q: string) => vo
         <Icon name="search" className="size-7" />
       </span>
       <h2 className="font-display text-xl font-bold">Nothing matches “{query}” yet</h2>
-      <p className="text-sm text-ink-2">Our agent can ask factories for you, or try one of these.</p>
-      <Link href={`/ask?q=${encodeURIComponent(`Find me ${query}`)}`} className="flex h-11 items-center gap-2 rounded-full bg-accent px-5 text-[15px] font-bold">
-        <Icon name="sparkle" className="size-4" />
-        Ask factories for it
+      <p className="text-sm text-ink-2">Shops often make things they don&apos;t list. Ask them for a quote, or try one of these.</p>
+      <Link href="/business" className="flex h-11 items-center gap-2 rounded-full bg-accent px-5 text-[15px] font-bold">
+        <Icon name="factory" className="size-4" />
+        Ask shops to quote it
       </Link>
       <div className="mt-2 flex flex-wrap justify-center gap-2">
         {trendingSearches.slice(0, 4).map((t) => (

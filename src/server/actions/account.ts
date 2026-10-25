@@ -21,6 +21,7 @@ const deviceData = z.object({
   saved: z.array(slug).max(MAX_LIST * 2),
   alerts: z.array(slug).max(MAX_LIST * 2),
   watches: z.array(z.object({ slug, target: z.number().positive().max(10_000_000), autoBuy: z.boolean() })).max(MAX_LIST * 2),
+  following: z.array(slug).max(MAX_LIST * 2).default([]),
 });
 const couponIds = z.array(z.string().min(1).max(64)).max(100);
 

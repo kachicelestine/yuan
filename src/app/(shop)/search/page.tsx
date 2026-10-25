@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { SearchScreen } from "@/components/search/search-screen";
+import { askEnabled } from "@/server/ask";
 import { getCategories } from "@/server/catalog";
 
 export const metadata: Metadata = { title: "Search" };
@@ -19,5 +20,5 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
 
 async function SearchFromUrl({ categories, searchParams }: { categories: Awaited<ReturnType<typeof getCategories>>; searchParams: PageProps<"/search">["searchParams"] }) {
   const { q, snap } = await searchParams;
-  return <SearchScreen categories={categories} initialQuery={typeof q === "string" ? q : ""} initialSnap={snap === "1"} />;
+  return <SearchScreen categories={categories} initialQuery={typeof q === "string" ? q : ""} initialSnap={snap === "1"} snapEnabled={askEnabled()} />;
 }

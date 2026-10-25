@@ -6,7 +6,7 @@ import { services, type Services } from "../container";
 import { revalidateTags } from "../internal";
 import type { Message } from "@/modules/notifications";
 import { cents } from "@/shared/kernel/money";
-import { categoryVideosTag, commentsTag, FEED_TAG, MARKETS_TAG, productTag, questionsTag, reviewsTag, sellerReviewsTag, sellerVideosTag } from "../cache-tags";
+import { categoryVideosTag, commentsTag, FEED_TAG, MARKETS_TAG, productTag, questionsTag, reviewsTag, sellerReviewsTag, sellerTag, sellerVideosTag } from "../cache-tags";
 
 const jobLog = log.child({ scope: "jobs" });
 const DAY = 24 * 60 * 60 * 1000;
@@ -265,6 +265,15 @@ function recurringJobs(app: Services, dispatcher: OutboxDispatcher): ScheduledJo
         for (const r of await app.promos.dueReminders()) {
           await app.notifications.notify([r.accountId], { kind: "reminder", title: r.title, body: "Starting soon. Tap to get there first.", link: r.link, email: false }, `reminder:${r.key}:${r.accountId}`);
         }
+      },
+    },
+    {
+      // Storefronts show how many accounts really follow them.
+      name: "followers.refresh",
+      everyMs: 10 * 60_000,
+      run: async () => {
+        const changed = await app.ratings.followers(await app.engagement.followerCounts());
+        if (changed.length) await revalidateTags(changed.map(sellerTag));
       },
     },
     {

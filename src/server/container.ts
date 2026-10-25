@@ -368,7 +368,7 @@ export function wire(db: Database, options: WireOptions = {}) {
     }),
     listMarkets: makeListMarkets({ countries, fx: new DrizzleFxRateRepository(db) }),
     catalog: makeCatalogQueries({ categories: new DrizzleCategoryRepository(db), sellers, products, clock }),
-    ratings: makeRatings({ products }),
+    ratings: makeRatings({ products, sellers }),
     selling: makeSelling({ products, categories: new DrizzleCategoryRepository(db), sellers, photos: storage, clock, newId: () => newId() }),
     searchProducts: makeSearchProducts({ search: productSearch, sellers, clock }),
     searchShops,
@@ -511,6 +511,8 @@ export function wire(db: Database, options: WireOptions = {}) {
     }),
 
     checkInvoice,
+    /** The invoice opened for an order (to pay it later). */
+    invoiceIdFor: async (orderId: string) => (await new DrizzleInvoiceRepository(db).findByOrder(orderId))?.id ?? null,
     syncInvoices: makeSyncInvoices({ invoices: new DrizzleInvoiceRepository(db), checkInvoice, clock }),
     ledger: new DrizzleLedger(db),
     refreshRates: makeRefreshRates({ source: new OpenErApiRateSource(), fx: new DrizzleFxRateRepository(db), clock }),

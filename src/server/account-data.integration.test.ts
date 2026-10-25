@@ -20,6 +20,7 @@ describe("account data on the server", () => {
     saved: ["lamp-brass-pendant"],
     alerts: ["earbuds-anc"],
     watches: [{ slug: "power-station-2kwh", target: 399, autoBuy: false }],
+    following: ["sunvolt"],
   };
   const give = (accountId: string, balance: number) => db.insert(coinBalances).values({ accountId, balance });
 
@@ -46,6 +47,7 @@ describe("account data on the server", () => {
     expect(state.saved).toEqual(["glass-tea-set", "lamp-brass-pendant"]);
     expect(state.watches).toEqual(device.watches);
     expect(state.coupons).toEqual(["welcome5"]);
+    expect(state.following).toEqual(["sunvolt"]);
 
     // Merging the same device again changes nothing.
     expect(await store().merge(id, { ...device, coupons: ["welcome5"] })).toEqual(state);
@@ -54,14 +56,23 @@ describe("account data on the server", () => {
   it("saves later edits as the device has them", async () => {
     const id = newId();
     await store().merge(id, { ...device, coupons: [] });
-    await store().save(id, { cart: [], saved: [], alerts: ["earbuds-anc", "earbuds-anc"], watches: [] });
-    expect(await store().load(id)).toMatchObject({ cart: [], saved: [], alerts: ["earbuds-anc"], watches: [] });
+    await store().save(id, { cart: [], saved: [], alerts: ["earbuds-anc", "earbuds-anc"], watches: [], following: ["glowlab"] });
+    expect(await store().load(id)).toMatchObject({ cart: [], saved: [], alerts: ["earbuds-anc"], watches: [], following: ["glowlab"] });
   });
 
   it("drops bag lines that can no longer be bought", async () => {
     const id = newId();
     const state = await store().merge(id, { ...device, cart: [{ slug: "ev-sedan-export", option: null, qty: 1, note: null }, ...device.cart], coupons: [] });
     expect(state.cart.map((l) => l.slug)).toEqual(["hoodie-heavyweight", "earbuds-anc"]);
+  });
+
+  it("counts each shop's followers across accounts", async () => {
+    const [a, b] = [newId(), newId()];
+    await store().save(a, { ...device, following: ["mei", "pals"] });
+    await store().save(b, { ...device, following: ["mei"] });
+    const counts = await app().engagement.followerCounts();
+    expect(counts.get("mei")).toBeGreaterThanOrEqual(2);
+    expect(counts.get("pals")).toBeGreaterThanOrEqual(1);
   });
 
   it("pays a check-in once a day and grows the streak", async () => {

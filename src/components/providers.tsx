@@ -82,6 +82,8 @@ const KEYS = {
   market: "app.market",
   glass: "app.glass",
   watches: "app.watches",
+  /** Shops followed (ids). */
+  following: "app.following",
   coupons: "app.coupons",
   coins: "app.coins",
   coinsEarned: "app.coins-earned",
@@ -93,7 +95,7 @@ const KEYS = {
 } as const;
 
 /** What signing out forgets: the account keeps it, and the next person on this device shouldn't see it. */
-const ACCOUNT_KEYS = [KEYS.cart, KEYS.orders, KEYS.saved, KEYS.alerts, KEYS.watches, KEYS.coupons, KEYS.coins, KEYS.coinsEarned, KEYS.checkin, KEYS.owner, KEYS.unsaved];
+const ACCOUNT_KEYS = [KEYS.cart, KEYS.orders, KEYS.saved, KEYS.alerts, KEYS.watches, KEYS.following, KEYS.coupons, KEYS.coins, KEYS.coinsEarned, KEYS.checkin, KEYS.owner, KEYS.unsaved];
 
 const NO_CHECKIN: Checkin = { streak: 0, claimedToday: false };
 
@@ -118,10 +120,10 @@ const toggled = (list: string[], slug: string) => (list.includes(slug) ? list.fi
 
 const toItem = (l: CartLine): CartItem => ({ slug: l.slug, option: l.option ?? null, qty: l.qty, note: l.note ?? null });
 
-type DeviceCopy = { cart: CartLine[]; saved: string[]; alerts: string[]; watches: Watch[] };
+type DeviceCopy = { cart: CartLine[]; saved: string[]; alerts: string[]; watches: Watch[]; following: string[] };
 
 /** The part of the device's copy the shopper edits freely, in the shape the account stores. */
-const deviceData = (d: DeviceCopy) => ({ cart: d.cart.map(toItem), saved: d.saved, alerts: d.alerts, watches: d.watches });
+const deviceData = (d: DeviceCopy) => ({ cart: d.cart.map(toItem), saved: d.saved, alerts: d.alerts, watches: d.watches, following: d.following });
 
 /** Bags saved before lines were keyed by product and option alone get folded together. */
 function rekey(lines: CartLine[]): CartLine[] {
@@ -152,15 +154,16 @@ export function StoreProvider({ markets: packed, children }: { markets: PackedMa
   const [glass, setGlassState] = useState(45);
   const [account, setAccount] = useState<Account | null>(null);
   const [watches] = useStored<Watch[]>(KEYS.watches, []);
+  const [following] = useStored<string[]>(KEYS.following, []);
   const [coupons, setCoupons] = useStored<string[]>(KEYS.coupons, ["welcome5"]);
   const [coins] = useStored<number>(KEYS.coins, 0);
   const [coinsEarned] = useStored<number>(KEYS.coinsEarned, 0);
   const [checkin] = useStored<Checkin>(KEYS.checkin, NO_CHECKIN);
 
   // The device data as of the last render, for sync code that runs outside it.
-  const latest = useRef({ cart, saved, alerts, watches, coupons });
+  const latest = useRef({ cart, saved, alerts, watches, following, coupons });
   useEffect(() => {
-    latest.current = { cart, saved, alerts, watches, coupons };
+    latest.current = { cart, saved, alerts, watches, following, coupons };
   });
   /** The data the account is known to hold, serialized; edits are anything else. */
   const confirmed = useRef<string | null>(null);
@@ -173,12 +176,13 @@ export function StoreProvider({ markets: packed, children }: { markets: PackedMa
     write(KEYS.saved, state.saved);
     write(KEYS.alerts, state.alerts);
     writeStored(KEYS.watches, state.watches);
+    writeStored(KEYS.following, state.following);
     writeStored(KEYS.coupons, state.coupons);
     writeStored(KEYS.coins, state.coins);
     writeStored(KEYS.coinsEarned, state.coinsEarned);
     writeStored(KEYS.checkin, state.checkin);
     write(KEYS.owner, state.accountId);
-    confirmed.current = JSON.stringify(deviceData({ cart: lines, saved: state.saved, alerts: state.alerts, watches: state.watches }));
+    confirmed.current = JSON.stringify(deviceData({ cart: lines, saved: state.saved, alerts: state.alerts, watches: state.watches, following: state.following }));
   }, []);
 
   const forgetAccount = useCallback(() => {
@@ -253,7 +257,7 @@ export function StoreProvider({ markets: packed, children }: { markets: PackedMa
   // Signed in, edits are saved to the account shortly after they stop.
   useEffect(() => {
     if (!account) return;
-    const data = deviceData({ cart, saved, alerts, watches });
+    const data = deviceData({ cart, saved, alerts, watches, following });
     const serialized = JSON.stringify(data);
     if (serialized === confirmed.current) return;
     write(KEYS.unsaved, true);
@@ -269,7 +273,7 @@ export function StoreProvider({ markets: packed, children }: { markets: PackedMa
       });
     }, 600);
     return () => clearTimeout(timer);
-  }, [account, cart, saved, alerts, watches, refreshAccount]);
+  }, [account, cart, saved, alerts, watches, following, refreshAccount]);
 
   const addToCart = useCallback((line: Omit<CartLine, "key">) => {
     announceAdd(line.image);

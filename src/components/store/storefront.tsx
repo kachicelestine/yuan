@@ -95,7 +95,7 @@ export function Storefront({ seller, profile, products, videos, reviews, reviewC
         <dl className="mt-4 grid grid-cols-4 gap-2">
           {[
             ["Rating", `★ ${profile.rating}`],
-            ["Followers", compact(profile.followers + (followed ? 1 : 0))],
+            ["Followers", compact(profile.followers)],
             ["Replies", `in ${profile.responseHours} h`],
             ["On time", `${Math.round(profile.onTime * 100)}%`],
           ].map(([label, value]) => (

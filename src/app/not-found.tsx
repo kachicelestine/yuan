@@ -21,7 +21,7 @@ export default function NotFound() {
           <Icon name="search" className="size-5 text-ink-2" />
           Search anything made in China
         </Link>
-        <p className="mt-5 mb-2 text-xs font-bold tracking-[0.1em] text-ink-3">PEOPLE ARE SEARCHING</p>
+        <p className="mt-5 mb-2 text-xs font-bold tracking-[0.1em] text-ink-3">TRY SEARCHING</p>
         <ul className="flex flex-wrap justify-center gap-1.5">
           {trendingSearches.slice(0, 6).map((t) => (
             <li key={t}>

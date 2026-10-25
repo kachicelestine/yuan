@@ -78,8 +78,6 @@ export type { Region } from "@/modules/markets";
 /** A country we ship to, as the UI sees it (see the markets module). */
 export type { MarketView as Market } from "@/modules/markets";
 
-/** A Snap to search sample photo and the matches a vision model would return for it. */
-export type SnapSample = { id: string; label: string; image: string; guess: string; matches: [slug: string, score: number][] };
 
 /** A product review (see the content module). Fixtures don't say whether it's tied to an order. */
 export type Review = Omit<ReviewView, "verified"> & Partial<Pick<ReviewView, "verified">>;

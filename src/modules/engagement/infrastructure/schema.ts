@@ -5,7 +5,7 @@ import type { Figure } from "../domain/blindbox";
 export const engagementSchema = pgSchema("engagement");
 
 export const couponKind = engagementSchema.enum("coupon_kind", ["amount", "percent", "free_shipping"]);
-export const listKind = engagementSchema.enum("list_kind", ["saved", "alert"]);
+export const listKind = engagementSchema.enum("list_kind", ["saved", "alert", "follow"]);
 export const coinReason = engagementSchema.enum("coin_reason", ["checkin", "reward", "adjustment", "mission"]);
 
 export const coupons = engagementSchema.table(

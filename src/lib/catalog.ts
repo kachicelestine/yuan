@@ -5,7 +5,7 @@ import { categories } from "@/fixtures/categories";
 import { notes } from "@/fixtures/notes";
 import { products } from "@/fixtures/products";
 import { profiles } from "@/fixtures/profiles";
-import { snapFallback, snapSamples, trendingSearches } from "@/fixtures/search";
+import { trendingSearches } from "@/fixtures/search";
 import { sellers } from "@/fixtures/sellers";
 import { towns } from "@/fixtures/towns";
 import { videos } from "@/fixtures/videos";
@@ -14,7 +14,7 @@ import type { CategoryId, Product } from "./types";
 export type * from "./types";
 export { questionsFor, reviewSummary, reviewsFor, reviewsForSeller } from "./reviews";
 export type { ReviewSummary } from "./reviews";
-export { categories, sellers, products, videos, notes, trendingSearches, snapSamples, snapFallback, towns };
+export { categories, sellers, products, videos, notes, trendingSearches, towns };
 export { daysToDelivery, matchesFilters, rankProducts, searchProducts, searchSellers, searchVideos, understand } from "./search";
 export type { ProductFilters, ProductSort, Understood } from "./search";
 

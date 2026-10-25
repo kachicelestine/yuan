@@ -1,36 +1,8 @@
-// Fixture data for the design phase: one shopper's account (orders in transit, rewards,
+// Fixture data for the design phase: one shopper's account (rewards,
 // coupons, boards and creator earnings).
-import { avatar, square } from "@/lib/images";
-import type { Board, Coupon, RewardItem, Shipment } from "@/lib/types";
+import { avatar } from "@/lib/images";
+import type { Board, Coupon, RewardItem } from "@/lib/types";
 import { people } from "./people";
-
-export const demoShipment: Shipment = {
-  orderId: "OR-7KD2Q9",
-  mode: "air",
-  from: "Shenzhen",
-  to: "Lagos",
-  toCode: "NG",
-  carrier: "Cainiao air freight",
-  tracking: "CNLOS4471920",
-  eta: "Thu, Oct 29",
-  stage: 4,
-  steps: [
-    { label: "Order placed", detail: "Paid in USDC on Base. Your money is held by Protect.", at: "Oct 18, 14:02" },
-    { label: "Packed at the factory", detail: "Voltgrid Power, Bao'an, Shenzhen. Here's your parcel.", at: "Oct 19, 09:40", image: square("1678775882496-59554c53e32e", 0.45, 0.6) },
-    { label: "Picked up", detail: "Handed to Cainiao air freight with all export papers.", at: "Oct 20, 16:15" },
-    { label: "Left Shenzhen", detail: "Flight SZX → LOS via Addis Ababa.", at: "Oct 21, 23:50" },
-    { label: "Landed in Lagos", detail: "Murtala Muhammed Airport. Customs review has started.", at: "Oct 23, 06:20" },
-    { label: "Customs cleared", detail: "Duties were prepaid, so there's nothing to pay." },
-    { label: "Out for delivery", detail: "A courier will message you before arriving." },
-    { label: "Delivered", detail: "Check it within 3 days, then Protect pays the seller." },
-  ],
-  lines: [
-    { slug: "power-station-2kwh", qty: 1, option: "3 kWh · Graphite", unitPrice: 849 },
-    { slug: "earbuds-anc", qty: 2, option: "Black", unitPrice: 39 },
-  ],
-  total: 1004,
-  protectUntil: "Nov 1",
-};
 
 export const coupons: Coupon[] = [
   { id: "welcome5", title: "$5 off", detail: "Your first order over $50", value: 5, minSpend: 50, expires: "Nov 30" },

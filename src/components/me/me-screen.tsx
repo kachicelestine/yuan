@@ -13,16 +13,14 @@ import type { Watch } from "@/components/product/price-history";
 import { ProductTile } from "@/components/product/product-tile";
 import { glassLevel, useStore } from "@/components/providers";
 import { brand } from "@/config/brand";
-import { demoShipment } from "@/lib/account";
 import { levelOf } from "@/modules/engagement";
 import { useUnread } from "@/components/shell/unread";
-import { getProduct } from "@/lib/catalog";
 import { useProducts } from "@/components/product/use-products";
 import { plural } from "@/lib/format";
 import { photo } from "@/lib/images";
 import { useStored } from "@/lib/use-stored";
 import type { AccountView } from "@/modules/identity";
-import type { OrderView } from "@/modules/ordering";
+import type { OrderView, ShipmentView } from "@/modules/ordering";
 import { signOutAction } from "@/server/actions/auth";
 
 const statusLabel: Record<OrderView["status"], string> = { awaiting_payment: "Waiting for payment", paid: "Paid · on its way", cancelled: "Cancelled", completed: "Delivered" };
@@ -45,6 +43,7 @@ export function MeScreen({
   admin = false,
   unread = 0,
   boards = null,
+  parcels = [],
 }: {
   account?: AccountView | null;
   orders?: OrderView[];
@@ -55,6 +54,8 @@ export function MeScreen({
   unread?: number;
   /** How many boards the account has (null when signed out or not loaded yet). */
   boards?: number | null;
+  /** The newest order's parcels, for the status pill. */
+  parcels?: ShipmentView[];
 }) {
   const money = useMoney();
   const router = useRouter();
@@ -68,7 +69,7 @@ export function MeScreen({
   const { chats } = useUnread();
 
   const tiles: { href: string; label: string; icon: IconName; note?: string; badge?: number }[] = [
-    { href: `/orders/${orders[0]?.number ?? demoShipment.orderId}`, label: "Orders", icon: "truck", note: account ? plural(orders.length, "order") : "Sample" },
+    { href: account ? (orders[0] ? `/orders/${orders[0].number}` : "#orders") : "/signin?next=/me", label: "Orders", icon: "truck", note: account ? plural(orders.length, "order") : "Sign in" },
     { href: "/notifications", label: "Notifications", icon: "bell", badge: unread || undefined, note: account ? undefined : "Sign in" },
     { href: "/inbox", label: "Inbox", icon: "chat", badge: chats || undefined },
     { href: "/rewards", label: "Rewards", icon: "gift", note: `${coins.toLocaleString("en-US")} coins` },
@@ -118,7 +119,7 @@ export function MeScreen({
         )}
       </header>
 
-      <ShipmentPill demo className="self-start" />
+      {orders[0] && <ShipmentPill order={orders[0]} parcels={parcels} className="self-start" />}
 
       <nav aria-label="Your account" className="grid grid-cols-4 gap-2">
         {tiles.map((t) => (
@@ -140,16 +141,9 @@ export function MeScreen({
           Orders
         </h2>
         <ul className="flex flex-col divide-y divide-line">
-          {[
-            ...orders.map((o) => ({ id: o.number, total: o.totals.total, images: o.lines.map((l) => l.image), status: statusLabel[o.status], count: o.lines.reduce((n, l) => n + l.qty, 0) })),
-            {
-              id: demoShipment.orderId,
-              total: demoShipment.total,
-              images: demoShipment.lines.map((l) => getProduct(l.slug)?.images[0] ?? ""),
-              status: `Sample · ${demoShipment.steps[demoShipment.stage].label.toLowerCase()}`,
-              count: demoShipment.lines.reduce((n, l) => n + l.qty, 0),
-            },
-          ].map((order) => (
+          {orders
+            .map((o) => ({ id: o.number, total: o.totals.total, images: o.lines.map((l) => l.image), status: statusLabel[o.status], count: o.lines.reduce((n, l) => n + l.qty, 0) }))
+            .map((order) => (
             <li key={order.id}>
               <Link href={`/orders/${order.id}`} className="flex items-center gap-3 py-3 first:pt-0">
                 <div className="flex -space-x-3">
@@ -169,8 +163,9 @@ export function MeScreen({
             </li>
           ))}
         </ul>
+        {account && orders.length === 0 && <p className="text-sm text-ink-2">No orders yet. What you buy shows up here, with where it is.</p>}
         {!account && (
-          <Link href="/signin?next=/me" className="mt-2 flex items-center justify-between rounded-2xl bg-white/[0.06] px-3 py-2.5 text-[13px] font-semibold">
+          <Link href="/signin?next=/me" className="flex items-center justify-between rounded-2xl bg-white/[0.06] px-3 py-2.5 text-[13px] font-semibold">
             Sign in to see your orders
             <Icon name="forward" className="size-4 text-ink-3" />
           </Link>

@@ -9,7 +9,8 @@ import { useMoney } from "@/components/price";
 import { useStore } from "@/components/providers";
 import { Sheet, type Detent } from "@/components/sheet";
 import { brand } from "@/config/brand";
-import { productsInCategory, similarProducts, type Product } from "@/lib/catalog";
+import { useSimilar } from "@/components/product/use-products";
+import type { Product } from "@/lib/catalog";
 import { shareInfoAction } from "@/server/actions/creator";
 
 type Target = { id: string; label: string; color: string; glyph: React.ReactNode; href?: (url: string, text: string) => string };
@@ -39,7 +40,7 @@ export function ShareButton({ product, className = "" }: { product: Product; cla
 function ShareContent({ product, onClose }: { product: Product; onClose: () => void }) {
   const money = useMoney();
   const makePoll = useMakePoll();
-  const rival = similarProducts(product, 1)[0] ?? productsInCategory(product.category).find((p) => p.slug !== product.slug);
+  const rival = useSimilar(product.slug).find((p) => p.slug !== product.slug);
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState<"idle" | "busy" | "done" | "failed">("idle");
   const price = product.price === undefined ? "Ask for a landed quote" : money(product.price);

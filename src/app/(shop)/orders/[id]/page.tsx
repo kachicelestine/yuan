@@ -3,15 +3,15 @@ import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { OrderJourney } from "@/components/orders/order-journey";
-import { demoShipment } from "@/lib/account";
 import { getSellers } from "@/server/catalog";
 import { services } from "@/server/container";
 import { currentAccount } from "@/server/session";
 
-export const metadata: Metadata = { title: "Your order" };
+export const metadata: Metadata = { title: "Your order", robots: { index: false } };
 
+// Orders are private and change as they're paid and shipped; the placeholder lets the shell build.
 export function generateStaticParams() {
-  return [{ id: demoShipment.orderId }];
+  return [{ id: "LY-000000" }];
 }
 
 export default function OrderPage({ params }: PageProps<"/orders/[id]">) {
@@ -24,21 +24,20 @@ export default function OrderPage({ params }: PageProps<"/orders/[id]">) {
 
 async function OrderBody({ params }: { params: PageProps<"/orders/[id]">["params"] }) {
   const { id } = await params;
-  // An order's status changes as it's paid and shipped, so it's read fresh on every request.
   await connection();
-  // The sample shipment is public; real orders are shown only to the buyer who placed them.
-  if (id === demoShipment.orderId) return <OrderJourney />;
+  // Shown only to the buyer who placed it.
   const account = await currentAccount();
   if (!account) redirect(`/signin?next=${encodeURIComponent(`/orders/${id}`)}`);
   const app = await services();
   const placed = await app.getOrder.byNumber(id, account.id);
   if (!placed) notFound();
-  const [parcels, sellers, reviewed, gift] = await Promise.all([
+  const [parcels, sellers, reviewed, gift, invoiceId] = await Promise.all([
     app.fulfilment.forOrder(placed.id),
     getSellers(),
     app.interactions.reviewed(placed.id, [...new Set(placed.lines.map((l) => l.slug))]),
     app.gifts.forSender(account.id, placed.id),
+    placed.status === "awaiting_payment" ? app.invoiceIdFor(placed.id) : Promise.resolve(null),
   ]);
   const shops = Object.fromEntries(sellers.filter((s) => parcels.some((p) => p.sellerId === s.id)).map((s) => [s.id, { name: s.name, avatar: s.avatar }]));
-  return <OrderJourney placed={placed} parcels={parcels} shops={shops} reviewed={reviewed} gift={gift} />;
+  return <OrderJourney placed={placed} parcels={parcels} shops={shops} reviewed={reviewed} gift={gift} invoiceId={invoiceId} />;
 }

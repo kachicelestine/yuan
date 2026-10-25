@@ -105,6 +105,11 @@ export class DrizzleListRepository implements ListRepository {
       .groupBy(listItems.slug);
     return new Map(rows.map((r) => [r.slug, r.n]));
   }
+
+  async counts(kind: ListKind) {
+    const rows = await this.db.select({ slug: listItems.slug, n: sql<number>`count(*)::int` }).from(listItems).where(eq(listItems.kind, kind)).groupBy(listItems.slug);
+    return new Map(rows.map((r) => [r.slug, r.n]));
+  }
 }
 
 export class DrizzleWatchRepository implements WatchRepository {
