@@ -28,6 +28,9 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
       const { sellerId, category, authorId, videoId } = payload as { sellerId: string; category: string; authorId: string | null; videoId: string };
       await revalidateTags([FEED_TAG, sellerVideosTag(sellerId), categoryVideosTag(category)]);
       if (authorId) await notify([authorId], { kind: "video_live", title: "Your video is live", body: "It's in the feed and on the shop's page now.", link: `/?v=${videoId}`, email: false }, id);
+      // A creator's video of a sample they were sent closes that deal.
+      const video = authorId ? (await app.content.videosByIds([videoId]))[0] : undefined;
+      if (authorId && video) await app.samples.videoPosted({ authorId, productSlug: video.productSlug, videoId });
     },
     // A takedown disappears from every page that showed it.
     ContentRemoved: async ({ payload }) => {
@@ -96,6 +99,22 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
     ChopCompleted: async ({ id, payload }) => {
       const p = payload as { chopId: string; ownerId: string; slug: string; target: number };
       await notify([p.ownerId], { kind: "chop_done", title: `Chopped to ${usd(p.target)}!`, body: "Your friends got it to the target. It's yours at that price for 48 hours.", link: `/chop/${p.chopId}`, email: true }, id);
+    },
+    SampleRequested: async ({ id, payload }) => {
+      const p = payload as { sellerId: string; slug: string };
+      await notify(await shopPeople(p.sellerId), { kind: "sample", title: "A creator asked for a sample", body: "Ship it with tracking, or decline and say why.", link: "/sell/ads#samples-h", email: true }, id);
+    },
+    SampleShipped: async ({ id, payload }) => {
+      const p = payload as { creatorId: string };
+      await notify([p.creatorId], { kind: "sample", title: "Your sample is on its way", body: "Post a video with it within 21 days of shipping.", link: "/creator", email: true }, id);
+    },
+    SampleDeclined: async ({ id, payload }) => {
+      const p = payload as { creatorId: string };
+      await notify([p.creatorId], { kind: "sample", title: "A sample request was declined", body: "See why in your creator hub.", link: "/creator", email: false }, id);
+    },
+    SamplePosted: async ({ id, payload }) => {
+      const p = payload as { sellerId: string; slug: string };
+      await notify(await shopPeople(p.sellerId), { kind: "sample", title: "A creator posted your sample", body: "Their video is live in the feed.", link: `/p/${p.slug}`, email: false }, id);
     },
     TeamFilled: async ({ id, payload }) => {
       const p = payload as { teamId: string; members: string[]; teamPrice: number };
@@ -166,6 +185,12 @@ function recurringJobs(app: Services, dispatcher: OutboxDispatcher): ScheduledJo
       name: "live.lots",
       everyMs: 10_000,
       run: async () => void (await app.live.closeDueLots()),
+    },
+    {
+      // Samples shipped without a video after the window lapse.
+      name: "samples.lapse",
+      everyMs: DAY / 4,
+      run: async () => void (await app.samples.lapse()),
     },
     {
       // Drop claims nobody checked out go back into stock; teams that didn't fill close.

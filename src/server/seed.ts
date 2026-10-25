@@ -1,4 +1,5 @@
 import type { Database } from "@/shared/infrastructure/database";
+import { seedAffiliates } from "@/modules/affiliates/infrastructure/seed";
 import { seedCatalog } from "@/modules/catalog/infrastructure/seed";
 import { seedContent } from "@/modules/content/infrastructure/seed";
 import { seedChopOffers, seedEngagement, seedPromos } from "@/modules/engagement/infrastructure/seed";
@@ -13,6 +14,7 @@ export async function seedAll(db: Database, now = new Date()) {
     engagement: await seedEngagement(db),
     chops: await seedChopOffers(db),
     promos: await seedPromos(db, now),
+    affiliates: await seedAffiliates(db, now),
     content: await seedContent(db),
     live: await seedLive(db),
   };

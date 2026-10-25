@@ -7,14 +7,11 @@ import { useState, useTransition } from "react";
 import { Icon } from "@/components/icon";
 import { useMoney } from "@/components/price";
 import { useStore } from "@/components/providers";
-import { sampleOffers } from "@/lib/account";
-import { getProduct } from "@/lib/catalog";
 import { compact, niceCeil } from "@/lib/format";
 import { capDensity } from "@/lib/images";
-import { useStored } from "@/lib/use-stored";
-import type { CommissionView, CreatorDashboard } from "@/modules/affiliates";
+import type { CommissionView, CreatorDashboard, SampleOfferView, SampleRequestView } from "@/modules/affiliates";
 import type { DisbursementView } from "@/modules/payments";
-import { requestCreatorPayoutAction, setCreatorWalletAction } from "@/server/actions/creator";
+import { requestCreatorPayoutAction, requestSampleAction, setCreatorWalletAction } from "@/server/actions/creator";
 import { MyVideos } from "./my-videos";
 
 type ProductInfo = { title: string; image: string };
@@ -28,7 +25,7 @@ const STATUS: Record<CommissionView["status"], { label: string; tone: string }> 
 };
 
 /** Earn by posting what you love: earnings, links, payouts, and products worth promoting. */
-export function CreatorHub({ data, available, payouts, products, promote }: { data: CreatorDashboard; available: number; payouts: DisbursementView[]; products: Record<string, ProductInfo>; promote: Promote[] }) {
+export function CreatorHub({ data, available, payouts, products, promote, samples }: { data: CreatorDashboard; available: number; payouts: DisbursementView[]; products: Record<string, ProductInfo>; promote: Promote[]; samples: { offers: SampleItem[]; mine: SampleRequestView[] } }) {
   const money = useMoney();
   const { market } = useStore();
   const [hover, setHover] = useState<number | null>(null);
@@ -239,7 +236,7 @@ export function CreatorHub({ data, available, payouts, products, promote }: { da
         </section>
       )}
 
-      <Samples />
+      <Samples offers={samples.offers} mine={samples.mine} titles={Object.fromEntries(Object.entries(products).map(([slug, p]) => [slug, p.title]))} />
     </div>
   );
 }
@@ -337,39 +334,114 @@ function Balance({ available, pending, wallet, payouts }: { available: number; p
   );
 }
 
-/** Free samples factories offer creators (requests are kept on this device for now). */
-function Samples() {
-  const [samples, setSamples] = useStored<string[]>("app.samples", []);
+type SampleItem = { offer: SampleOfferView; product: { title: string; image: string } };
+
+const SAMPLE_STATUS: Record<SampleRequestView["status"], { label: string; tone: string }> = {
+  requested: { label: "Asked · waiting for the shop", tone: "text-ink-2" },
+  shipped: { label: "On its way", tone: "text-positive" },
+  declined: { label: "Declined", tone: "text-ink-3" },
+  posted: { label: "Posted. Thanks!", tone: "text-positive" },
+  lapsed: { label: "No video posted", tone: "text-like" },
+};
+
+/** Free samples shops offer creators, and the ones this creator asked for. */
+function Samples({ offers, mine, titles }: { offers: SampleItem[]; mine: SampleRequestView[]; titles: Record<string, string> }) {
+  const router = useRouter();
+  const { market } = useStore();
+  const [open, setOpen] = useState<string | null>(null);
+  const [address, setAddress] = useState({ name: "", line1: "", line2: "", city: "", region: "", postcode: "", country: market.code });
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, start] = useTransition();
+  const asked = new Set(mine.map((r) => r.slug));
+  const set = (k: keyof typeof address) => (e: React.ChangeEvent<HTMLInputElement>) => setAddress({ ...address, [k]: e.target.value });
+
+  const send = (offerId: string) =>
+    start(async () => {
+      const r = await requestSampleAction(offerId, address, note);
+      if (!r.ok) return setError(r.message);
+      setError(null);
+      setOpen(null);
+      router.refresh();
+    });
+
+  if (!offers.length && !mine.length) return null;
+  const input = "glass-inset h-10 min-w-0 rounded-xl px-3 text-sm outline-none";
   return (
     <section aria-labelledby="samples-h" className="mt-5">
       <h2 id="samples-h" className="mb-1 px-1 text-[15px] font-bold">
         Free samples for creators
       </h2>
-      <p className="mb-3 px-1 text-xs text-ink-2">Factories send these free if you post a video within 14 days.</p>
+      <p className="mb-3 px-1 text-xs text-ink-2">Shops send these free. The deal: post a video with it within 21 days of it shipping.</p>
+      {mine.length > 0 && (
+        <ul className="glass mb-3 flex flex-col divide-y divide-line overflow-hidden rounded-[22px]">
+          {mine.map((r) => (
+            <li key={r.id} className="px-4 py-3 text-sm">
+              <span className="block truncate font-semibold">{titles[r.slug] ?? r.slug}</span>
+              <span className={`block text-xs ${SAMPLE_STATUS[r.status].tone}`}>
+                {SAMPLE_STATUS[r.status].label}
+                {r.tracking && ` · ${r.carrier} ${r.tracking}`}
+                {r.status === "shipped" && r.lapsesAt && ` · post by ${new Date(r.lapsesAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`}
+                {r.reason && ` · ${r.reason}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
       <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-        {sampleOffers.map((slug) => {
-          const p = getProduct(slug);
-          if (!p) return null;
-          const asked = samples.includes(slug);
+        {offers.map(({ offer, product }) => {
+          const done = asked.has(offer.slug);
           return (
-            <li key={slug} className="glass-inset overflow-hidden rounded-[22px]">
+            <li key={offer.id} className="glass-inset overflow-hidden rounded-[22px]">
               <span className="relative block aspect-square">
-                <Image src={p.images[0]} alt="" fill sizes={capDensity("(min-width: 640px) 25vw, 50vw")} className="object-cover" />
+                <Image src={product.image} alt="" fill sizes={capDensity("(min-width: 640px) 25vw, 50vw")} className="object-cover" />
               </span>
               <span className="flex flex-col gap-2 p-3">
-                <span className="line-clamp-2 text-[13px] leading-snug font-semibold">{p.title}</span>
+                <span className="line-clamp-2 text-[13px] leading-snug font-semibold">{product.title}</span>
+                <span className="text-[11px] text-ink-3">{offer.remaining} left</span>
                 <button
                   type="button"
-                  onClick={() => setSamples(asked ? samples : [...samples, slug])}
-                  className={`h-9 rounded-full text-xs font-bold ${asked ? "bg-positive/15 text-positive" : "bg-white text-black"}`}
+                  disabled={done}
+                  onClick={() => setOpen(open === offer.id ? null : offer.id)}
+                  className={`h-9 rounded-full text-xs font-bold ${done ? "bg-positive/15 text-positive" : "bg-white text-black"}`}
                 >
-                  {asked ? "Requested" : "Request sample"}
+                  {done ? "Requested" : open === offer.id ? "Close" : "Request sample"}
                 </button>
               </span>
             </li>
           );
         })}
       </ul>
+      {open && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            send(open);
+          }}
+          className="glass mt-3 flex flex-col gap-2 rounded-[22px] p-4"
+        >
+          <p className="text-[15px] font-bold">Where should they send it?</p>
+          <p className="text-xs text-ink-3">Only this shop sees your address.</p>
+          <input aria-label="Full name" placeholder="Full name" value={address.name} onChange={set("name")} className={input} />
+          <input aria-label="Street address" placeholder="Street address" value={address.line1} onChange={set("line1")} className={input} />
+          <input aria-label="Apartment, suite (optional)" placeholder="Apartment, suite (optional)" value={address.line2} onChange={set("line2")} className={input} />
+          <div className="grid grid-cols-2 gap-2">
+            <input aria-label="City" placeholder="City" value={address.city} onChange={set("city")} className={input} />
+            <input aria-label="Region or state" placeholder="Region or state" value={address.region} onChange={set("region")} className={input} />
+            <input aria-label="Postcode" placeholder="Postcode" value={address.postcode} onChange={set("postcode")} className={input} />
+            <input aria-label="Country code" placeholder="Country (e.g. NG)" value={address.country} maxLength={2} onChange={set("country")} className={`${input} uppercase`} />
+          </div>
+          <input aria-label="Note to the shop" placeholder="A note to the shop: your channel, what you'll make (optional)" value={note} onChange={(e) => setNote(e.target.value)} className={input} />
+          {error && (
+            <p role="alert" className="text-xs font-semibold text-like">
+              {error}
+            </p>
+          )}
+          <button type="submit" disabled={busy} className="mt-1 h-11 rounded-full bg-accent text-sm font-bold disabled:opacity-50">
+            Ask for it
+          </button>
+        </form>
+      )}
     </section>
   );
 }

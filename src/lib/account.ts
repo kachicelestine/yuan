@@ -1,9 +1,9 @@
 // Account queries over the fixtures: shipments, rewards, coupons, boards, creator stats and RFQs.
 import { products } from "@/fixtures/products";
 import type { Coupon } from "./types";
-import { boards, businessRfqs, checkinRewards, coupons, demoShipment, rewardStore, sampleOffers } from "@/fixtures/account";
+import { boards, businessRfqs, checkinRewards, coupons, demoShipment, rewardStore } from "@/fixtures/account";
 
-export { boards, businessRfqs, checkinRewards, coupons, demoShipment, rewardStore, sampleOffers };
+export { boards, businessRfqs, checkinRewards, coupons, demoShipment, rewardStore };
 
 export function getBoard(id: string) {
   return boards.find((b) => b.id === id);

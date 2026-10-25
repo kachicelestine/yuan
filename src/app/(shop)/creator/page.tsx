@@ -22,13 +22,15 @@ async function CreatorBody() {
   const account = await currentAccount();
   if (!account) redirect("/signin?next=/creator");
   const app = await services();
-  const [data, available, payouts, popular] = await Promise.all([
+  const [data, available, payouts, popular, sampleOffers, mySamples] = await Promise.all([
     app.affiliates.dashboard(account.id),
     app.escrow.creatorAvailable(account.id),
     app.escrow.creatorPayouts(account.id, 10),
     getProducts({ limit: 24 }),
+    app.samples.offers(12),
+    app.samples.mine(account.id),
   ]);
-  const linked = await app.catalog.getProductsBySlugs(data.links.map((l) => l.slug));
+  const linked = await app.catalog.getProductsBySlugs([...new Set([...data.links.map((l) => l.slug), ...sampleOffers.map((o) => o.slug), ...mySamples.map((r) => r.slug)])]);
   const rates = await app.affiliates.rates([...new Set(popular.map((p) => p.sellerId))]);
   const products = Object.fromEntries([...linked, ...popular].map((p) => [p.slug, { title: p.title, image: p.images[0] }]));
   // Products worth promoting: best sellers whose shops pay creators.
@@ -36,5 +38,6 @@ async function CreatorBody() {
     .filter((p) => (rates.get(p.sellerId) ?? 0) > 0 && p.price !== undefined)
     .slice(0, 8)
     .map((p) => ({ slug: p.slug, title: p.title, image: p.images[0], price: p.price!, rate: rates.get(p.sellerId)! }));
-  return <CreatorHub data={data} available={available / 100} payouts={payouts} products={products} promote={promote} />;
+  const samples = { offers: sampleOffers.flatMap((offer) => (products[offer.slug] ? [{ offer, product: products[offer.slug] }] : [])), mine: mySamples };
+  return <CreatorHub data={data} available={available / 100} payouts={payouts} products={products} promote={promote} samples={samples} />;
 }

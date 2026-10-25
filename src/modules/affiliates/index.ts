@@ -26,4 +26,6 @@ export {
   type Creator,
   type Program,
 } from "./domain/affiliate";
-export type { ClickRepository, CommissionRepository, CreatorRepository, ProgramRepository } from "./domain/repositories";
+export type { ClickRepository, CommissionRepository, CreatorRepository, ProgramRepository, SampleRepository } from "./domain/repositories";
+export { makeSamples, type SampleOfferView, type SampleRequestView, type Samples, type SampleScope, type SamplesDeps } from "./application/samples";
+export { checkAddress, declineSample, LAPSE_LIMIT, markPosted, OPEN_LIMIT, offerSamples, POST_WINDOW_DAYS, requestSample, shipSample, type SampleError, type SampleEvent, type SampleOffer, type SampleRequest, type SampleStatus, type ShippingAddress } from "./domain/sample";

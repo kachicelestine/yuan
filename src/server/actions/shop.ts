@@ -160,6 +160,40 @@ export async function setCreatorRateAction(rate: number): Promise<{ ok: true } |
   return r.ok ? { ok: true } : fail(r.error.code, r.error.message);
 }
 
+/** Offer free samples of a listing to creators. */
+export async function createSampleOfferAction(slug: string, quantity: number): Promise<{ ok: true } | Failure> {
+  const s = await shop();
+  if (!s.allowed) return s.error;
+  const p = z.object({ slug: z.string().regex(/^[a-z0-9-]{1,80}$/), quantity: z.number().int() }).safeParse({ slug, quantity });
+  if (!p.success) return fail("invalid_offer", "Pick a listing and how many.");
+  const r = await s.app.samples.createOffer(s.sellerId, p.data.slug, p.data.quantity);
+  return r.ok ? { ok: true } : fail(r.error.code, r.error.message);
+}
+
+export async function setSampleOfferActiveAction(id: string, active: boolean): Promise<{ ok: true } | Failure> {
+  const s = await shop();
+  if (!s.allowed) return s.error;
+  const o = z.uuid().safeParse(id);
+  if (!o.success) return fail("not_found", "No such offer.");
+  const r = await s.app.samples.setOfferActive(s.sellerId, o.data, active === true);
+  return r.ok ? { ok: true } : fail(r.error.code, r.error.message);
+}
+
+/** The shop sent a creator's sample: carrier and tracking number. */
+export async function shipSampleAction(id: string, carrier: string, tracking: string): Promise<{ ok: true } | Failure> {
+  const s = await shop();
+  if (!s.allowed) return s.error;
+  const r = await s.app.samples.ship(s.sellerId, z.uuid().catch("").parse(id), { carrier: z.string().max(80).catch("").parse(carrier), tracking: z.string().max(80).catch("").parse(tracking) });
+  return r.ok ? { ok: true } : fail(r.error.code, r.error.message);
+}
+
+export async function declineSampleAction(id: string, reason: string): Promise<{ ok: true } | Failure> {
+  const s = await shop();
+  if (!s.allowed) return s.error;
+  const r = await s.app.samples.decline(s.sellerId, z.uuid().catch("").parse(id), z.string().max(600).catch("").parse(reason));
+  return r.ok ? { ok: true } : fail(r.error.code, r.error.message);
+}
+
 export async function answerQuestionAction(questionId: string, answer: string): Promise<{ ok: true } | Failure> {
   const s = await shop();
   if (!s.allowed) return s.error;

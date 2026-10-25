@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, check, date, index, integer, numeric, pgSchema, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, check, date, index, integer, jsonb, numeric, pgSchema, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 export const affiliatesSchema = pgSchema("affiliates");
 
@@ -60,5 +60,50 @@ export const commissions = affiliatesSchema.table(
     index("commissions_creator_idx").on(t.creatorId, t.createdAt),
     index("commissions_seller_idx").on(t.sellerId, t.createdAt),
     check("commissions_amount", sql`${t.amountCents} > 0 and ${t.amountCents} <= ${t.baseCents}`),
+  ],
+);
+
+export const sampleOffers = affiliatesSchema.table(
+  "sample_offers",
+  {
+    id: uuid().primaryKey(),
+    sellerId: text().notNull(),
+    slug: text().notNull(),
+    remaining: integer().notNull(),
+    active: boolean().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (t) => [index("sample_offers_seller_idx").on(t.sellerId, t.createdAt), check("sample_offers_remaining", sql`${t.remaining} >= 0`)],
+);
+
+export const sampleStatus = affiliatesSchema.enum("sample_status", ["requested", "shipped", "declined", "posted", "lapsed"]);
+
+export const sampleRequests = affiliatesSchema.table(
+  "sample_requests",
+  {
+    id: uuid().primaryKey(),
+    offerId: uuid().notNull(),
+    sellerId: text().notNull(),
+    slug: text().notNull(),
+    creatorId: uuid().notNull(),
+    creatorName: text().notNull(),
+    /** Where to send it; shown to the shop only. */
+    address: jsonb().$type<{ name: string; line1: string; line2: string; city: string; region: string; postcode: string; country: string }>().notNull(),
+    note: text().notNull(),
+    status: sampleStatus().notNull(),
+    carrier: text(),
+    tracking: text(),
+    reason: text(),
+    videoId: text(),
+    requestedAt: timestamp({ withTimezone: true }).notNull(),
+    shippedAt: timestamp({ withTimezone: true }),
+    closedAt: timestamp({ withTimezone: true }),
+  },
+  (t) => [
+    // One request per creator per offer.
+    uniqueIndex("sample_requests_once_uq").on(t.offerId, t.creatorId),
+    index("sample_requests_creator_idx").on(t.creatorId, t.requestedAt),
+    index("sample_requests_seller_idx").on(t.sellerId, t.requestedAt),
+    index("sample_requests_shipped_idx").on(t.shippedAt).where(sql`${t.status} = 'shipped'`),
   ],
 );

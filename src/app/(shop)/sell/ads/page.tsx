@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { AdsManager } from "@/components/sell/ads-manager";
 import { ChopOffersManager } from "@/components/sell/chop-offers-manager";
 import { DropsManager, TeamOffersManager } from "@/components/sell/drops-manager";
+import { SamplesManager } from "@/components/sell/samples-manager";
 import { SellFrame, SellSkeleton } from "@/components/sell/sell-frame";
 import { services } from "@/server/container";
 import { currentShop } from "@/server/shop";
@@ -24,13 +25,15 @@ async function Body() {
   const shop = await currentShop();
   if (!shop) redirect("/sell");
   const app = await services();
-  const [campaigns, listings, available, offers, drops, teams] = await Promise.all([
+  const [campaigns, listings, available, offers, drops, teams, sampleOffers, sampleRequests] = await Promise.all([
     app.ads.list(shop.sellerId),
     app.selling.listings(shop.sellerId),
     app.escrow.available(shop.sellerId),
     app.chops.sellerOffers(shop.sellerId),
     app.promos.sellerDrops(shop.sellerId),
     app.promos.sellerTeamOffers(shop.sellerId),
+    app.samples.sellerOffers(shop.sellerId),
+    app.samples.sellerRequests(shop.sellerId),
   ]);
   const live = listings.filter((l) => l.status === "active").map(({ slug, title, images, price }) => ({ slug, title, image: images[0], price: price ?? null }));
   return (
@@ -58,6 +61,12 @@ async function Body() {
           Team buys
         </h2>
         <TeamOffersManager offers={teams} listings={live} owner={shop.role === "owner"} />
+      </section>
+      <section aria-labelledby="samples-h" className="mt-6 flex flex-col gap-2">
+        <h2 id="samples-h" className="px-1 font-display text-xl font-bold">
+          Creator samples
+        </h2>
+        <SamplesManager offers={sampleOffers} requests={sampleRequests} listings={live} owner={shop.role === "owner"} />
       </section>
     </SellFrame>
   );

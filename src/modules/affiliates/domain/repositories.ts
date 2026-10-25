@@ -1,4 +1,5 @@
 import type { Commission, Creator, Program } from "./affiliate";
+import type { SampleOffer, SampleRequest } from "./sample";
 
 export interface CreatorRepository {
   byAccount(accountId: string): Promise<Creator | null>;
@@ -32,4 +33,24 @@ export interface CommissionRepository {
   /** Newest first. */
   forCreator(creatorId: string, limit: number): Promise<Commission[]>;
   forSeller(sellerId: string, limit: number): Promise<Commission[]>;
+}
+
+export interface SampleRepository {
+  offer(id: string): Promise<SampleOffer | null>;
+  /** Offers creators can ask for now, or a shop's own. */
+  offers(filter: { sellerId?: string; available?: boolean; limit: number }): Promise<SampleOffer[]>;
+  /** Inserts an offer, or saves whether it's active (stock moves only through take/give). */
+  saveOffer(offer: SampleOffer): Promise<void>;
+  /** Takes one sample from the offer; false when none are left. */
+  take(offerId: string): Promise<boolean>;
+  give(offerId: string): Promise<void>;
+  request(id: string): Promise<SampleRequest | null>;
+  saveRequest(request: SampleRequest): Promise<void>;
+  /** Newest first. */
+  forCreator(creatorId: string): Promise<SampleRequest[]>;
+  forSeller(sellerId: string, limit: number): Promise<SampleRequest[]>;
+  /** Shipped samples of this product to this creator, still waiting for a video. */
+  shippedFor(creatorId: string, slug: string): Promise<SampleRequest[]>;
+  /** Shipped before `shippedBefore` and still without a video. */
+  overdue(shippedBefore: Date, limit: number): Promise<SampleRequest[]>;
 }

@@ -64,7 +64,8 @@ import { newId, systemClock, type Clock, type ObjectStorage } from "@/shared/ker
 import { CatalogProductDirectory } from "./adapters/content-products";
 import { WalletCoupons } from "./adapters/coupons";
 import { IdentityEmails, MerchantWallets, OrderingPurchases, OrderingReferrals, OrderingTotals } from "./adapters/fulfilment";
-import { makeAffiliates } from "@/modules/affiliates";
+import { makeAffiliates, makeSamples } from "@/modules/affiliates";
+import { DrizzleSampleRepository } from "@/modules/affiliates/infrastructure/drizzle-sample-repository";
 import { makeAds } from "@/modules/ads";
 import { DrizzleAdStatsRepository, DrizzleCampaignRepository } from "@/modules/ads/infrastructure/drizzle-ads-repositories";
 import { CatalogAdProducts, EscrowAdBilling, HmacSigner } from "./adapters/ads";
@@ -390,6 +391,20 @@ export function wire(db: Database, options: WireOptions = {}) {
 
     live,
     affiliates,
+    samples: makeSamples({
+      samples: new DrizzleSampleRepository(db),
+      members: { runsShop: async (accountId: string, sellerId: string) => (await onboarding.members(sellerId)).includes(accountId) },
+      products: {
+        live: async (sellerId: string, slug: string) => {
+          const [p] = await products.findBySlugs([slug]);
+          return !!p && p.sellerId === sellerId && p.status === "active";
+        },
+      },
+      // A request, the sample it takes (or gives back) and its event commit together.
+      uow: unitOfWork(db, (tx) => ({ samples: new DrizzleSampleRepository(tx), events: new OutboxEventLog(tx, () => clock.now()) })),
+      clock,
+      newId: () => newId(),
+    }),
     ads: makeAds({
       campaigns: new DrizzleCampaignRepository(db),
       stats: new DrizzleAdStatsRepository(db),
