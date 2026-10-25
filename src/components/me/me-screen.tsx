@@ -16,7 +16,8 @@ import { brand } from "@/config/brand";
 import { demoShipment } from "@/lib/account";
 import { levelOf } from "@/modules/engagement";
 import { useUnread } from "@/components/shell/unread";
-import { getProduct, products } from "@/lib/catalog";
+import { getProduct } from "@/lib/catalog";
+import { useProducts } from "@/components/product/use-products";
 import { plural } from "@/lib/format";
 import { photo } from "@/lib/images";
 import { useStored } from "@/lib/use-stored";
@@ -43,6 +44,7 @@ export function MeScreen({
   hasShop = false,
   admin = false,
   unread = 0,
+  boards = null,
 }: {
   account?: AccountView | null;
   orders?: OrderView[];
@@ -51,14 +53,16 @@ export function MeScreen({
   admin?: boolean;
   /** Unread notifications. */
   unread?: number;
+  /** How many boards the account has (null when signed out or not loaded yet). */
+  boards?: number | null;
 }) {
   const money = useMoney();
   const router = useRouter();
   const [signingOut, startSignOut] = useTransition();
   const { ready, saved, glass, setGlass, coins, coinsEarned, coupons: wallet, refreshAccount } = useStore();
   const [watches, setWatches] = useStored<Watch[]>("app.watches", []);
-  const [boards] = useStored<unknown[]>("app.boards", []);
-  const savedProducts = products.filter((p) => saved.includes(p.slug));
+  const savedProducts = useProducts(saved).products;
+  const watched = new Map(useProducts(watches.map((w) => w.slug)).products.map((p) => [p.slug, p]));
   const level = glassLevel(glass);
   const tier = levelOf(coinsEarned);
   const { chats } = useUnread();
@@ -69,7 +73,7 @@ export function MeScreen({
     { href: "/inbox", label: "Inbox", icon: "chat", badge: chats || undefined },
     { href: "/rewards", label: "Rewards", icon: "gift", note: `${coins.toLocaleString("en-US")} coins` },
     { href: "/coupons", label: "Coupons", icon: "card", note: `${wallet.length} ready` },
-    { href: "/collections", label: "Collections", icon: "bookmark", note: plural(3 + boards.length, "board") },
+    { href: "/collections", label: "Collections", icon: "bookmark", note: boards === null ? "Saved" : plural(boards, "board") },
     { href: "#watches", label: "Watches", icon: "bell", note: `${watches.length} on` },
     { href: "/creator", label: "Creator", icon: "sparkle", note: "Earn" },
     { href: "/business", label: "Business", icon: "factory", note: "Bulk" },
@@ -177,7 +181,7 @@ export function MeScreen({
         <h2 id="watches-h" className="text-[17px] font-bold">
           Price watches
         </h2>
-        <p className="mb-3 text-[13px] text-ink-2">We tell you, or buy for you, when a price hits your target.</p>
+        <p className="mb-3 text-[13px] text-ink-2">We tell you when a price hits your target, and can put it in your bag.</p>
         {watches.length === 0 ? (
           <p className="text-sm text-ink-2">
             None yet. Set one on any product page, or{" "}
@@ -189,7 +193,7 @@ export function MeScreen({
         ) : (
           <ul className="flex flex-col divide-y divide-line">
             {watches.map((w) => {
-              const p = getProduct(w.slug);
+              const p = watched.get(w.slug);
               if (!p) return null;
               return (
                 <li key={w.slug} className="flex items-center gap-3 py-3">
@@ -200,7 +204,7 @@ export function MeScreen({
                       Now {money(p.price ?? 0)} · target {money(w.target)}
                     </span>
                   </Link>
-                  {w.autoBuy && <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[10.5px] font-bold text-accent-light">Auto-buy</span>}
+                  {w.autoBuy && <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[10.5px] font-bold text-accent-light">To bag</span>}
                   <button type="button" onClick={() => setWatches(watches.filter((x) => x.slug !== w.slug))} aria-label={`Stop watching ${p.title}`} className="grid size-9 place-items-center rounded-full text-ink-3">
                     <Icon name="close" className="size-4" />
                   </button>
@@ -251,7 +255,7 @@ export function MeScreen({
             All boards
           </Link>
         </div>
-        {ready && savedProducts.length === 0 ? (
+        {ready && saved.length === 0 ? (
           <p className="px-1 text-sm text-ink-2">Tap Save in the shop sheet under any video to keep it here.</p>
         ) : (
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">

@@ -18,7 +18,8 @@ import {
   DrizzleVideoRepository,
 } from "@/modules/content/infrastructure/drizzle-content-repositories";
 import { FfmpegEncoder } from "@/modules/content/infrastructure/ffmpeg-encoder";
-import { makeChops, makeEngagement, makePolls, makePromos, makeRewards, pollId } from "@/modules/engagement";
+import { makeBoards, makeChops, makeEngagement, makePolls, makePromos, makeRewards, pollId } from "@/modules/engagement";
+import { DrizzleBoardRepository } from "@/modules/engagement/infrastructure/drizzle-board-repository";
 import { DrizzleDropRepository, DrizzlePromoHoldRepository, DrizzleReminderRepository, DrizzleTeamRepository } from "@/modules/engagement/infrastructure/drizzle-promo-repositories";
 import { DrizzleChopRepository } from "@/modules/engagement/infrastructure/drizzle-chop-repository";
 import { DrizzlePollRepository } from "@/modules/engagement/infrastructure/drizzle-poll-repository";
@@ -340,6 +341,7 @@ export function wire(db: Database, options: WireOptions = {}) {
     engagement,
     chops,
     promos,
+    boards: makeBoards({ boards: new DrizzleBoardRepository(db), clock, newCode: () => pollId(random) }),
     rewards: makeRewards({
       coins: new DrizzleCoinRepository(db),
       activity: new AppActivity({

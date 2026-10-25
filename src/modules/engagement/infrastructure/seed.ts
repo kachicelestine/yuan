@@ -1,5 +1,5 @@
 import { count } from "drizzle-orm";
-import { coupons as couponFixtures, rewardStore } from "@/fixtures/account";
+import { boards as boardFixtures, coupons as couponFixtures, rewardStore } from "@/fixtures/account";
 import { chops as chopFixtures } from "@/fixtures/chops";
 import { flashDeals, teamBuys } from "@/fixtures/deals";
 import { drops as dropFixtures } from "@/fixtures/drops";
@@ -7,7 +7,7 @@ import { products as productFixtures } from "@/fixtures/products";
 import type { Database } from "@/shared/infrastructure/database";
 import { money } from "@/shared/kernel";
 import { newId } from "@/shared/kernel";
-import { chopOffers, coupons, drops, rewards, teamOffers } from "./schema";
+import { boards, chopOffers, coupons, drops, rewards, teamOffers } from "./schema";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -73,6 +73,25 @@ export async function seedPromos(db: Database, now = new Date()) {
   });
   if (offers.length) await db.insert(teamOffers).values(offers);
   return { skipped: false, drops: rows.length, teamOffers: offers.length };
+}
+
+/**
+ * The design-phase creator boards as public boards (with no followers: those come from
+ * people following them). The "You" boards were the demo shopper's and are left out.
+ */
+export async function seedBoards(db: Database, now = new Date()) {
+  const [{ value: have }] = await db.select({ value: count() }).from(boards);
+  if (have > 0) return { skipped: true };
+  const ids: Record<string, string> = { "off-grid": "offgrid2", "fit-check": "fitcheck", "glow-up": "glowup30" };
+  const owners = new Map<string, string>();
+  const rows = boardFixtures.flatMap((b, i) => {
+    if (b.owner === "You" || !ids[b.id]) return [];
+    if (!owners.has(b.owner)) owners.set(b.owner, `00000000-0000-4000-8000-${String(owners.size + 1).padStart(12, "0")}`);
+    const at = new Date(now.getTime() - (i + 1) * 86_400_000);
+    return [{ id: ids[b.id], ownerId: owners.get(b.owner)!, ownerName: b.owner, name: b.name, slugs: b.slugs, public: true, createdAt: at, updatedAt: at }];
+  });
+  if (rows.length) await db.insert(boards).values(rows);
+  return { skipped: false, boards: rows.length };
 }
 
 async function insertCoupons(db: Database) {

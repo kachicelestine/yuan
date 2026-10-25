@@ -3,6 +3,7 @@ import type { Claim, Coupon } from "./coupon";
 import type { Poll, PollVote } from "./poll";
 import type { Chop, ChopCut, ChopOffer, ChopStatus } from "./chop";
 import type { Drop, Team, TeamMember, TeamOffer, TeamStatus } from "./drop";
+import type { Board } from "./board";
 
 export interface CouponRepository {
   list(): Promise<Coupon[]>;
@@ -176,4 +177,19 @@ export interface ReminderRepository {
   /** False when it was already sent. */
   markSent(key: string, accountId: string, at: Date): Promise<boolean>;
   removeKey(key: string): Promise<void>;
+}
+
+export interface BoardRepository {
+  find(id: string): Promise<Board | null>;
+  save(board: Board): Promise<void>;
+  remove(id: string): Promise<void>;
+  /** Newest first. */
+  forOwner(accountId: string): Promise<Board[]>;
+  /** Public boards with three or more items, most followed first. */
+  popular(limit: number): Promise<Board[]>;
+  followedBy(accountId: string): Promise<Board[]>;
+  followers(boardIds: readonly string[]): Promise<Map<string, number>>;
+  following(accountId: string, boardIds: readonly string[]): Promise<Set<string>>;
+  follow(boardId: string, accountId: string, at: Date): Promise<void>;
+  unfollow(boardId: string, accountId: string): Promise<void>;
 }

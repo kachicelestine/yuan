@@ -304,3 +304,29 @@ export const reminders = engagementSchema.table(
   },
   (t) => [primaryKey({ columns: [t.key, t.accountId] }), index("reminders_due_idx").on(t.at).where(sql`${t.sentAt} is null`)],
 );
+
+/** Collections: named, shareable boards of products. */
+export const boards = engagementSchema.table(
+  "boards",
+  {
+    id: text().primaryKey(),
+    ownerId: uuid().notNull(),
+    ownerName: text().notNull(),
+    name: text().notNull(),
+    slugs: text().array().notNull().default(sql`'{}'`),
+    public: boolean().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull(),
+    updatedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (t) => [index("boards_owner_idx").on(t.ownerId, t.createdAt)],
+);
+
+export const boardFollows = engagementSchema.table(
+  "board_follows",
+  {
+    boardId: text().notNull(),
+    accountId: uuid().notNull(),
+    at: timestamp({ withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.boardId, t.accountId] }), index("board_follows_account_idx").on(t.accountId)],
+);

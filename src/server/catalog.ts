@@ -90,3 +90,11 @@ export async function getPriceHistory(slug: string) {
   cacheTag(CATALOG_TAG, productTag(slug));
   return (await catalog()).priceHistory(slug, 90);
 }
+
+/** Listings by slug, in the order asked (missing or hidden ones are left out). */
+export async function getProductsBySlugs(slugs: readonly string[]) {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(CATALOG_TAG, ...slugs.slice(0, 50).map(productTag));
+  return (await catalog()).getProductsBySlugs(slugs);
+}

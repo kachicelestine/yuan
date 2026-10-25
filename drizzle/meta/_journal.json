@@ -176,6 +176,13 @@
       "when": 1792908994381,
       "tag": "0024_price_history",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792909847538,
+      "tag": "0025_boards",
+      "breakpoints": true
     }
   ]
 }
