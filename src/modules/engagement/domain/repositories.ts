@@ -4,6 +4,7 @@ import type { Poll, PollVote } from "./poll";
 import type { Chop, ChopCut, ChopOffer, ChopStatus } from "./chop";
 import type { Drop, Team, TeamMember, TeamOffer, TeamStatus } from "./drop";
 import type { Board } from "./board";
+import type { Box, Case, Series } from "./blindbox";
 
 export interface CouponRepository {
   list(): Promise<Coupon[]>;
@@ -192,4 +193,34 @@ export interface BoardRepository {
   following(accountId: string, boardIds: readonly string[]): Promise<Set<string>>;
   follow(boardId: string, accountId: string, at: Date): Promise<void>;
   unfollow(boardId: string, accountId: string): Promise<void>;
+}
+
+export interface BlindBoxRepository {
+  series(id: string): Promise<Series | null>;
+  /** The active series sold as this listing, if any. */
+  seriesFor(slug: string): Promise<Series | null>;
+  activeSeries(): Promise<Series[]>;
+  saveSeries(series: Series): Promise<void>;
+  /** The newest case of a series, with its boxes' states. */
+  latestCase(seriesId: string): Promise<Case | null>;
+  findCase(id: string): Promise<Case | null>;
+  /** False when another case took that number first. */
+  createCase(c: Case): Promise<boolean>;
+  boxes(caseIds: readonly string[]): Promise<Box[]>;
+  /** Takes a box for this buyer if it's free (or already theirs); false if someone else has it. */
+  hold(box: Box, now: Date): Promise<boolean>;
+  release(caseId: string, index: number, buyerId: string): Promise<void>;
+  /** Live holds of one buyer. */
+  heldBy(buyerId: string, now: Date): Promise<Box[]>;
+  /** Marks one of the buyer's boxes sold to an order; false if it wasn't theirs to sell. */
+  sell(caseId: string, index: number, buyerId: string, orderId: string, now: Date): Promise<boolean>;
+  /** Boxes already sold to an order (to make payment handling idempotent). */
+  soldTo(orderId: string): Promise<Box[]>;
+  forOrders(orderIds: readonly string[]): Promise<Box[]>;
+  owned(buyerId: string, seriesId: string): Promise<Box[]>;
+  markOpened(caseId: string, index: number, buyerId: string, at: Date): Promise<boolean>;
+  hints(caseId: string, buyerId: string): Promise<{ index: number; figureId: string }[]>;
+  addHint(caseId: string, index: number, buyerId: string, figureId: string, at: Date): Promise<void>;
+  /** Drops holds that ran out. */
+  sweep(now: Date): Promise<number>;
 }

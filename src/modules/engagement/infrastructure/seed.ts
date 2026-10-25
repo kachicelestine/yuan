@@ -1,5 +1,6 @@
 import { count } from "drizzle-orm";
 import { boards as boardFixtures, coupons as couponFixtures, rewardStore } from "@/fixtures/account";
+import { nightMarket } from "@/fixtures/blindbox";
 import { chops as chopFixtures } from "@/fixtures/chops";
 import { flashDeals, teamBuys } from "@/fixtures/deals";
 import { drops as dropFixtures } from "@/fixtures/drops";
@@ -7,7 +8,7 @@ import { products as productFixtures } from "@/fixtures/products";
 import type { Database } from "@/shared/infrastructure/database";
 import { money } from "@/shared/kernel";
 import { newId } from "@/shared/kernel";
-import { boards, chopOffers, coupons, drops, rewards, teamOffers } from "./schema";
+import { blindSeries, boards, chopOffers, coupons, drops, rewards, teamOffers } from "./schema";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -92,6 +93,27 @@ export async function seedBoards(db: Database, now = new Date()) {
   });
   if (rows.length) await db.insert(boards).values(rows);
   return { skipped: false, boards: rows.length };
+}
+
+/** The design-phase blind-box series, sold by the shop that lists its box. */
+export async function seedBlindBoxes(db: Database, now = new Date()) {
+  const [{ value: have }] = await db.select({ value: count() }).from(blindSeries);
+  if (have > 0) return { skipped: true };
+  const product = productFixtures.find((p) => p.slug === nightMarket.slug);
+  if (!product) return { skipped: true };
+  await db.insert(blindSeries).values({
+    id: nightMarket.id,
+    sellerId: product.sellerId,
+    slug: nightMarket.slug,
+    title: nightMarket.title,
+    poster: nightMarket.poster,
+    figures: nightMarket.figures.map((f) => ({ id: f.id, name: f.name, image: f.image, secret: !!f.secret })),
+    secretOdds: nightMarket.secretOdds,
+    shakesPerCase: 3,
+    active: true,
+    createdAt: now,
+  });
+  return { skipped: false, series: 1 };
 }
 
 async function insertCoupons(db: Database) {

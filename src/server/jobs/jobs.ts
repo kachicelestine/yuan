@@ -53,6 +53,8 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
       await app.chops.use(order.buyerId, [...new Set(order.lines.map((l) => l.slug))]);
       await app.promos.use(order.buyerId, [...new Set(order.lines.map((l) => l.slug))]);
       await app.sourcing.use(order.buyerId, [...new Set(order.lines.map((l) => l.slug))]);
+      // Blind boxes paid for become the buyer's (held ones first, the rest from the case).
+      await app.blindBoxes.paid(order.buyerId, orderId, order.lines.map((l) => ({ slug: l.slug, qty: l.qty })));
       // Real sales count into "sold" on the listing and into the rankings.
       if (await app.ratings.sales(orderId, order.lines.map((l) => ({ slug: l.slug, qty: l.qty })))) {
         await revalidateTags([...new Set(order.lines.map((l) => productTag(l.slug)))]);
@@ -264,6 +266,12 @@ function recurringJobs(app: Services, dispatcher: OutboxDispatcher): ScheduledJo
           await app.notifications.notify([r.accountId], { kind: "reminder", title: r.title, body: "Starting soon. Tap to get there first.", link: r.link, email: false }, `reminder:${r.key}:${r.accountId}`);
         }
       },
+    },
+    {
+      // Blind boxes held but not bought go back in the case.
+      name: "blindboxes.sweep",
+      everyMs: 5 * 60_000,
+      run: async () => void (await app.blindBoxes.sweep()),
     },
     {
       // Quote requests close after their two weeks.

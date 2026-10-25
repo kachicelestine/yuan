@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, integer, numeric, pgSchema, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, jsonb, numeric, pgSchema, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import type { Figure } from "../domain/blindbox";
 
 export const engagementSchema = pgSchema("engagement");
 
@@ -329,4 +330,62 @@ export const boardFollows = engagementSchema.table(
     at: timestamp({ withTimezone: true }).notNull(),
   },
   (t) => [primaryKey({ columns: [t.boardId, t.accountId] }), index("board_follows_account_idx").on(t.accountId)],
+);
+
+/** Blind-box series: the figures, their odds and the listing a box sells as. */
+export const blindSeries = engagementSchema.table("blind_series", {
+  id: text().primaryKey(),
+  sellerId: text().notNull(),
+  slug: text().notNull(),
+  title: text().notNull(),
+  poster: text().notNull(),
+  figures: jsonb().$type<Figure[]>().notNull(),
+  secretOdds: integer().notNull(),
+  shakesPerCase: integer().notNull(),
+  active: boolean().notNull(),
+  createdAt: timestamp({ withTimezone: true }).notNull(),
+});
+
+/** A sealed case: which figure is in each box. Never sent to browsers. */
+export const blindCases = engagementSchema.table(
+  "blind_cases",
+  {
+    id: uuid().primaryKey(),
+    seriesId: text().notNull(),
+    number: integer().notNull(),
+    boxes: text().array().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (t) => [uniqueIndex("blind_cases_number_uq").on(t.seriesId, t.number)],
+);
+
+export const blindBoxState = engagementSchema.enum("blind_box_state", ["held", "sold"]);
+
+/** Boxes someone holds or bought; a box with no row is still in the case. */
+export const blindBoxes = engagementSchema.table(
+  "blind_boxes",
+  {
+    caseId: uuid().notNull(),
+    index: integer().notNull(),
+    buyerId: uuid().notNull(),
+    state: blindBoxState().notNull(),
+    heldUntil: timestamp({ withTimezone: true }),
+    orderId: uuid(),
+    openedAt: timestamp({ withTimezone: true }),
+    at: timestamp({ withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.caseId, t.index] }), index("blind_boxes_buyer_idx").on(t.buyerId), index("blind_boxes_order_idx").on(t.orderId)],
+);
+
+/** Figures a shake ruled out, per buyer. */
+export const blindHints = engagementSchema.table(
+  "blind_hints",
+  {
+    caseId: uuid().notNull(),
+    index: integer().notNull(),
+    buyerId: uuid().notNull(),
+    figureId: text().notNull(),
+    at: timestamp({ withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.caseId, t.index, t.buyerId, t.figureId] })],
 );

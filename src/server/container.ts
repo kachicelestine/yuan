@@ -18,8 +18,9 @@ import {
   DrizzleVideoRepository,
 } from "@/modules/content/infrastructure/drizzle-content-repositories";
 import { FfmpegEncoder } from "@/modules/content/infrastructure/ffmpeg-encoder";
-import { makeBoards, makeChops, makeEngagement, makePolls, makePromos, makeRewards, pollId } from "@/modules/engagement";
+import { makeBlindBoxes, makeBoards, makeChops, makeEngagement, makePolls, makePromos, makeRewards, pollId } from "@/modules/engagement";
 import { DrizzleBoardRepository } from "@/modules/engagement/infrastructure/drizzle-board-repository";
+import { DrizzleBlindBoxRepository } from "@/modules/engagement/infrastructure/drizzle-blindbox-repository";
 import { DrizzleDropRepository, DrizzlePromoHoldRepository, DrizzleReminderRepository, DrizzleTeamRepository } from "@/modules/engagement/infrastructure/drizzle-promo-repositories";
 import { DrizzleChopRepository } from "@/modules/engagement/infrastructure/drizzle-chop-repository";
 import { DrizzlePollRepository } from "@/modules/engagement/infrastructure/drizzle-poll-repository";
@@ -376,6 +377,7 @@ export function wire(db: Database, options: WireOptions = {}) {
     chops,
     promos,
     boards: makeBoards({ boards: new DrizzleBoardRepository(db), clock, newCode: () => pollId(random) }),
+    blindBoxes: makeBlindBoxes({ boxes: new DrizzleBlindBoxRepository(db), clock, newId: () => newId(), random }),
     rewards: makeRewards({
       coins: new DrizzleCoinRepository(db),
       activity: new AppActivity({

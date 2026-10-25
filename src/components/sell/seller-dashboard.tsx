@@ -26,6 +26,8 @@ type Props = {
   money: ShopMoney;
   /** Open quote requests this shop hasn't answered. */
   newRequests?: number;
+  /** Blind boxes in each order: which figure to send. */
+  boxes?: Record<string, { seriesTitle: string; caseNumber: number; index: number; figure: { name: string; secret: boolean } }[]>;
 };
 
 const STATUS: Record<ListingView["status"], string> = { active: "Live", draft: "Draft", archived: "Archived" };
@@ -40,7 +42,7 @@ const PARCEL: Record<string, { label: string; tone: string }> = {
 };
 
 /** Everything a shop runs on: listings, orders, buyers' questions and the storefront. */
-export function SellerDashboard({ seller, storefront, listings, orders, questions, money: funds, newRequests = 0 }: Props) {
+export function SellerDashboard({ seller, storefront, listings, orders, questions, money: funds, newRequests = 0, boxes = {} }: Props) {
   const params = useSearchParams();
   const [tab, setTab] = useState<Tab>((params.get("tab") as Tab) || "listings");
   const money = useMoney();
@@ -159,6 +161,12 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
                     </li>
                   ))}
                 </ul>
+                {boxes[o.id]?.length ? (
+                  <p className="mt-2.5 rounded-2xl bg-white/[0.05] p-3 text-[13px] leading-snug">
+                    <span className="mb-0.5 block text-[11px] font-semibold text-ink-3">Blind boxes: send these figures, sealed</span>
+                    {boxes[o.id].map((b) => `${b.figure.name}${b.figure.secret ? " (secret)" : ""}, box ${b.index + 1} of case #${b.caseNumber}`).join(" · ")}
+                  </p>
+                ) : null}
                 {o.gift && (
                   <div className="mt-2.5 rounded-2xl bg-like/10 p-3 text-[13px] leading-snug">
                     <span className="mb-0.5 flex items-center gap-1.5 text-[11px] font-semibold text-like">

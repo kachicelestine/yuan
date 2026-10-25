@@ -59,9 +59,10 @@ async function SellBody() {
     explorer: serverEnv.PAYMENTS_BASE_CHAIN === "base" ? "https://basescan.org" : "https://sepolia.basescan.org",
   };
   if (!page) redirect("/me");
+  const boxes = Object.groupBy(await app.blindBoxes.forOrders(orders.filter((o) => o.status !== "awaiting_payment").map((o) => o.id)), (b) => b.orderId);
   return (
     <SellFrame title="Your shop">
-      <SellerDashboard seller={page.seller} storefront={page.storefront} listings={listings} orders={orders} questions={questions} money={money} newRequests={requests.filter((r) => r.status === "open" && !r.mine).length} />
+      <SellerDashboard seller={page.seller} storefront={page.storefront} listings={listings} orders={orders} questions={questions} money={money} newRequests={requests.filter((r) => r.status === "open" && !r.mine).length} boxes={boxes as Record<string, NonNullable<(typeof boxes)[string]>>} />
     </SellFrame>
   );
 }

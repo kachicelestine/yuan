@@ -18,6 +18,7 @@ import { GiftButton } from "@/components/gift/gift-sheet";
 import { reviewSummary } from "@/lib/catalog";
 import { getCategory, getPriceHistory, getProduct, getProductSlugs, getProducts, getSellerPage, getSimilarProducts } from "@/server/catalog";
 import { getProductQuestions, getProductReviews } from "@/server/content";
+import { getBoxSeriesFor } from "@/server/blindboxes";
 
 export async function generateStaticParams() {
   return (await getProductSlugs()).map((slug) => ({ slug }));
@@ -43,7 +44,7 @@ async function ProductBody({ params }: { params: PageProps<"/p/[slug]">["params"
   const { slug } = await params;
   const product = await getProduct(slug);
   if (!product) notFound();
-  const [page, category, sellerProducts, similar, reviews, questions, history] = await Promise.all([
+  const [page, category, sellerProducts, similar, reviews, questions, history, boxes] = await Promise.all([
     getSellerPage(product.sellerId),
     getCategory(product.category),
     getProducts({ seller: product.sellerId }),
@@ -51,6 +52,7 @@ async function ProductBody({ params }: { params: PageProps<"/p/[slug]">["params"
     getProductReviews(product.slug),
     getProductQuestions(product.slug),
     getPriceHistory(product.slug),
+    getBoxSeriesFor(product.slug),
   ]);
   const seller = page?.seller;
   const profile = page?.storefront;
@@ -129,8 +131,8 @@ async function ProductBody({ params }: { params: PageProps<"/p/[slug]">["params"
                 {product.buyersSay}
               </p>
             )}
-            {product.category === "toys" && (
-              <Link href="/unbox" className="glass-inset flex items-center gap-3 rounded-[20px] p-3.5">
+            {boxes && (
+              <Link href={`/unbox/${boxes.id}`} className="glass-inset flex items-center gap-3 rounded-[20px] p-3.5">
                 <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent-light/15 text-accent-light">
                   <Icon name="cube" className="size-5" />
                 </span>

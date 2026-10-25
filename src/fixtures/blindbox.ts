@@ -26,15 +26,3 @@ export const nightMarket: BlindBoxSeries = {
     { id: "neon-pixel", name: "Neon Pixel", image: square("1781196208914-24e9fc9276aa", 0.5, 0.35), secret: true },
   ],
 };
-
-/**
- * The demo case: which figure sits in each of the 12 boxes. A full case never repeats a
- * figure; here the secret has replaced Bow Bow, as it does in 1 case in 12.
- */
-export const demoCase = {
-  number: "0412",
-  boxes: ["chess-club", "gym-bun", "lucky-red", "rail-rabbit", "neon-pixel", "jade-trio", "sleepy-mochi", "little-rider", "grumpy-gift", "lounge-lulu", "big-eyes-bao", "night-twins"],
-  /** Boxes other collectors already bought from this case. */
-  taken: [2, 10],
-  shakes: 3,
-};
