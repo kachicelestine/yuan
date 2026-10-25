@@ -1,5 +1,5 @@
 import { sql, type SQL } from "drizzle-orm";
-import { boolean, check, customType, index, integer, jsonb, numeric, pgSchema, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, customType, date, index, integer, jsonb, numeric, pgSchema, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { SELLER_KINDS, type Storefront } from "../domain/seller";
 import type { ProductOption } from "../domain/product";
 
@@ -86,6 +86,17 @@ export const products = catalogSchema.table(
 );
 
 /** Reviews already counted in a product's rating, so a redelivered event counts once. */
+/** Each listing's price, once a day (the last one seen that day), for price history. */
+export const pricePoints = catalogSchema.table(
+  "price_points",
+  {
+    slug: text().notNull(),
+    day: date({ mode: "string" }).notNull(),
+    priceCents: integer().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.slug, t.day] })],
+);
+
 /** Orders already counted into products' sold counts (OrderPaid is delivered at least once). */
 export const appliedSales = catalogSchema.table("applied_sales", {
   orderId: uuid().primaryKey(),

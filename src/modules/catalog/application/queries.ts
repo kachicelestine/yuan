@@ -72,6 +72,22 @@ export function makeCatalogQueries({ categories, sellers, products, clock }: Cat
       });
     },
 
+    /** Records today's price of every live listing (hourly job; the day's last run wins). */
+    recordPrices() {
+      return products.recordPrices(clock.now().toISOString().slice(0, 10));
+    },
+
+    /** Current prices in cents, for price alerts. */
+    currentPrices(slugs: readonly string[]) {
+      return products.prices(slugs);
+    },
+
+    /** Recorded daily prices over the last `days`, in dollars, oldest first. */
+    async priceHistory(slug: string, days = 90): Promise<{ date: string; price: number }[]> {
+      const since = new Date(clock.now().getTime() - days * 86_400_000).toISOString().slice(0, 10);
+      return (await products.priceHistory(slug, since)).map((p) => ({ date: p.day, price: p.price / 100 }));
+    },
+
     async listSellers(): Promise<SellerView[]> {
       return (await sellers.list()).map(toSellerView);
     },

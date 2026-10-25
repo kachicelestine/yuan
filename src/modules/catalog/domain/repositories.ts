@@ -28,6 +28,12 @@ export interface ProductRepository {
   slugExists(slug: string): Promise<boolean>;
   /** Folds one review's stars into the product's average, once per review id. */
   applyRating(reviewId: string, slug: string, rating: number): Promise<boolean>;
+  /** Records today's price of every live, priced listing (re-running the same day updates it). */
+  recordPrices(day: string): Promise<number>;
+  /** Recorded prices since `sinceDay`, oldest first. */
+  priceHistory(slug: string, sinceDay: string): Promise<{ day: string; price: number }[]>;
+  /** Current prices of these listings (live ones with a price). */
+  prices(slugs: readonly string[]): Promise<Map<string, number>>;
   /** Adds a paid order's quantities to its products' sold counts; a second delivery changes nothing. */
   applySales(orderId: string, lines: readonly { slug: string; qty: number }[]): Promise<boolean>;
   save(product: Product): Promise<void>;

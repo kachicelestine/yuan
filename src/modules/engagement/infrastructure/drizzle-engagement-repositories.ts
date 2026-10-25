@@ -117,9 +117,30 @@ export class DrizzleWatchRepository implements WatchRepository {
 
   async replace(accountId: string, list: readonly Watch[]) {
     await this.db.transaction(async (tx) => {
+      // A watch kept at the same target remembers what it last alerted about.
+      const before = new Map((await tx.select().from(watches).where(eq(watches.accountId, accountId))).map((r) => [r.slug, r]));
       await tx.delete(watches).where(eq(watches.accountId, accountId));
-      if (list.length) await tx.insert(watches).values(list.map((w) => ({ accountId, slug: w.slug, targetCents: w.target, autoBuy: w.autoBuy })));
+      if (list.length) {
+        await tx.insert(watches).values(
+          list.map((w) => {
+            const old = before.get(w.slug);
+            return { accountId, slug: w.slug, targetCents: w.target, autoBuy: w.autoBuy, notifiedCents: old && old.targetCents === w.target ? old.notifiedCents : null };
+          }),
+        );
+      }
     });
+  }
+
+  async all(limit: number, offset: number) {
+    const rows = await this.db.select().from(watches).orderBy(asc(watches.accountId), asc(watches.slug)).limit(limit).offset(offset);
+    return rows.map((r) => ({ accountId: r.accountId, slug: r.slug, target: cents(r.targetCents), autoBuy: r.autoBuy, notified: r.notifiedCents }));
+  }
+
+  async markNotified(accountId: string, slug: string, price: number) {
+    await this.db
+      .update(watches)
+      .set({ notifiedCents: price })
+      .where(and(eq(watches.accountId, accountId), eq(watches.slug, slug)));
   }
 }
 

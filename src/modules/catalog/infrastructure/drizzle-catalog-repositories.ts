@@ -5,7 +5,7 @@ import type { Category, CategoryId } from "../domain/category";
 import type { Product } from "../domain/product";
 import type { CategoryRepository, ProductRepository, SellerRepository } from "../domain/repositories";
 import type { Seller, SellerId } from "../domain/seller";
-import { appliedRatings, appliedSales, categories, products, sellers, type StoredOption } from "./schema";
+import { appliedRatings, appliedSales, categories, pricePoints, products, sellers, type StoredOption } from "./schema";
 
 const toCategory = (r: typeof categories.$inferSelect): Category => ({ ...r, id: r.id as CategoryId });
 
@@ -163,6 +163,34 @@ export class DrizzleProductRepository implements ProductRepository {
         .where(eq(products.slug, slug));
       return true;
     });
+  }
+
+  async recordPrices(day: string) {
+    const rows = await this.db.execute(sql`
+      insert into ${pricePoints} (slug, day, price_cents)
+      select ${products.slug}, ${day}::date, ${products.priceCents} from ${products}
+      where ${products.status} = 'active' and ${products.priceCents} is not null
+      on conflict (slug, day) do update set price_cents = excluded.price_cents
+      returning slug`);
+    return (rows as unknown as { rows?: unknown[] }).rows?.length ?? (rows as unknown as unknown[]).length ?? 0;
+  }
+
+  async priceHistory(slug: string, sinceDay: string) {
+    const rows = await this.db
+      .select({ day: pricePoints.day, price: pricePoints.priceCents })
+      .from(pricePoints)
+      .where(and(eq(pricePoints.slug, slug), sql`${pricePoints.day} >= ${sinceDay}::date`))
+      .orderBy(asc(pricePoints.day));
+    return rows;
+  }
+
+  async prices(slugs: readonly string[]) {
+    if (!slugs.length) return new Map<string, number>();
+    const rows = await this.db
+      .select({ slug: products.slug, price: products.priceCents })
+      .from(products)
+      .where(and(inArray(products.slug, [...slugs]), eq(products.status, "active")));
+    return new Map(rows.flatMap((r) => (r.price === null ? [] : [[r.slug, r.price] as [string, number]])));
   }
 
   async applySales(orderId: string, lines: readonly { slug: string; qty: number }[]) {

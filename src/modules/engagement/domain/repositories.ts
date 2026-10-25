@@ -38,7 +38,11 @@ export interface ListRepository {
 
 export interface WatchRepository {
   list(accountId: string): Promise<Watch[]>;
+  /** Rewrites someone's watches; one kept at the same target keeps its last alert. */
   replace(accountId: string, watches: readonly Watch[]): Promise<void>;
+  /** Every watch with the price last alerted, a page at a time. */
+  all(limit: number, offset: number): Promise<(Watch & { accountId: string; notified: number | null })[]>;
+  markNotified(accountId: string, slug: string, price: number): Promise<void>;
 }
 
 export interface RewardRepository {

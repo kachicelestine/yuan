@@ -197,6 +197,22 @@ function recurringJobs(app: Services, dispatcher: OutboxDispatcher): ScheduledJo
       run: async () => void (await app.live.closeDueLots()),
     },
     {
+      // Today's price of every listing (for price history), then the watches it triggers.
+      name: "prices.record",
+      everyMs: DAY / 24,
+      run: async () => {
+        await app.catalog.recordPrices();
+        for (const w of await app.engagement.dueWatches((slugs) => app.catalog.currentPrices(slugs))) {
+          if (w.addToBag) await app.cart.merge(w.accountId, [{ slug: w.slug, option: null, qty: 1, note: "Price alert" }]);
+          await app.notifications.notify(
+            [w.accountId],
+            { kind: "price_drop", title: `Down to $${w.price.toFixed(2)}`, body: w.addToBag ? "It reached your target, so it's in your bag." : "It reached the price you were waiting for.", link: `/p/${w.slug}`, email: true },
+            `price:${w.accountId}:${w.slug}:${Math.round(w.price * 100)}`,
+          );
+        }
+      },
+    },
+    {
       // Samples shipped without a video after the window lapse.
       name: "samples.lapse",
       everyMs: DAY / 4,

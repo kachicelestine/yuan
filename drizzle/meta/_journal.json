@@ -169,6 +169,13 @@
       "when": 1792908070617,
       "tag": "0023_messaging",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792908994381,
+      "tag": "0024_price_history",
+      "breakpoints": true
     }
   ]
 }

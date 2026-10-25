@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Icon } from "@/components/icon";
 import { useMoney } from "@/components/price";
-import { priceHistory, type Product } from "@/lib/catalog";
+import type { Product } from "@/lib/catalog";
 import { useStored } from "@/lib/use-stored";
 
 export type Watch = { slug: string; target: number; autoBuy: boolean };
@@ -12,13 +12,21 @@ const W = 320;
 const H = 112;
 const drops = [0.05, 0.1, 0.15, 0.2];
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const label = (day: string) => `${MONTHS[Number(day.slice(5, 7)) - 1]} ${Number(day.slice(8, 10))}`;
+
 /**
- * 90 days of price, and a watch: get told (or buy automatically) when it drops to your
- * target. Auto-buy always leaves a 24-hour window to cancel.
+ * The price as we've recorded it each day (up to 90 days), and a watch: get told when it
+ * drops to your target, and optionally have it put in your bag.
  */
-export function PriceHistory({ product }: { product: Product }) {
+export function PriceHistory({ product, history }: { product: Product; history: { date: string; price: number }[] }) {
   const money = useMoney();
-  const points = useMemo(() => priceHistory(product), [product]);
+  const points = useMemo(() => {
+    const list = history.map((h) => ({ date: label(h.date), price: h.price }));
+    // Today's price, if the day's record hasn't been taken yet.
+    if (product.price !== undefined && (!list.length || list.at(-1)!.price !== product.price)) list.push({ date: "Today", price: product.price });
+    return list.length === 1 ? [list[0], list[0]] : list;
+  }, [history, product.price]);
   const [hover, setHover] = useState<number | null>(null);
   const [watches, setWatches] = useStored<Watch[]>("app.watches", []);
   const watch = watches.find((w) => w.slug === product.slug);
@@ -36,7 +44,9 @@ export function PriceHistory({ product }: { product: Product }) {
   const pct = (i: number) => `${(i / (points.length - 1)) * 100}%`;
   const top = (v: number) => `${(y(v) / H) * 100}%`;
   const shown = hover ?? points.length - 1;
-  const isLowest = now <= min + 0.01;
+  // Only claim "lowest" with enough history to mean something.
+  const isLowest = history.length >= 14 && now <= min + 0.01;
+  const span = history.length;
 
   function save(next: Watch | null) {
     setWatches([...watches.filter((w) => w.slug !== product.slug), ...(next ? [next] : [])]);
@@ -47,24 +57,32 @@ export function PriceHistory({ product }: { product: Product }) {
       <header className="flex items-start gap-3">
         <div className="flex-1">
           <h3 id={`ph-${product.slug}`} className="text-[15px] font-bold">
-            Price, last 90 days
+            {span >= 90 ? "Price, last 90 days" : "Price history"}
           </h3>
           <p className="text-xs text-ink-2">
-            Low {money(min)} · High {money(max)}
+            {span >= 2 ? (
+              <>
+                Low {money(min)} · High {money(max)} · tracked since {points[0].date}
+              </>
+            ) : (
+              <>We started tracking this price today. The chart fills in day by day.</>
+            )}
           </p>
         </div>
         {isLowest && (
           <span className="flex items-center gap-1 rounded-full bg-positive/15 px-2.5 py-1 text-[11px] font-bold text-positive">
             <Icon name="check" className="size-3.5" />
-            Lowest in 90 days
+            Lowest since {points[0].date}
           </span>
         )}
       </header>
 
+      {span >= 2 && (
+        <>
       <div
         role="img"
         tabIndex={0}
-        aria-label={`Price over 90 days, from ${money(points[0].price)} on ${points[0].date} to ${money(now)} today. Lowest ${money(min)} on ${points[low].date}. Use the arrow keys to read each day.`}
+        aria-label={`Price since ${points[0].date}, from ${money(points[0].price)} to ${money(now)} today. Lowest ${money(min)} on ${points[low].date}. Use the arrow keys to read each day.`}
         onPointerMove={(e) => {
           const box = e.currentTarget.getBoundingClientRect();
           setHover(Math.max(0, Math.min(points.length - 1, Math.round(((e.clientX - box.left) / box.width) * (points.length - 1)))));
@@ -103,7 +121,7 @@ export function PriceHistory({ product }: { product: Product }) {
         <span
           aria-hidden="true"
           className="glass absolute -top-2 flex flex-col rounded-xl px-2.5 py-1.5 text-right whitespace-nowrap"
-          style={{ left: pct(shown), transform: `translate(${shown > points.length * 0.7 ? "-105%" : "8%"}, 0)` }}
+          style={{ left: pct(shown), transform: `translate(${shown >= (points.length - 1) * 0.6 ? "-105%" : "8%"}, 0)` }}
         >
           <b className="font-display text-sm font-bold">{money(points[shown].price)}</b>
           <span className="text-[10.5px] text-ink-2">{hover === null ? "Today" : points[shown].date}</span>
@@ -111,7 +129,7 @@ export function PriceHistory({ product }: { product: Product }) {
       </div>
       <div aria-hidden="true" className="mt-1.5 flex justify-between text-[10.5px] text-ink-3">
         <span>{points[0].date}</span>
-        <span>{points[44].date}</span>
+        {points.length > 2 && <span>{points[Math.floor(points.length / 2)].date}</span>}
         <span>Today</span>
       </div>
       <table className="sr-only">
@@ -127,6 +145,8 @@ export function PriceHistory({ product }: { product: Product }) {
             ))}
         </tbody>
       </table>
+        </>
+      )}
 
       {product.price !== undefined && (
         <div className="mt-4 border-t border-line pt-4">
@@ -157,9 +177,9 @@ export function PriceHistory({ product }: { product: Product }) {
                 <span className="absolute top-1 left-1 size-5 rounded-full bg-white shadow transition-transform duration-500 ease-spring peer-checked:translate-x-5" />
               </span>
               <span className="text-[13px] text-ink-2">
-                <b className="font-semibold text-ink">Buy it automatically at {money(watch.target)}</b>
+                <b className="font-semibold text-ink">Put it in my bag at {money(watch.target)}</b>
                 <br />
-                {watch.autoBuy ? "On. We'll place the order with your saved payment, and you get 24 hours to cancel." : "Off. We'll notify you instead."}
+                {watch.autoBuy ? "On. When it gets there, it goes in your bag and we tell you." : "Off. We'll just tell you."}
               </span>
             </label>
           )}

@@ -82,3 +82,11 @@ export async function searchCatalog(criteria: SearchCriteria) {
   cacheTag(CATALOG_TAG);
   return (await services()).searchProducts(criteria);
 }
+
+/** Recorded daily prices for the last 90 days; a new day's price appears within the hour. */
+export async function getPriceHistory(slug: string) {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(CATALOG_TAG, productTag(slug));
+  return (await catalog()).priceHistory(slug, 90);
+}

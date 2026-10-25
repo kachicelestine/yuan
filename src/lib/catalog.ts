@@ -12,8 +12,6 @@ import { videos } from "@/fixtures/videos";
 import type { CategoryId, Product } from "./types";
 
 export type * from "./types";
-export { priceHistory } from "./prices";
-export type { PricePoint } from "./prices";
 export { questionsFor, reviewSummary, reviewsFor, reviewsForSeller } from "./reviews";
 export type { ReviewSummary } from "./reviews";
 export { categories, sellers, products, videos, notes, trendingSearches, snapSamples, snapFallback, towns };

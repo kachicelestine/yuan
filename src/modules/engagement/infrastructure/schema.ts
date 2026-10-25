@@ -58,6 +58,8 @@ export const watches = engagementSchema.table(
     slug: text().notNull(),
     targetCents: integer().notNull(),
     autoBuy: boolean().notNull().default(false),
+    /** The price we last told them about, so a price that stays low alerts once. */
+    notifiedCents: integer(),
   },
   (t) => [primaryKey({ columns: [t.accountId, t.slug] }), check("watches_target", sql`${t.targetCents} > 0`)],
 );

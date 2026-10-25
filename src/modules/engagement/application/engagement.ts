@@ -107,6 +107,28 @@ export function makeEngagement(d: EngagementDeps) {
       return held && coupon && isUsable(held, coupon, d.clock.now()) ? coupon : null;
     },
 
+    /**
+     * Watches whose price has reached the target and that haven't been told about this
+     * price (or lower) yet. Each is marked, so a price that stays low alerts once; a
+     * further drop alerts again.
+     */
+    async dueWatches(prices: (slugs: readonly string[]) => Promise<Map<string, number>>): Promise<{ accountId: string; slug: string; price: number; target: number; addToBag: boolean }[]> {
+      const due: { accountId: string; slug: string; price: number; target: number; addToBag: boolean }[] = [];
+      for (let offset = 0; ; offset += 500) {
+        const page = await d.watches.all(500, offset);
+        if (!page.length) break;
+        const now = await prices([...new Set(page.map((w) => w.slug))]);
+        for (const w of page) {
+          const price = now.get(w.slug);
+          if (price === undefined || price > w.target || (w.notified !== null && price >= w.notified)) continue;
+          await d.watches.markNotified(w.accountId, w.slug, price);
+          due.push({ accountId: w.accountId, slug: w.slug, price: price / 100, target: w.target / 100, addToBag: w.autoBuy });
+        }
+        if (page.length < 500) break;
+      }
+      return due;
+    },
+
     /** How many people saved each product in a window (for rankings). */
     savesBetween(from: Date, to: Date) {
       return d.lists.addedBetween("saved", from, to);

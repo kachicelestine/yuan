@@ -16,7 +16,7 @@ import { ShareButton } from "@/components/share/share-sheet";
 import { CompareButton } from "@/components/compare/compare";
 import { GiftButton } from "@/components/gift/gift-sheet";
 import { reviewSummary } from "@/lib/catalog";
-import { getCategory, getProduct, getProductSlugs, getProducts, getSellerPage, getSimilarProducts } from "@/server/catalog";
+import { getCategory, getPriceHistory, getProduct, getProductSlugs, getProducts, getSellerPage, getSimilarProducts } from "@/server/catalog";
 import { getProductQuestions, getProductReviews } from "@/server/content";
 
 export async function generateStaticParams() {
@@ -43,13 +43,14 @@ async function ProductBody({ params }: { params: PageProps<"/p/[slug]">["params"
   const { slug } = await params;
   const product = await getProduct(slug);
   if (!product) notFound();
-  const [page, category, sellerProducts, similar, reviews, questions] = await Promise.all([
+  const [page, category, sellerProducts, similar, reviews, questions, history] = await Promise.all([
     getSellerPage(product.sellerId),
     getCategory(product.category),
     getProducts({ seller: product.sellerId }),
     getSimilarProducts(product.slug, 8),
     getProductReviews(product.slug),
     getProductQuestions(product.slug),
+    getPriceHistory(product.slug),
   ]);
   const seller = page?.seller;
   const profile = page?.storefront;
@@ -160,7 +161,7 @@ async function ProductBody({ params }: { params: PageProps<"/p/[slug]">["params"
                 ))}
               </dl>
             </section>
-            {product.price !== undefined && <PriceHistory product={product} />}
+            {product.price !== undefined && <PriceHistory product={product} history={history} />}
             {seller && <Questions productSlug={product.slug} questions={questions} sellerName={seller.name} replyHours={profile?.responseHours ?? 4} />}
           </div>
 
