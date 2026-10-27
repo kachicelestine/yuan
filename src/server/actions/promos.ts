@@ -58,7 +58,7 @@ export async function startTeamAction(offerId: string): Promise<{ ok: true; id: 
   if (!s.ok) return s.error;
   const o = uuid.safeParse(offerId);
   if (!o.success) return fail("not_found", "No such team buy.");
-  const r = await s.app.promos.startTeam(actorFor(s.account), o.data);
+  const r = await s.app.promos.startTeam(await actorFor(s.account), o.data);
   if (r.ok) revalidateTag(PROMOS_TAG, "max");
   return r.ok ? { ok: true, id: r.value.id } : fail(r.error.code, r.error.message);
 }
@@ -68,7 +68,7 @@ export async function joinTeamAction(id: string): Promise<{ ok: true; team: Team
   if (!s.ok) return s.error;
   const t = code.safeParse(id);
   if (!t.success) return fail("not_found", "No such team.");
-  const r = await s.app.promos.joinTeam(t.data, actorFor(s.account));
+  const r = await s.app.promos.joinTeam(t.data, await actorFor(s.account));
   if (r.ok) revalidateTag(PROMOS_TAG, "max");
   return r.ok ? { ok: true, team: r.value } : fail(r.error.code, r.error.message);
 }

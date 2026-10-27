@@ -30,7 +30,7 @@ export async function createBoardAction(name: string, isPublic: boolean, firstSl
   if ("error" in s) return s.error!;
   const slug = firstSlug === null ? null : Slug.safeParse(firstSlug).data ?? null;
   if (slug && !(await s.app.catalog.getProductsBySlugs([slug])).length) return fail("not_found", "That product isn't available any more.");
-  return done(await s.app.boards.create({ accountId: s.account.id, name: actorFor(s.account).name }, Name.parse(name), isPublic === true, slug));
+  return done(await s.app.boards.create({ accountId: s.account.id, name: (await actorFor(s.account)).name }, Name.parse(name), isPublic === true, slug));
 }
 
 export async function editBoardAction(id: string, patch: { name?: string; isPublic?: boolean }): Promise<Done> {

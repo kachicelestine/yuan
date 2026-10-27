@@ -24,7 +24,7 @@ export async function createPollAction(slugs: string[], question: string): Promi
   // Only products that exist, so a poll never shows an empty card.
   const found = await app.catalog.getProductsBySlugs(s.data);
   if (found.length !== new Set(s.data).size) return fail("invalid_poll", "One of those products isn't available any more.");
-  const r = await app.polls.create(actorFor(account), { question: z.string().max(200).catch("").parse(question), slugs: s.data });
+  const r = await app.polls.create(await actorFor(account), { question: z.string().max(200).catch("").parse(question), slugs: s.data });
   return r.ok ? { ok: true, id: r.value.id } : fail(r.error.code, r.error.message);
 }
 
@@ -36,7 +36,7 @@ export async function votePollAction(id: string, choice: number, reason: string 
   const r = await (await services()).polls.vote(z.string().max(20).catch("").parse(id), {
     voter: who,
     accountId: account?.id ?? null,
-    name: account ? actorFor(account).name : "A friend",
+    name: account ? (await actorFor(account)).name : "A friend",
     choice: z.number().int().catch(-1).parse(choice),
     reason: reason === null ? null : z.string().max(400).catch("").parse(reason),
   });

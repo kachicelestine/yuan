@@ -46,9 +46,14 @@ export function makeContentQueries({ videos, comments, notes, reviews, questions
       return videoViews(ids.flatMap((id) => found.get(id) ?? []));
     },
 
-    /** The Following feed: newest first from the shops someone follows. */
-    async videosFromSellers(sellerIds: readonly string[], offset: number, limit: number): Promise<VideoView[]> {
-      return videoViews(await videos.listReady({ sellerIds, offset, limit }));
+    /** The Following feed: newest first from the shops and people someone follows. */
+    async videosFromSellers(sellerIds: readonly string[], offset: number, limit: number, authorIds: readonly string[] = []): Promise<VideoView[]> {
+      return videoViews(await videos.listReady({ sellerIds, authorIds, offset, limit }));
+    },
+
+    /** What a person posted, newest first (published only). */
+    async videosByAuthor(accountId: string, limit = 30): Promise<VideoView[]> {
+      return videoViews((await videos.listByAuthor(accountId, limit * 2)).filter((v) => v.status === "ready").slice(0, limit));
     },
 
     /** Who posted each video, for those posted by a person rather than a shop. */

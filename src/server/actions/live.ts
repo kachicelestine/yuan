@@ -25,7 +25,7 @@ export async function sayAction(id: string, text: string): Promise<{ ok: true; m
   const p = z.object({ id: showId, text: z.string().max(1000) }).safeParse({ id, text });
   if (!p.success) return fail("invalid", "That message couldn't be sent.");
   const shops = (await myShops()).map((m) => m.sellerId);
-  const r = await (await services()).live.say({ ...actorFor(account), shops }, p.data.id, p.data.text);
+  const r = await (await services()).live.say({ ...(await actorFor(account)), shops }, p.data.id, p.data.text);
   return r.ok ? { ok: true, message: r.value } : fail(r.error.code, r.error.message);
 }
 
@@ -51,7 +51,7 @@ export async function bidAction(lotId: string, amount: number): Promise<{ ok: tr
   if (!(await allow("live.bid", account.id))) return RATE_LIMITED;
   const p = z.object({ lotId: z.uuid(), amount: z.number().positive().max(1_000_000) }).safeParse({ lotId, amount });
   if (!p.success) return fail("invalid", "That bid couldn't be read.");
-  const r = await (await services()).live.bid({ accountId: account.id, name: actorFor(account).name }, p.data.lotId, money.fromDollars(p.data.amount));
+  const r = await (await services()).live.bid({ accountId: account.id, name: (await actorFor(account)).name }, p.data.lotId, money.fromDollars(p.data.amount));
   return r.ok ? { ok: true, lot: r.value } : fail(r.error.code, r.error.message);
 }
 

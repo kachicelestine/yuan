@@ -66,8 +66,12 @@ export function Feed({ first }: { first: FeedPage }) {
   const credited = useRef(new Set<string>());
   // Shared with storefronts, so following a seller anywhere shows up everywhere.
   const [following, setFollowing] = useStored<string[]>("app.following", []);
+  // Bumped whenever this device follows or unfollows a person, so Following reloads.
+  const [peopleRev] = useStored<number>("app.peopleRev", 0);
   const followKey = [...following].sort().join(",");
-  const all = feed === "foryou" ? forYou.items : followed?.key === followKey ? followed.items : [];
+  const followingQuery = `following=${encodeURIComponent(followKey)}${account ? "&people=1" : ""}`;
+  const feedKey = `${followKey}|${account ? `${account.id}:${peopleRev}` : ""}`;
+  const all = feed === "foryou" ? forYou.items : followed?.key === feedKey ? followed.items : [];
   const [hidden, setHidden] = useState<string[]>([]);
   const [burst, setBurst] = useState<{ id: string; x: number; y: number } | null>(null);
   const [sheet, setSheet] = useState<Detent>("closed");
@@ -81,7 +85,8 @@ export function Feed({ first }: { first: FeedPage }) {
   // Videos you've reached keep their place; only what's ahead reorders when you tune the feed.
   const [seen, setSeen] = useState<string[]>(() => all.slice(0, 1).map((item) => item.video.id));
 
-  const allowed = (item: FeedItem) => !hidden.includes(item.video.id) && !prefs.muted.includes(item.seller.id) && (feed === "foryou" || following.includes(item.seller.id));
+  // Posts from people you follow stay; a shop's own videos go as soon as you unfollow it.
+  const allowed = (item: FeedItem) => !hidden.includes(item.video.id) && !prefs.muted.includes(item.seller.id) && (feed === "foryou" || following.includes(item.seller.id) || !!item.creator);
   const ahead = all.filter((item) => !seen.includes(item.video.id)).sort((a, b) => weight(a, prefs) - weight(b, prefs));
   const items = [...seen.flatMap((id) => all.find((item) => item.video.id === id) ?? []), ...ahead].filter(allowed);
   const index = Math.min(active, items.length - 1);
@@ -109,21 +114,21 @@ export function Feed({ first }: { first: FeedPage }) {
   useEffect(() => {
     if (!nearEnd || !source || source.next === null || loading.current) return;
     loading.current = true;
-    const query = feed === "foryou" ? `offset=${source.next}` : `following=${encodeURIComponent(followKey)}&offset=${source.next}`;
+    const query = feed === "foryou" ? `offset=${source.next}` : `${followingQuery}&offset=${source.next}`;
     void fetchPage(query).then((page) => {
       loading.current = false;
       if (!page) return;
       if (feed === "foryou") setForYou((f) => ({ items: merge(f.items, page.items), next: page.next }));
-      else setFollowed((f) => (f && f.key === followKey ? { ...f, items: merge(f.items, page.items), next: page.next } : f));
+      else setFollowed((f) => (f && f.key === feedKey ? { ...f, items: merge(f.items, page.items), next: page.next } : f));
     });
-  }, [nearEnd, source, feed, followKey]);
+  }, [nearEnd, source, feed, feedKey, followingQuery]);
 
-  // Following loads when opened, and again if the list of shops changed since.
+  // Following loads when opened, and again if who you follow changed since.
   useEffect(() => {
-    // Nobody followed: the empty state shows without asking the server.
-    if (feed !== "following" || !followKey || followed?.key === followKey) return;
-    void fetchPage(`following=${encodeURIComponent(followKey)}`).then((page) => setFollowed({ items: page?.items ?? [], next: page?.next ?? null, key: followKey }));
-  }, [feed, followKey, followed?.key]);
+    // Signed out and no shops followed: the empty state shows without asking the server.
+    if (feed !== "following" || (!followKey && !account) || followed?.key === feedKey) return;
+    void fetchPage(followingQuery).then((page) => setFollowed({ items: page?.items ?? [], next: page?.next ?? null, key: feedKey }));
+  }, [feed, followKey, feedKey, followingQuery, account, followed?.key]);
 
   // Signed in: which loaded videos you liked before, asked once per video.
   const loadedIds = [...forYou.items, ...(followed?.items ?? [])].map((item) => item.video.id).join(",");
@@ -351,7 +356,7 @@ function EmptyFollowing({ onBack }: { onBack: () => void }) {
           <Icon name="users" className="size-7" />
         </span>
         <h2 className="font-display text-[22px] font-bold tracking-[-0.02em]">Nobody followed yet</h2>
-        <p className="text-sm text-ink-2">Follow a seller from the Social tab under any video and their posts land here.</p>
+        <p className="text-sm text-ink-2">Follow shops and people from the Social tab under any video, and what they post lands here.</p>
         <button type="button" onClick={onBack} className="mt-2 h-11 rounded-full bg-accent px-5 text-[15px] font-bold">
           Back to For You
         </button>

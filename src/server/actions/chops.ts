@@ -22,7 +22,7 @@ export async function startChopAction(offerId: string): Promise<{ ok: true; id: 
   if (!(await allow("account.write", account.id))) return RATE_LIMITED;
   const id = z.uuid().safeParse(offerId);
   if (!id.success) return fail("not_found", "No such chop.");
-  const r = await (await services()).chops.start(actorFor(account), id.data);
+  const r = await (await services()).chops.start(await actorFor(account), id.data);
   if (r.ok) revalidateTag(PROMOS_TAG, "max");
   return r.ok ? { ok: true, id: r.value.id } : fail(r.error.code, r.error.message);
 }
@@ -32,7 +32,7 @@ export async function cutChopAction(id: string): Promise<{ ok: true; chop: ChopV
   const account = await currentAccount();
   const who = account?.id ?? (await voter());
   if (!(await allow("content.react", who))) return RATE_LIMITED;
-  const r = await (await services()).chops.cut(z.string().max(20).catch("").parse(id), { id: who, accountId: account?.id ?? null, name: account ? actorFor(account).name : "A friend" });
+  const r = await (await services()).chops.cut(z.string().max(20).catch("").parse(id), { id: who, accountId: account?.id ?? null, name: account ? (await actorFor(account)).name : "A friend" });
   return r.ok ? { ok: true, chop: r.value } : fail(r.error.code, r.error.message);
 }
 

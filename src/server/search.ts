@@ -12,7 +12,7 @@ import { getLiveLobby } from "./live";
 // first because they also decide which videos and rooms match (a video or a show selling
 // a matching product is a match, whatever its caption says).
 
-const EMPTY: SearchAll = { videos: [], shops: [], live: [] };
+const EMPTY: SearchAll = { videos: [], shops: [], live: [], people: [] };
 
 /** Cached for a few minutes per query, like product search. */
 export async function searchAll(text: string): Promise<SearchAll> {
@@ -23,11 +23,12 @@ export async function searchAll(text: string): Promise<SearchAll> {
   if (!searchWords(q).length) return EMPTY;
 
   const app = await services();
-  const [products, shops, lobby, sellers] = await Promise.all([
+  const [products, shops, lobby, sellers, people] = await Promise.all([
     searchCatalog({ text: q, sort: "best", limit: 60 }),
     app.searchShops(q, 20),
     getLiveLobby(),
     getSellers(),
+    app.profiles.search(q, 20),
   ]);
   const matched = new Set(products.map((p) => p.slug));
   const sellerName = new Map(sellers.map((s) => [s.id, s.name]));
@@ -68,6 +69,7 @@ export async function searchAll(text: string): Promise<SearchAll> {
       sellerName: sellerName.get(v.sellerId) ?? "",
     })),
     shops,
+    people: people.map((p) => ({ handle: p.handle, name: p.name, avatar: p.avatar, bio: p.bio })),
     live,
   };
 }

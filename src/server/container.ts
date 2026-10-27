@@ -3,6 +3,8 @@ import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { brand } from "@/config/brand";
 import { serverEnv } from "@/config/server-env";
+import { makeProfiles } from "@/modules/social";
+import { DrizzleFollowRepository, DrizzleProfileRepository } from "@/modules/social/infrastructure/drizzle-social-repositories";
 import { makeCatalogAdmin, makeCatalogQueries, makeRatings, makeSearchProducts, makeSearchShops, makeSelling, type SellerId } from "@/modules/catalog";
 import { DrizzleCategoryRepository, DrizzleProductRepository, DrizzleSellerRepository } from "@/modules/catalog/infrastructure/drizzle-catalog-repositories";
 import { DrizzleProductSearch } from "@/modules/catalog/infrastructure/drizzle-product-search";
@@ -392,6 +394,7 @@ export function wire(db: Database, options: WireOptions = {}) {
     catalog: makeCatalogQueries({ categories: new DrizzleCategoryRepository(db), sellers, products, clock }),
     ratings: makeRatings({ products, sellers }),
     catalogAdmin: makeCatalogAdmin({ products, sellers }),
+    profiles: makeProfiles({ profiles: new DrizzleProfileRepository(db), follows: new DrizzleFollowRepository(db), photos: storage, clock }),
     coupons: makeCouponDesk({ coupons: new DrizzleCouponRepository(db), claims: new DrizzleClaimRepository(db), clock, newId: () => newId() }),
     selling: makeSelling({ products, categories: new DrizzleCategoryRepository(db), sellers, photos: storage, clock, newId: () => newId() }),
     searchProducts: makeSearchProducts({ search: productSearch, sellers, clock }),

@@ -57,7 +57,7 @@ export function useProductSearch(text: string, filters: ProductFilters, sort: Pr
   return { products: state?.products ?? [], sponsored: state?.key === key ? state.sponsored : [], loading: state?.key !== key, failed: state?.key === key && state.failed };
 }
 
-const NOTHING: SearchAll = { videos: [], shops: [], live: [] };
+const NOTHING: SearchAll = { videos: [], shops: [], live: [], people: [] };
 
 /** Videos, shops and live rooms for a search (GET /api/search/all), debounced like products. */
 export function useSearchAll(text: string) {

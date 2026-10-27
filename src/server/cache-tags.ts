@@ -26,3 +26,6 @@ export const PROMOS_TAG = "promos";
 
 /** Leaderboards; refreshed hourly, and when orders are paid. */
 export const RANKINGS_TAG = "rankings";
+
+/** A person's public profile page (by handle). */
+export const profileTag = (handle: string) => `profile:${handle}`;

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import type { Database } from "@/shared/infrastructure/database";
 import { searchWords, toTsQuery } from "@/shared/infrastructure/ts-query";
 import type { Report, ReportReason, ReportStatus, ReportTarget } from "../domain/moderation";
@@ -42,8 +42,12 @@ export class DrizzleVideoRepository implements VideoRepository {
     return (await this.db.select().from(videos).where(eq(videos.status, status)).orderBy(asc(videos.createdAt)).limit(limit)).map(toVideo);
   }
 
-  async listReady(filter: { sellerId?: string; sellerIds?: readonly string[]; category?: string; limit: number; offset?: number }) {
-    if (filter.sellerIds && !filter.sellerIds.length) return [];
+  async listReady(filter: { sellerId?: string; sellerIds?: readonly string[]; authorIds?: readonly string[]; category?: string; limit: number; offset?: number }) {
+    // Shops and people someone follows: videos from either.
+    const followed = filter.sellerIds || filter.authorIds;
+    const sellerIds = filter.sellerIds ?? [];
+    const authorIds = filter.authorIds ?? [];
+    if (followed && !sellerIds.length && !authorIds.length) return [];
     const rows = await this.db
       .select()
       .from(videos)
@@ -51,7 +55,7 @@ export class DrizzleVideoRepository implements VideoRepository {
         and(
           eq(videos.status, "ready"),
           filter.sellerId ? eq(videos.sellerId, filter.sellerId) : undefined,
-          filter.sellerIds ? inArray(videos.sellerId, [...filter.sellerIds]) : undefined,
+          followed ? or(sellerIds.length ? inArray(videos.sellerId, [...sellerIds]) : undefined, authorIds.length ? inArray(videos.authorId, [...authorIds]) : undefined) : undefined,
           filter.category ? eq(videos.category, filter.category) : undefined,
         ),
       )

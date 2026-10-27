@@ -21,7 +21,7 @@ import { Chip, FiltersSheet } from "./filters-sheet";
 import { VisualSearch } from "./visual-search";
 import { VoiceSearch } from "./voice-search";
 
-type Tab = "products" | "videos" | "factories" | "live";
+type Tab = "products" | "videos" | "factories" | "live" | "people";
 
 const sorts: { id: ProductSort; label: string }[] = [
   { id: "best", label: "Best match" },
@@ -64,7 +64,7 @@ export function SearchScreen({ categories, initialQuery = "", initialSnap = fals
   const filtered = Object.values(filters).some((v) => (Array.isArray(v) ? v.length : v !== undefined && v !== false));
   const searching = q !== "" || filtered;
   const { products, sponsored, loading } = useProductSearch(terms, effective, sort);
-  const { videos, shops: factories, live, loading: finding } = useSearchAll(terms);
+  const { videos, shops: factories, live, people, loading: finding } = useSearchAll(terms);
   const filterCount = Object.values(filters).reduce<number>((n, v) => n + (Array.isArray(v) ? v.length : v !== undefined && v !== false ? 1 : 0), 0);
 
   function run(text: string) {
@@ -79,6 +79,7 @@ export function SearchScreen({ categories, initialQuery = "", initialSnap = fals
     { id: "videos", label: "Videos", count: videos.length },
     { id: "factories", label: "Factories", count: factories.length },
     { id: "live", label: "Live", count: live.length },
+    { id: "people", label: "People", count: people.length },
   ];
 
   return (
@@ -226,7 +227,7 @@ export function SearchScreen({ categories, initialQuery = "", initialSnap = fals
           ) : (
             <NoResults query={q} onPick={run} />
           )
-        ) : finding && !(tab === "videos" ? videos : tab === "factories" ? factories : live).length ? (
+        ) : finding && !(tab === "videos" ? videos : tab === "factories" ? factories : tab === "people" ? people : live).length ? (
           <ul aria-busy="true" aria-label="Searching" className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
             {Array.from({ length: 4 }, (_, i) => (
               <li key={i} className={`skeleton rounded-[22px] ${tab === "videos" ? "aspect-[9/16]" : "aspect-[4/3]"}`} />
@@ -247,6 +248,33 @@ export function SearchScreen({ categories, initialQuery = "", initialSnap = fals
                     <span className="absolute inset-x-2.5 bottom-2.5 text-legible">
                       <span className="line-clamp-2 text-[13px] leading-snug font-semibold">{v.title}</span>
                       {v.sellerName && <span className="mt-0.5 block truncate text-[11px] font-semibold text-white/75">{v.sellerName}</span>}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <NoResults query={q} onPick={run} />
+          )
+        ) : tab === "people" ? (
+          people.length ? (
+            <ul aria-busy={finding} className={`glass flex flex-col divide-y divide-line overflow-hidden rounded-[24px] transition-opacity ${finding ? "opacity-60" : ""}`}>
+              {people.map((p) => (
+                <li key={p.handle}>
+                  <Link href={`/u/${p.handle}`} className="flex items-center gap-3 px-4 py-3">
+                    {p.avatar ? (
+                      <Image src={p.avatar} alt="" width={48} height={48} sizes="48px" className="size-12 shrink-0 rounded-full object-cover" />
+                    ) : (
+                      <span aria-hidden="true" className="glass grid size-12 shrink-0 place-items-center rounded-full font-display text-lg font-extrabold uppercase">
+                        {p.name.slice(0, 1)}
+                      </span>
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[15px] font-semibold">{p.name}</span>
+                      <span className="block truncate text-xs text-ink-2">
+                        @{p.handle}
+                        {p.bio && ` · ${p.bio}`}
+                      </span>
                     </span>
                   </Link>
                 </li>

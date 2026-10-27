@@ -59,6 +59,8 @@ export type FeedItem = {
   look: Product[];
   /** The creator code of the person who posted it: shopping from their video credits them. */
   ref?: string;
+  /** The person who posted it (videos from shops have none). */
+  creator?: { handle: string; name: string; avatar: string };
 };
 
 /** A page of the feed and where the next one starts (null at the end). */
@@ -199,4 +201,6 @@ export type LiveHit = Pick<ShowView, "id" | "title" | "hostName" | "kind" | "cov
   status: "live" | "scheduled";
   sellerName: string;
 };
-export type SearchAll = { videos: VideoHit[]; shops: ShopResult[]; live: LiveHit[] };
+/** A person a search found. */
+export type PersonHit = { handle: string; name: string; avatar: string; bio: string };
+export type SearchAll = { videos: VideoHit[]; shops: ShopResult[]; live: LiveHit[]; people: PersonHit[] };

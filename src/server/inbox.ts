@@ -10,7 +10,7 @@ export async function messageParty(conversationId: string): Promise<Party | null
   const account = await currentAccount();
   if (!account) return null;
   const app = await services();
-  if (await app.messaging.thread(conversationId, { side: "buyer", accountId: account.id, name: "" })) return { side: "buyer", ...actorFor(account) };
+  if (await app.messaging.thread(conversationId, { side: "buyer", accountId: account.id, name: "" })) return { side: "buyer", ...(await actorFor(account)) };
   const shop = await currentShop();
   if (shop && (await app.messaging.thread(conversationId, { side: "shop", accountId: account.id, sellerId: shop.sellerId }))) return { side: "shop", accountId: account.id, sellerId: shop.sellerId };
   return null;

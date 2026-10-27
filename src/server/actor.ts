@@ -1,12 +1,14 @@
 import "server-only";
 import type { AccountView } from "@/modules/identity";
 import type { Actor } from "@/modules/content";
+import { services } from "./container";
 
 /**
- * How someone appears next to what they post. Accounts only hold an email or a wallet,
- * neither of which belongs on a public page, so until profiles exist people show as a
- * stable handle made from their account id.
+ * How someone appears next to what they post: their profile's name and photo. Every
+ * account has a profile (made with a default handle on first use), so nothing personal
+ * like an email or wallet ever shows.
  */
-export function actorFor(account: AccountView): Actor {
-  return { accountId: account.id, name: `shopper-${account.id.replace(/-/g, "").slice(-6)}`, avatar: "" };
+export async function actorFor(account: AccountView): Promise<Actor> {
+  const a = await (await services()).profiles.actor(account.id);
+  return { accountId: account.id, name: a.name, avatar: a.avatar };
 }

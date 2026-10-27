@@ -34,7 +34,7 @@ export async function openRfqAction(input: z.input<typeof RfqForm>): Promise<{ o
   if (!(await allow("content.post", account.id))) return RATE_LIMITED;
   const p = RfqForm.safeParse(input);
   if (!p.success) return fail("invalid_request", "Check the request and try again.");
-  const r = await (await services()).sourcing.open(actorFor(account), { ...p.data, target: p.data.target === null || p.data.target === 0 ? null : money.fromDollars(p.data.target) });
+  const r = await (await services()).sourcing.open(await actorFor(account), { ...p.data, target: p.data.target === null || p.data.target === 0 ? null : money.fromDollars(p.data.target) });
   return r.ok ? { ok: true, rfq: r.value } : fail(r.error.code, r.error.message);
 }
 

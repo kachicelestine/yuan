@@ -65,6 +65,6 @@ export async function requestSampleAction(offerId: string, address: z.input<type
   const id = z.uuid().safeParse(offerId);
   const a = Address.safeParse(address);
   if (!id.success || !a.success) return fail("invalid_address", "Add your name, street, city and country so the shop can send it.");
-  const r = await c.app.samples.request(actorFor(c.account), id.data, a.data, z.string().max(600).catch("").parse(note));
+  const r = await c.app.samples.request(await actorFor(c.account), id.data, a.data, z.string().max(600).catch("").parse(note));
   return r.ok ? { ok: true, request: r.value } : fail(r.error.code, r.error.message);
 }

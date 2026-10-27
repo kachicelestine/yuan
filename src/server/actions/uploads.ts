@@ -20,7 +20,7 @@ export async function startUploadAction(file: { contentType: string; bytes: numb
   if (!(await allow("content.upload", account.id))) return RATE_LIMITED;
   const parsed = UploadFile.safeParse(file);
   if (!parsed.success) return fail("invalid", `Upload an MP4, MOV or WebM video up to ${MAX_UPLOAD_BYTES / 1024 / 1024} MB.`);
-  const r = await (await services()).uploads.startUpload(actorFor(account), parsed.data);
+  const r = await (await services()).uploads.startUpload(await actorFor(account), parsed.data);
   return r.ok ? { ok: true, ...r.value, headers: { ...r.value.headers } } : fail(r.error.code, r.error.message);
 }
 
@@ -41,6 +41,6 @@ export async function publishVideoAction(input: z.input<typeof Post>): Promise<{
   if (!(await allow("content.upload", account.id))) return RATE_LIMITED;
   const parsed = Post.safeParse(input);
   if (!parsed.success) return fail("invalid", "Check the caption and tags.");
-  const r = await (await services()).uploads.publish(actorFor(account), parsed.data);
+  const r = await (await services()).uploads.publish(await actorFor(account), parsed.data);
   return r.ok ? { ok: true, videoId: r.value.videoId } : fail(r.error.code, r.error.message);
 }

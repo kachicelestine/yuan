@@ -6,6 +6,8 @@ import { useId, useState } from "react";
 import { Icon, VerifiedBadge, type IconName } from "@/components/icon";
 import { useStore } from "@/components/providers";
 import { ReportForm } from "@/components/report/report-form";
+import { FollowPerson } from "@/components/social/follow-person";
+import { usePeopleFollowing } from "@/components/social/use-people-following";
 import type { Comment, Seller, Video } from "@/lib/catalog";
 import { compact } from "@/lib/format";
 import { postCommentAction, reactAction, shareAction } from "@/server/actions/content";
@@ -13,6 +15,8 @@ import { postCommentAction, reactAction, shareAction } from "@/server/actions/co
 type Props = {
   video: Video;
   seller: Seller;
+  /** The person who posted it, when it wasn't the shop. */
+  creator?: { handle: string; name: string; avatar: string };
   liked: boolean;
   /** Likes on the video, counting yours. */
   likes: number;
@@ -26,9 +30,10 @@ type Props = {
 };
 
 /** Social: reactions, the creator, and the conversation under the video. */
-export function SocialTab({ video, seller, liked, likes, onLike, followed, onFollow, draft, onDraft, composer, onReply }: Props) {
+export function SocialTab({ video, seller, creator, liked, likes, onLike, followed, onFollow, draft, onDraft, composer, onReply }: Props) {
   const id = useId();
   const { account } = useStore();
+  const people = usePeopleFollowing(!!account && !!creator);
   const [posted, setPosted] = useState<Comment[]>([]);
   // The top few arrive with the video; "View all" swaps in the whole thread, newest first.
   const [thread, setThread] = useState<{ comments: Comment[]; more: boolean } | null>(null);
@@ -93,6 +98,31 @@ export function SocialTab({ video, seller, liked, likes, onLike, followed, onFol
         <Stat icon="comment" label="Comment" count={compact(total)} onClick={() => composer.current?.focus()} />
         <Stat icon="share" label={shared ? "Shared" : "Share"} count={compact(video.shares + (shared ? 1 : 0))} onClick={share} />
       </div>
+
+      {creator && (
+        <div className="glass-inset flex items-center gap-3 rounded-[20px] p-2.5">
+          <Link href={`/u/${creator.handle}`} className="flex min-w-0 flex-1 items-center gap-3">
+            {creator.avatar ? (
+              <Image src={creator.avatar} alt="" width={44} height={44} sizes="44px" className="size-11 shrink-0 rounded-full object-cover" />
+            ) : (
+              <span aria-hidden="true" className="glass grid size-11 shrink-0 place-items-center rounded-full font-display text-lg font-extrabold uppercase">
+                {creator.name.slice(0, 1)}
+              </span>
+            )}
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[15px] font-semibold">{creator.name}</span>
+              <span className="block truncate text-xs text-ink-2">Posted by @{creator.handle}</span>
+            </span>
+          </Link>
+          {account && !people ? (
+            <span aria-hidden="true" className="skeleton h-9 w-24 rounded-full" />
+          ) : (
+            people?.me !== creator.handle && (
+              <FollowPerson key={`${creator.handle}:${people?.handles.has(creator.handle)}`} handle={creator.handle} initial={!!people?.handles.has(creator.handle)} signedIn={!!account} size="sm" />
+            )
+          )}
+        </div>
+      )}
 
       <div className="glass-inset flex items-center gap-3 rounded-[20px] p-2.5">
         <Link href={`/s/${seller.id}`} className="flex min-w-0 flex-1 items-center gap-3">

@@ -131,6 +131,7 @@ export function ProductPanel({ item, tab, onTab, focus, onFocus, liked, likes, o
         <SocialTab
           video={video}
           seller={seller}
+          creator={item.creator}
           liked={liked}
           likes={likes}
           onLike={onLike}

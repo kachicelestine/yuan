@@ -24,11 +24,11 @@ export async function getVideosByIds(ids: string[]) {
 }
 
 /** The Following feed's videos. Ids arrive sorted, so the same follow list shares a cache entry. */
-export async function getFollowingVideos(sellerIds: string[], offset: number, limit: number) {
+export async function getFollowingVideos(sellerIds: string[], authorIds: string[], offset: number, limit: number) {
   "use cache";
   cacheLife("minutes");
   cacheTag(CONTENT_TAG, FEED_TAG);
-  return (await content()).videosFromSellers(sellerIds, offset, limit);
+  return (await content()).videosFromSellers(sellerIds, offset, limit, authorIds);
 }
 
 export async function getSellerVideos(sellerId: string) {

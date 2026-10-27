@@ -36,7 +36,8 @@ async function assemble(videos: VideoView[]): Promise<FeedItem[]> {
   // Videos people posted (not shops) carry the poster's creator code.
   const app = await services();
   const authors = await app.content.authorsOf(videos.map((v) => v.id));
-  const codes = await app.affiliates.codesFor([...new Set(authors.values())]);
+  const people = [...new Set(authors.values())];
+  const [codes, creators] = await Promise.all([app.affiliates.codesFor(people), app.profiles.actors(people)]);
 
   return videos.flatMap((video) => {
     const product = productBySlug.get(video.productSlug);
@@ -50,7 +51,9 @@ async function assemble(videos: VideoView[]): Promise<FeedItem[]> {
     const look = [product, ...(video.also ?? []).flatMap((slug) => productBySlug.get(slug) ?? [])];
     const author = authors.get(video.id);
     const ref = author ? codes.get(author) : undefined;
-    return [{ video, product, seller, related, look, ...(ref ? { ref } : {}) }];
+    const by = author ? creators.get(author) : undefined;
+    const creator = by ? { handle: by.handle, name: by.name, avatar: by.avatar } : undefined;
+    return [{ video, product, seller, related, look, ...(ref ? { ref } : {}), ...(creator ? { creator } : {}) }];
   });
 }
 
@@ -72,10 +75,10 @@ export async function getFeedPage(offset: number, limit: number): Promise<FeedPa
   return { items, next: offset + limit < order.length ? offset + limit : null };
 }
 
-/** Videos from the shops someone follows, newest first. */
-export async function getFollowingPage(sellerIds: string[], offset: number, limit: number): Promise<FeedPage> {
+/** Videos from the shops and people someone follows, newest first. */
+export async function getFollowingPage(sellerIds: string[], authorIds: string[], offset: number, limit: number): Promise<FeedPage> {
   // One extra tells whether there's another page.
-  const videos = await getFollowingVideos([...new Set(sellerIds)].sort(), offset, limit + 1);
+  const videos = await getFollowingVideos([...new Set(sellerIds)].sort(), [...new Set(authorIds)].sort(), offset, limit + 1);
   return { items: await assemble(videos.slice(0, limit)), next: videos.length > limit ? offset + limit : null };
 }
 

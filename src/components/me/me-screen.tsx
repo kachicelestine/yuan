@@ -38,6 +38,7 @@ const levels = [
  */
 export function MeScreen({
   account = null,
+  profile = null,
   orders = [],
   hasShop = false,
   admin = false,
@@ -46,6 +47,8 @@ export function MeScreen({
   parcels = [],
 }: {
   account?: AccountView | null;
+  /** The signed-in person's public profile. */
+  profile?: { handle: string; name: string; avatar: string } | null;
   orders?: OrderView[];
   /** Runs a shop: Sell opens the seller tools instead of the application. */
   hasShop?: boolean;
@@ -85,16 +88,26 @@ export function MeScreen({
   return (
     <div className="mx-auto flex max-w-[760px] flex-col gap-5 px-3.5 pt-safe pb-36 lg:px-6 lg:py-8">
       <header className="flex items-center gap-4 pt-4 lg:pt-0">
-        <span className="relative grid size-16 shrink-0 place-items-center rounded-full bg-[conic-gradient(from_180deg,#ffc53d,#ff7a52,#cc3a17,#ffc53d)] p-[3px]">
-          <span className="grid size-full place-items-center rounded-full bg-raised">
-            <Icon name="user" className="size-7" />
+        <Link
+          href={profile ? `/u/${profile.handle}` : "/signin?next=/me"}
+          aria-label={profile ? "Your profile" : "Sign in"}
+          className="relative grid size-16 shrink-0 place-items-center rounded-full bg-[conic-gradient(from_180deg,#ffc53d,#ff7a52,#cc3a17,#ffc53d)] p-[3px]"
+        >
+          <span className="grid size-full place-items-center overflow-hidden rounded-full bg-raised">
+            {profile?.avatar ? <Image src={profile.avatar} alt="" width={58} height={58} sizes="58px" className="size-full object-cover" /> : <Icon name="user" className="size-7" />}
           </span>
-        </span>
+        </Link>
         <div className="min-w-0 flex-1">
-          <h1 className="font-display text-[28px] leading-tight font-extrabold tracking-[-0.03em]">{account ? "Hi again" : "Hi there"}</h1>
+          <h1 className="truncate font-display text-[28px] leading-tight font-extrabold tracking-[-0.03em]">{profile ? profile.name : account ? "Hi again" : "Hi there"}</h1>
           <p className="flex min-w-0 items-center gap-2 text-sm text-ink-2">
             <span className="shrink-0 rounded-full bg-save/15 px-2 py-0.5 text-[11px] font-bold text-save">{tier.name}</span>
-            <span className="truncate">{account ? account.label : "Guest on this device"}</span>
+            {profile ? (
+              <Link href={`/u/${profile.handle}`} className="truncate font-semibold text-ink">
+                @{profile.handle}
+              </Link>
+            ) : (
+              <span className="truncate">{account ? account.label : "Guest on this device"}</span>
+            )}
           </p>
         </div>
         {account ? (

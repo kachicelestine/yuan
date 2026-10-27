@@ -47,7 +47,7 @@ export async function postReviewAction(orderId: string, productSlug: string, rat
   if (!b.allowed) return b.error;
   const p = z.object({ orderId: z.uuid(), productSlug: z.string().min(1).max(120), rating: z.number().int().min(1).max(5), text: z.string().max(4000) }).safeParse({ orderId, productSlug, rating, text });
   if (!p.success) return fail("invalid", "Pick a star rating and write a few words.");
-  const r = await b.app.interactions.postReview(actorFor(b.account), p.data);
+  const r = await b.app.interactions.postReview(await actorFor(b.account), p.data);
   if (!r.ok) return fail(r.error.code, r.error.message);
   updateTag(reviewsTag(p.data.productSlug));
   return { ok: true };

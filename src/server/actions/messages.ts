@@ -21,7 +21,7 @@ export async function sendToShopAction(sellerId: string, text: string, productSl
   if (!(await allow("content.post", account.id))) return RATE_LIMITED;
   const shop = z.string().regex(/^[a-z0-9-]{1,60}$/).safeParse(sellerId);
   if (!shop.success) return fail("not_found", "No such shop.");
-  const r = await (await services()).messaging.toShop(actorFor(account), shop.data, Text.catch("").parse(text), Slug.catch(null).parse(productSlug));
+  const r = await (await services()).messaging.toShop(await actorFor(account), shop.data, Text.catch("").parse(text), Slug.catch(null).parse(productSlug));
   return r.ok ? { ok: true, ...r.value } : fail(r.error.code, r.error.message);
 }
 

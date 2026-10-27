@@ -44,7 +44,7 @@ export async function postCommentAction(videoId: string, text: string): Promise<
   const v = id.safeParse(videoId);
   const t = z.string().max(2000).safeParse(text);
   if (!v.success || !t.success) return fail("invalid", "That comment couldn't be read.");
-  const r = await (await services()).interactions.postComment(actorFor(account), v.data, t.data);
+  const r = await (await services()).interactions.postComment(await actorFor(account), v.data, t.data);
   return r.ok ? { ok: true, comment: r.value } : fail(r.error.code, r.error.message);
 }
 
@@ -55,7 +55,7 @@ export async function askQuestionAction(productSlug: string, text: string): Prom
   const s = z.string().min(1).max(120).safeParse(productSlug);
   const t = z.string().max(2000).safeParse(text);
   if (!s.success || !t.success) return fail("invalid", "That question couldn't be read.");
-  const r = await (await services()).interactions.askQuestion(actorFor(account), s.data, t.data);
+  const r = await (await services()).interactions.askQuestion(await actorFor(account), s.data, t.data);
   return r.ok ? { ok: true, question: r.value } : fail(r.error.code, r.error.message);
 }
 

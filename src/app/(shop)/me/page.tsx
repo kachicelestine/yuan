@@ -22,8 +22,21 @@ async function MeBody() {
   await connection();
   const account = await currentAccount();
   const app = await services();
-  const [orders, shops, unread, boards] = account ? await Promise.all([app.getOrder.list(account.id), myShops(), app.notifications.unread(account.id), app.boards.mine(account.id)]) : [[], [], 0, null];
+  const [orders, shops, unread, boards, profile] = account
+    ? await Promise.all([app.getOrder.list(account.id), myShops(), app.notifications.unread(account.id), app.boards.mine(account.id), app.profiles.me(account.id)])
+    : [[], [], 0, null, null];
   // The newest order's parcels drive the status pill.
   const parcels = orders[0] ? await app.fulfilment.forOrder(orders[0].id) : [];
-  return <MeScreen account={account} orders={orders} hasShop={shops.length > 0} admin={isAdmin(account)} unread={unread} boards={boards?.length ?? null} parcels={parcels} />;
+  return (
+    <MeScreen
+      account={account}
+      profile={profile && { handle: profile.handle, name: profile.name, avatar: profile.avatar }}
+      orders={orders}
+      hasShop={shops.length > 0}
+      admin={isAdmin(account)}
+      unread={unread}
+      boards={boards?.length ?? null}
+      parcels={parcels}
+    />
+  );
 }
