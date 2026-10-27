@@ -3,7 +3,7 @@ import { domainError, err, ok, type DomainError, type Result } from "@/shared/ke
 // People flag what shouldn't be here; a moderator removes it or dismisses the flags.
 // Reports are kept after a decision, so repeat offenders and bad reporters show up.
 
-export const REPORT_TARGETS = ["video", "comment", "question", "review"] as const;
+export const REPORT_TARGETS = ["video", "comment", "question", "review", "note"] as const;
 export type ReportTarget = (typeof REPORT_TARGETS)[number];
 
 export const REPORT_REASONS = ["counterfeit", "misleading", "offensive", "spam", "unsafe", "other"] as const;

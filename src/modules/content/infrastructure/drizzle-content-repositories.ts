@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
+import { and, arrayContains, asc, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import type { Database } from "@/shared/infrastructure/database";
 import { searchWords, toTsQuery } from "@/shared/infrastructure/ts-query";
 import type { Report, ReportReason, ReportStatus, ReportTarget } from "../domain/moderation";
@@ -113,6 +113,16 @@ export class DrizzleVideoRepository implements VideoRepository {
 
   async listByAuthor(authorId: string, limit: number) {
     const rows = await this.db.select().from(videos).where(eq(videos.authorId, authorId)).orderBy(desc(videos.createdAt)).limit(limit);
+    return rows.map(toVideo);
+  }
+
+  async listReadyByTag(tag: string, limit: number) {
+    const rows = await this.db
+      .select()
+      .from(videos)
+      .where(and(eq(videos.status, "ready"), arrayContains(videos.tags, [tag])))
+      .orderBy(desc(videos.publishedAt), asc(videos.id))
+      .limit(limit);
     return rows.map(toVideo);
   }
 
@@ -248,6 +258,23 @@ export class DrizzleNoteRepository implements NoteRepository {
   async bumpLikes(id: string, delta: number) {
     const rows = await this.db.update(notes).set({ likes: sql`greatest(0, ${notes.likes} + ${delta})` }).where(eq(notes.id, id)).returning({ id: notes.id });
     return rows.length > 0;
+  }
+
+  async add(note: Note) {
+    await this.db.insert(notes).values({ ...note, tags: [...note.tags] });
+  }
+
+  async listByAuthor(authorId: string, limit: number) {
+    return (await this.db.select().from(notes).where(eq(notes.authorId, authorId)).orderBy(desc(notes.createdAt)).limit(limit)) as Note[];
+  }
+
+  async listByTag(tag: string, limit: number) {
+    return (await this.db.select().from(notes).where(arrayContains(notes.tags, [tag])).orderBy(desc(notes.createdAt)).limit(limit)) as Note[];
+  }
+
+  async remove(id: string) {
+    const [r] = await this.db.delete(notes).where(eq(notes.id, id)).returning();
+    return (r as Note | undefined) ?? null;
   }
 }
 

@@ -8,7 +8,7 @@ import { DrizzleFollowRepository, DrizzleProfileRepository } from "@/modules/soc
 import { makeCatalogAdmin, makeCatalogQueries, makeRatings, makeSearchProducts, makeSearchShops, makeSelling, type SellerId } from "@/modules/catalog";
 import { DrizzleCategoryRepository, DrizzleProductRepository, DrizzleSellerRepository } from "@/modules/catalog/infrastructure/drizzle-catalog-repositories";
 import { DrizzleProductSearch } from "@/modules/catalog/infrastructure/drizzle-product-search";
-import { makeContentQueries, makeInteractions, makeModeration, makeUploads, type VideoEncoder } from "@/modules/content";
+import { makeContentQueries, makeInteractions, makeModeration, makePhotoPosts, makeUploads, type VideoEncoder } from "@/modules/content";
 import { CopyEncoder } from "@/modules/content/infrastructure/copy-encoder";
 import {
   DrizzleCommentRepository,
@@ -455,6 +455,7 @@ export function wire(db: Database, options: WireOptions = {}) {
       newId: () => newId(),
       premoderated,
     }),
+    photoPosts: makePhotoPosts({ storage, notes: content.notes, products: new CatalogProductDirectory(products), clock, newId: () => newId() }),
     moderation: makeModeration({
       ...content,
       // A takedown, its counters, the closed reports and the event commit together.

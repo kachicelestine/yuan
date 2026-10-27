@@ -55,6 +55,7 @@ export type NoteView = {
   live?: boolean;
   video?: boolean;
   category: string;
+  tags?: string[];
 };
 
 export type ReviewView = {
@@ -151,6 +152,7 @@ export function toNoteView(n: Note): NoteView {
     ...(n.live && { live: true }),
     ...(n.video && { video: true }),
     category: n.category,
+    ...(n.tags.length > 0 && { tags: [...n.tags] }),
   };
 }
 

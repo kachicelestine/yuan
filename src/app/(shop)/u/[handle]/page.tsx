@@ -39,7 +39,7 @@ async function ProfileBody({ params }: { params: PageProps<"/u/[handle]">["param
 }
 
 function ProfileScreen({ data }: { data: PublicProfile }) {
-  const { profile: p, videos, boards, shops, likes } = data;
+  const { profile: p, videos, photos, boards, shops, likes } = data;
   return (
     <div className="mx-auto max-w-[860px] px-3.5 pt-safe pb-36 lg:px-6 lg:pt-6 lg:pb-16">
       <header className="flex items-center justify-between pt-2 pb-2 lg:pt-0">
@@ -82,7 +82,7 @@ function ProfileScreen({ data }: { data: PublicProfile }) {
 
       <section aria-labelledby="videos-h">
         <h2 id="videos-h" className="mb-2 px-1 text-[11px] font-bold tracking-[0.08em] text-ink-3">
-          POSTS · {videos.length}
+          VIDEOS · {videos.length}
         </h2>
         {videos.length ? (
           <ul className="grid grid-cols-3 gap-1">
@@ -99,9 +99,30 @@ function ProfileScreen({ data }: { data: PublicProfile }) {
             ))}
           </ul>
         ) : (
-          <p className="glass-inset rounded-[22px] p-4 text-center text-sm text-ink-2">No posts yet.</p>
+          <p className="glass-inset rounded-[22px] p-4 text-center text-sm text-ink-2">No videos yet.</p>
         )}
       </section>
+
+      {photos.length > 0 && (
+        <section aria-labelledby="photos-h" className="mt-6">
+          <h2 id="photos-h" className="mb-2 px-1 text-[11px] font-bold tracking-[0.08em] text-ink-3">
+            PHOTOS · {photos.length}
+          </h2>
+          <ul className="grid grid-cols-3 gap-1">
+            {photos.map((n) => (
+              <li key={n.id}>
+                <Link href={n.productSlug ? `/p/${n.productSlug}` : "/discover"} aria-label={n.title} className="relative block aspect-square overflow-hidden rounded-xl bg-surface">
+                  <Image src={n.image} alt="" fill sizes="(min-width: 860px) 280px, 33vw" className="object-cover" />
+                  <span className="absolute bottom-1.5 left-2 flex items-center gap-1 text-xs font-semibold text-white drop-shadow">
+                    <Icon name="heart" filled className="size-3.5" />
+                    {compact(n.likes)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {boards.length > 0 && (
         <section aria-labelledby="boards-h" className="mt-6">

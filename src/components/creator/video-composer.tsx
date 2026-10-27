@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
@@ -17,10 +18,13 @@ const MAX_BYTES = 300 * 1024 * 1024;
 const MAX_CAPTION = 2200;
 const MAX_PRODUCTS = 6;
 
+// The camera only loads when someone taps Record.
+const CameraRecorder = dynamic(() => import("./camera-recorder").then((m) => m.CameraRecorder), { ssr: false });
+
 type Stage = { kind: "editing" } | { kind: "uploading"; progress: number } | { kind: "posting" } | { kind: "posted" } | { kind: "failed"; message: string };
 
-/** Post a shoppable video: pick a clip, tag what's in it, write a caption, upload. */
-export function VideoComposer() {
+/** Post a shoppable video: record or pick a clip, tag what's in it, write a caption, upload. */
+export function VideoComposer({ embedded = false }: { embedded?: boolean }) {
   const id = useId();
   const money = useMoney();
   const { account } = useStore();
@@ -33,7 +37,9 @@ export function VideoComposer() {
   const [place, setPlace] = useState("");
   const [stage, setStage] = useState<Stage>({ kind: "editing" });
   const [problem, setProblem] = useState<string | null>(null);
+  const [camera, setCamera] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
+  const Wrap = embedded ? Bare : Frame;
   const { products: found } = useProductSearch(query.trim(), {}, "best");
 
   // The preview is a blob URL; let it go when the page closes.
@@ -76,20 +82,20 @@ export function VideoComposer() {
 
   if (!account) {
     return (
-      <Frame>
+      <Wrap>
         <p className="glass-inset rounded-[22px] p-4 text-sm text-ink-2">
           <Link href="/signin?next=/creator/new" className="font-semibold text-ink underline underline-offset-2">
             Sign in
           </Link>{" "}
           to post videos and earn on the orders they bring in.
         </p>
-      </Frame>
+      </Wrap>
     );
   }
 
   if (stage.kind === "posted") {
     return (
-      <Frame>
+      <Wrap>
         <div className="glass flex flex-col items-center gap-3 rounded-[28px] p-6 text-center">
           <span className="grid size-14 place-items-center rounded-full bg-positive/15 text-positive">
             <Icon name="check" className="size-7" />
@@ -116,7 +122,7 @@ export function VideoComposer() {
             </button>
           </div>
         </div>
-      </Frame>
+      </Wrap>
     );
   }
 
@@ -124,29 +130,47 @@ export function VideoComposer() {
   const ready = file && tagged.length > 0 && caption.trim().length > 0 && !busy;
 
   return (
-    <Frame>
+    <Wrap>
+      {camera && (
+        <CameraRecorder
+          onClose={() => setCamera(false)}
+          onDone={(f) => {
+            setCamera(false);
+            choose(f);
+          }}
+        />
+      )}
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-6">
         <div className="lg:w-[300px] lg:shrink-0">
           <input ref={picker} type="file" accept={TYPES.join(",")} className="sr-only" aria-label="Choose a video" onChange={(e) => choose(e.target.files?.[0])} />
-          <button
-            type="button"
-            onClick={() => picker.current?.click()}
-            disabled={busy}
-            className="glass-inset relative mx-auto block aspect-[9/16] w-full max-w-[260px] overflow-hidden rounded-[26px]"
-          >
+          <div className="glass-inset relative mx-auto aspect-[9/16] w-full max-w-[260px] overflow-hidden rounded-[26px]">
             {preview ? (
               <video src={preview} className="absolute inset-0 size-full object-cover" muted loop autoPlay playsInline />
             ) : (
-              <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-ink-2">
-                <span className="grid size-14 place-items-center rounded-full bg-white/10">
-                  <Icon name="plus" className="size-7" />
-                </span>
-                <b className="text-[15px] text-ink">Choose a video</b>
-                <span className="px-6 text-xs">Vertical works best · up to 3 minutes</span>
+              <span className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-5 text-center text-ink-2">
+                <button type="button" onClick={() => setCamera(true)} disabled={busy} className="flex flex-col items-center gap-2">
+                  <span className="grid size-16 place-items-center rounded-full bg-live text-white shadow-[0_8px_24px_rgb(255_59_92/0.35)]">
+                    <Icon name="camera" className="size-7" />
+                  </span>
+                  <b className="text-[15px] text-ink">Record</b>
+                </button>
+                <button type="button" onClick={() => picker.current?.click()} disabled={busy} className="glass h-10 rounded-full px-4 text-[13px] font-semibold text-ink">
+                  Upload a clip
+                </button>
+                <span className="text-xs">Vertical works best · up to 3 minutes</span>
               </span>
             )}
-            {preview && !busy && <span className="glass absolute right-2 bottom-2 rounded-full px-3 py-1.5 text-xs font-semibold">Change</span>}
-          </button>
+            {preview && !busy && (
+              <span className="absolute inset-x-2 bottom-2 flex justify-end gap-1.5">
+                <button type="button" onClick={() => setCamera(true)} className="glass rounded-full px-3 py-1.5 text-xs font-semibold">
+                  Re-record
+                </button>
+                <button type="button" onClick={() => picker.current?.click()} className="glass rounded-full px-3 py-1.5 text-xs font-semibold">
+                  Change
+                </button>
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-4">
@@ -244,11 +268,15 @@ export function VideoComposer() {
               {stage.kind === "uploading" ? `Uploading… ${Math.round(stage.progress * 100)}%` : stage.kind === "posting" ? "Posting…" : "Post video"}
             </span>
           </button>
-          {!ready && !busy && <p className="text-xs text-ink-3">Choose a video, tag at least one product and write a caption.</p>}
+          {!ready && !busy && <p className="text-xs text-ink-3">Record or choose a video, tag at least one product and write a caption.</p>}
         </div>
       </div>
-    </Frame>
+    </Wrap>
   );
+}
+
+function Bare({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }
 
 function Frame({ children }: { children: React.ReactNode }) {

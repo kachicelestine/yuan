@@ -1,7 +1,7 @@
 import { and, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, or, sql, sum, type SQL } from "drizzle-orm";
 import { campaigns, daily as adDaily } from "@/modules/ads/infrastructure/schema";
 import { products, sellers } from "@/modules/catalog/infrastructure/schema";
-import { reports, videos, videoStats } from "@/modules/content/infrastructure/schema";
+import { notes, reports, videos, videoStats } from "@/modules/content/infrastructure/schema";
 import { accounts } from "@/modules/identity/infrastructure/schema";
 import { shows } from "@/modules/live/infrastructure/schema";
 import { applications, members } from "@/modules/merchants/infrastructure/schema";
@@ -343,6 +343,20 @@ export async function videoList(db: Database, q = ""): Promise<AdminVideoView[]>
     createdAt: v.createdAt.toISOString(),
     uploaded: v.authorId !== null,
   }));
+}
+
+export type AdminNoteView = { id: string; title: string; image: string; authorName: string; productSlug: string | null; likes: number; createdAt: string };
+
+/** Photo posts people made (seeded editorial notes have no author). */
+export async function noteList(db: Database, q = ""): Promise<AdminNoteView[]> {
+  const term = q.trim();
+  const rows = await db
+    .select()
+    .from(notes)
+    .where(and(isNotNull(notes.authorId), term ? or(ilike(notes.title, pattern(term)), ilike(notes.authorName, pattern(term))) : undefined))
+    .orderBy(desc(notes.createdAt))
+    .limit(PAGE);
+  return rows.map((n) => ({ id: n.id, title: n.title, image: n.imageUrl, authorName: n.authorName, productSlug: n.productSlug, likes: n.likes, createdAt: n.createdAt.toISOString() }));
 }
 
 export type AdminShowView = { id: string; title: string; sellerId: string; hostName: string; status: string; scheduledFor: string; startedAt: string | null; peakViewers: number; cover: string };

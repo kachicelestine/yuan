@@ -51,6 +51,17 @@ export function makeContentQueries({ videos, comments, notes, reviews, questions
       return videoViews(await videos.listReady({ sellerIds, authorIds, offset, limit }));
     },
 
+    /** Published videos and photo posts with a hashtag, newest first. */
+    async tagged(tag: string, limit = 60): Promise<{ videos: VideoView[]; notes: NoteView[] }> {
+      const [v, n] = await Promise.all([videos.listReadyByTag(tag, limit), notes.listByTag(tag, limit)]);
+      return { videos: await videoViews(v), notes: n.map(toNoteView) };
+    },
+
+    /** A person's photo posts, newest first. */
+    async notesByAuthor(accountId: string, limit = 60): Promise<NoteView[]> {
+      return (await notes.listByAuthor(accountId, limit)).map(toNoteView);
+    },
+
     /** What a person posted, newest first (published only). */
     async videosByAuthor(accountId: string, limit = 30): Promise<VideoView[]> {
       return videoViews((await videos.listByAuthor(accountId, limit * 2)).filter((v) => v.status === "ready").slice(0, limit));

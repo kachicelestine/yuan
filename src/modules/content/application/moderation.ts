@@ -1,10 +1,11 @@
 import { domainError, err, ok, type Clock, type DomainError, type EventLog, type Result } from "@/shared/kernel";
 import { fileReport, type ReportError, type ReportReason, type ReportTarget } from "../domain/moderation";
-import type { CommentRepository, QuestionRepository, ReportRepository, ReviewRepository, VideoRepository } from "../domain/repositories";
+import type { CommentRepository, NoteRepository, QuestionRepository, ReportRepository, ReviewRepository, VideoRepository } from "../domain/repositories";
 import { approve, remove, type VideoError } from "../domain/video";
 
 export type ModerationScope = {
   videos: VideoRepository;
+  notes: NoteRepository;
   comments: CommentRepository;
   questions: QuestionRepository;
   reviews: ReviewRepository;
@@ -15,6 +16,7 @@ export type ModerationScope = {
 export type ModerationDeps = {
   reports: ReportRepository;
   videos: VideoRepository;
+  notes: NoteRepository;
   comments: CommentRepository;
   questions: QuestionRepository;
   reviews: ReviewRepository;
@@ -52,7 +54,7 @@ export type ModerationItemView = {
 export type PendingVideoView = { id: string; caption: string; image: string; clip: string | null; productSlug: string; sellerId: string; authorId: string | null; at: string };
 
 /** Reports from people, and the decisions moderators take on them and on new uploads. */
-export function makeModeration({ reports, videos, comments, questions, reviews, uow, clock, newId }: ModerationDeps) {
+export function makeModeration({ reports, videos, notes, comments, questions, reviews, uow, clock, newId }: ModerationDeps) {
   /** What's being reported, or null when it's already gone. */
   async function preview(targetType: ReportTarget, targetId: string): Promise<ModerationItemView["preview"] | null> {
     if (targetType === "video") {
@@ -62,6 +64,10 @@ export function makeModeration({ reports, videos, comments, questions, reviews, 
     if (targetType === "comment") {
       const c = await comments.find(targetId);
       return c && { title: `Comment by ${c.authorName}`, text: c.text, image: null, link: c.targetType === "video" ? `/?v=${c.targetId}` : null };
+    }
+    if (targetType === "note") {
+      const n = await notes.find(targetId);
+      return n && { title: `Photo post by ${n.authorName}`, text: n.title, image: n.imageUrl, link: n.productSlug ? `/p/${n.productSlug}` : null };
     }
     if (targetType === "question") {
       const q = await questions.find(targetId);
@@ -84,6 +90,10 @@ export function makeModeration({ reports, videos, comments, questions, reviews, 
       if (!c) return null;
       if (c.targetType === "video") await s.videos.bump(c.targetId, { comments: -1 });
       return { videoId: c.targetType === "video" ? c.targetId : null, productSlug: null, sellerId: null };
+    }
+    if (targetType === "note") {
+      const n = await s.notes.remove(targetId);
+      return n && { videoId: null, productSlug: n.productSlug, sellerId: null };
     }
     if (targetType === "question") {
       const q = await s.questions.remove(targetId);

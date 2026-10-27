@@ -8,7 +8,7 @@ import type { Message } from "@/modules/notifications";
 import type { DepositMoney } from "@/modules/engagement";
 import { settleDepositMoney } from "../deposits";
 import { cents } from "@/shared/kernel/money";
-import { categoryVideosTag, commentsTag, FEED_TAG, MARKETS_TAG, productTag, questionsTag, reviewsTag, sellerReviewsTag, sellerTag, sellerVideosTag } from "../cache-tags";
+import { categoryVideosTag, commentsTag, CONTENT_TAG, FEED_TAG, MARKETS_TAG, productTag, questionsTag, reviewsTag, sellerReviewsTag, sellerTag, sellerVideosTag } from "../cache-tags";
 
 const jobLog = log.child({ scope: "jobs" });
 const DAY = 24 * 60 * 60 * 1000;
@@ -44,6 +44,8 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
       if (p.videoId) tags.push(FEED_TAG, commentsTag(p.videoId));
       if (p.targetType === "video" && p.sellerId) tags.push(sellerVideosTag(p.sellerId));
       if (p.targetType === "question" && p.productSlug) tags.push(questionsTag(p.productSlug));
+      // Photo posts show on Discover, profiles and hashtag pages.
+      if (p.targetType === "note") tags.push("notes", CONTENT_TAG);
       if (p.targetType === "review" && p.productSlug) tags.push(reviewsTag(p.productSlug), ...(p.sellerId ? [sellerReviewsTag(p.sellerId)] : []));
       if (tags.length) await revalidateTags(tags);
     },

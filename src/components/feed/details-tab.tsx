@@ -23,14 +23,16 @@ export function DetailsTab({ video, product, onShop }: { video: Video; product: 
         <p className="mt-2 text-[15px] leading-relaxed">{video.caption}</p>
         <p className="mt-3 flex flex-wrap items-center gap-1.5">
           {video.tags.map((tag) => (
-            <Link key={tag} href={`/discover?q=${tag}`} className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold">
+            <Link key={tag} href={`/tag/${encodeURIComponent(tag)}`} className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold">
               #{tag}
             </Link>
           ))}
-          <span className="flex items-center gap-1 px-1 text-xs font-semibold text-ink-2">
-            <Icon name="pin" className="size-3.5" />
-            {video.place}
-          </span>
+          {video.place && (
+            <span className="flex items-center gap-1 px-1 text-xs font-semibold text-ink-2">
+              <Icon name="pin" className="size-3.5" />
+              {video.place}
+            </span>
+          )}
         </p>
       </section>
 

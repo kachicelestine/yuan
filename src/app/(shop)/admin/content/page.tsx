@@ -7,7 +7,7 @@ import { AdminEmpty, AdminFrame, AdminSearch, day, Pill } from "@/components/adm
 import { SellSkeleton } from "@/components/sell/sell-frame";
 import { approveVideoAction, endShowAction, resolveAction } from "@/server/actions/admin";
 import { adminContext, param } from "@/server/admin/page";
-import { showList, videoList } from "@/server/admin/queries";
+import { noteList, showList, videoList } from "@/server/admin/queries";
 
 export const metadata: Metadata = { title: "Admin · Content", robots: { index: false } };
 
@@ -24,7 +24,7 @@ export default function ContentPage({ searchParams }: PageProps<"/admin/content"
 async function Content({ searchParams }: { searchParams: PageProps<"/admin/content">["searchParams"] }) {
   const { app } = await adminContext();
   const q = param((await searchParams).q);
-  const [videos, shows] = await Promise.all([videoList(app.db, q), q ? Promise.resolve([]) : showList(app.db)]);
+  const [videos, shows, photos] = await Promise.all([videoList(app.db, q), q ? Promise.resolve([]) : showList(app.db), noteList(app.db, q)]);
   return (
     <AdminFrame title="Content" subtitle="Live shows and every video and post, newest first.">
       {shows.length > 0 && (
@@ -77,6 +77,28 @@ async function Content({ searchParams }: { searchParams: PageProps<"/admin/conte
             </li>
           ))}
         </ul>
+      )}
+
+      {photos.length > 0 && (
+        <section aria-labelledby="photos-h" className="mt-5">
+          <h2 id="photos-h" className="mb-2 px-1 text-[11px] font-bold tracking-[0.08em] text-ink-3">
+            PHOTO POSTS
+          </h2>
+          <ul className="glass flex flex-col divide-y divide-line overflow-hidden rounded-[24px]">
+            {photos.map((n) => (
+              <li key={n.id} className="flex items-center gap-3 px-4 py-3">
+                <Image src={n.image} alt="" width={48} height={48} sizes="48px" className="size-12 shrink-0 rounded-xl object-cover" />
+                <div className="min-w-0 flex-1">
+                  <p className="line-clamp-2 text-sm">{n.title}</p>
+                  <p className="truncate text-xs text-ink-2">
+                    {n.authorName} · {n.likes} likes · {day(n.createdAt)}
+                  </p>
+                </div>
+                <ConfirmButton label="Remove" tone="danger" action={resolveAction.bind(null, "note", n.id, "remove")} />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </AdminFrame>
   );

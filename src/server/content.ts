@@ -80,3 +80,11 @@ export async function getComments(videoId: string, before?: string) {
   cacheTag(CONTENT_TAG, commentsTag(videoId));
   return (await content()).comments(videoId, 30, before ? new Date(before) : undefined);
 }
+
+/** Videos and photo posts with a hashtag. */
+export async function getTagged(tag: string) {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(CONTENT_TAG, "notes");
+  return (await content()).tagged(tag);
+}

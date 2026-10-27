@@ -42,9 +42,14 @@ export function ProfileActions({ handle, followers, following, likes, viewer }: 
       </dl>
       <div className="flex items-center gap-2">
         {viewer?.isSelf ? (
-          <Link href="/me/profile" className="glass-inset grid h-11 place-items-center rounded-full px-6 text-[15px] font-bold">
-            Edit profile
-          </Link>
+          <>
+            <Link href="/creator/new" className="grid h-11 place-items-center rounded-full bg-accent px-6 text-[15px] font-bold text-white">
+              Post
+            </Link>
+            <Link href="/me/profile" className="glass-inset grid h-11 place-items-center rounded-full px-5 text-[15px] font-bold">
+              Edit profile
+            </Link>
+          </>
         ) : viewer ? (
           <FollowPerson handle={handle} initial={viewer.followed} signedIn={viewer.signedIn} onChange={setCount} />
         ) : (

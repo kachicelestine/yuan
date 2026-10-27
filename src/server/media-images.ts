@@ -14,7 +14,7 @@ import { PhotoCache } from "./photo-cache";
 const WIDTHS = new Set([...DEVICE_SIZES, ...IMAGE_SIZES]);
 const ALLOWED_QUALITIES = new Set(QUALITIES);
 /** Only public media prefixes; identity documents live in other storage entirely. */
-const PUBLIC_PREFIXES = ["catalog/", "shops/", "videos/", "avatars/"];
+const PUBLIC_PREFIXES = ["catalog/", "shops/", "videos/", "avatars/", "notes/"];
 
 export type MediaFormat = "webp" | "jpg";
 export const MEDIA_CONTENT_TYPES: Record<MediaFormat, string> = { webp: "image/webp", jpg: "image/jpeg" };

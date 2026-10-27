@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { VideoComposer } from "@/components/creator/video-composer";
+import { PostComposer } from "@/components/creator/post-composer";
 
-export const metadata: Metadata = { title: "Post a video" };
+export const metadata: Metadata = { title: "New post" };
 
-export default function NewVideoPage() {
-  return <VideoComposer />;
+export default function NewPostPage() {
+  return <PostComposer />;
 }

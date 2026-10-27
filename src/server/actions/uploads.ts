@@ -1,8 +1,10 @@
 "use server";
 
+import { updateTag } from "next/cache";
 import { z } from "zod";
 import { MAX_CAPTION, MAX_TAGGED, MAX_TAGS, MAX_UPLOAD_BYTES, UPLOAD_TYPES } from "@/modules/content";
 import { actorFor } from "../actor";
+import { profileTag } from "../cache-tags";
 import { services } from "../container";
 import { allow, RATE_LIMITED } from "../rate-limits";
 import { currentAccount } from "../session";
@@ -43,4 +45,39 @@ export async function publishVideoAction(input: z.input<typeof Post>): Promise<{
   if (!parsed.success) return fail("invalid", "Check the caption and tags.");
   const r = await (await services()).uploads.publish(await actorFor(account), parsed.data);
   return r.ok ? { ok: true, videoId: r.value.videoId } : fail(r.error.code, r.error.message);
+}
+
+/** Photo posts, step 1: a ticket to upload the photo. */
+export async function startNotePhotoAction(file: { contentType: string; bytes: number }): Promise<{ ok: true; url: string; headers: Record<string, string>; photo: string } | Failure> {
+  const account = await currentAccount();
+  if (!account) return fail("signed_out", "Sign in to post.");
+  if (!(await allow("content.upload", account.id))) return RATE_LIMITED;
+  const p = z.object({ contentType: z.string().max(100), bytes: z.number().int().positive() }).safeParse(file);
+  if (!p.success) return fail("invalid", "That file couldn't be read.");
+  const r = await (await services()).photoPosts.startPhoto(await actorFor(account), p.data);
+  return r.ok ? { ok: true, url: r.value.url, headers: { ...r.value.headers }, photo: r.value.photo } : fail(r.error.code, r.error.message);
+}
+
+const NotePost = z.object({
+  photo: z.string().max(300),
+  caption: z.string().max(400),
+  tags: z.array(z.string().max(40)).max(MAX_TAGS).default([]),
+  productSlug: slug.nullable().default(null),
+  ratio: z.enum(["tall", "square", "wide"]),
+});
+
+/** Photo posts, step 2: post it to Discover, your profile and its hashtags. */
+export async function postNoteAction(input: z.input<typeof NotePost>): Promise<{ ok: true; id: string } | Failure> {
+  const account = await currentAccount();
+  if (!account) return fail("signed_out", "Sign in to post.");
+  if (!(await allow("content.upload", account.id))) return RATE_LIMITED;
+  const p = NotePost.safeParse(input);
+  if (!p.success) return fail("invalid", "Check the caption and tags.");
+  const app = await services();
+  const r = await app.photoPosts.post(await actorFor(account), p.data);
+  if (!r.ok) return fail(r.error.code, r.error.message);
+  // The poster sees it straight away on Discover and their profile.
+  updateTag("notes");
+  updateTag(profileTag((await app.profiles.me(account.id)).handle));
+  return { ok: true, id: r.value.id };
 }

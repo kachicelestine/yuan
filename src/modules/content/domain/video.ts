@@ -1,4 +1,5 @@
 import { domainError, err, ok, type DomainError, type Result } from "@/shared/kernel";
+import { cleanTags } from "./posts";
 
 /** processing → (review →) ready. "review" waits for a moderator when uploads are pre-moderated. */
 export type VideoStatus = "processing" | "review" | "ready" | "failed" | "removed";
@@ -68,7 +69,8 @@ export function draftVideo(props: {
   if (caption.length === 0 || caption.length > MAX_CAPTION) return err(domainError("invalid_caption", `Write a caption of up to ${MAX_CAPTION} characters.`));
   const also = [...new Set(props.alsoSlugs.filter((s) => s !== props.productSlug))];
   if (also.length + 1 > MAX_TAGGED) return err(domainError("too_many_products", `Tag up to ${MAX_TAGGED} products.`));
-  const tags = [...new Set(props.tags.map((t) => t.trim().replace(/^#/, "").toLowerCase()).filter(Boolean))];
+  // Hashtags typed in the caption count too, so every #tag in it links somewhere.
+  const tags = cleanTags([...props.tags, ...(props.caption.match(/#[\p{L}\p{N}_]+/gu) ?? [])]);
   if (tags.length > MAX_TAGS) return err(domainError("too_many_tags", `Use up to ${MAX_TAGS} tags.`));
   const video: Video = {
     id: props.id,

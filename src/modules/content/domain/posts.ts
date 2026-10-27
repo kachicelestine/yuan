@@ -35,8 +35,54 @@ export type Note = Readonly<{
   live: boolean;
   video: boolean;
   likes: number;
+  /** Hashtags, normalised like videos': lower case, no "#". */
+  tags: readonly string[];
   createdAt: Date;
 }>;
+
+export const MAX_NOTE_CAPTION = 300;
+export const MAX_NOTE_TAGS = 10;
+export type NoteError = DomainError<"invalid_caption" | "too_many_tags" | "invalid_photo">;
+
+/** Normalises hashtags: trims, drops "#", lower case, no repeats, letters and numbers only. */
+export function cleanTags(tags: readonly string[]): string[] {
+  return [...new Set(tags.map((t) => t.trim().replace(/^#+/, "").toLowerCase().replace(/[^\p{L}\p{N}_]/gu, "")).filter((t) => t.length > 0 && t.length <= 40))];
+}
+
+/** A photo post someone made: their photo, a caption, and optionally a product it shows. */
+export function draftNote(props: {
+  id: string;
+  author: { accountId: string; name: string; avatar: string };
+  imageUrl: string;
+  ratio: Note["ratio"];
+  productSlug: string | null;
+  category: string;
+  caption: string;
+  tags: readonly string[];
+  at: Date;
+}): Result<Note, NoteError> {
+  const title = props.caption.trim();
+  if (!title.length || title.length > MAX_NOTE_CAPTION) return err(domainError("invalid_caption", `Write a caption of up to ${MAX_NOTE_CAPTION} characters.`));
+  const tags = cleanTags([...props.tags, ...(title.match(/#[\p{L}\p{N}_]+/gu) ?? [])]);
+  if (tags.length > MAX_NOTE_TAGS) return err(domainError("too_many_tags", `Use up to ${MAX_NOTE_TAGS} tags.`));
+  if (!props.imageUrl.startsWith(`/media/notes/${props.author.accountId}/`)) return err(domainError("invalid_photo", "Upload a photo first."));
+  return ok({
+    id: props.id,
+    authorId: props.author.accountId,
+    authorName: props.author.name,
+    authorAvatar: props.author.avatar,
+    title,
+    imageUrl: props.imageUrl,
+    ratio: props.ratio,
+    productSlug: props.productSlug,
+    category: props.category,
+    live: false,
+    video: false,
+    likes: 0,
+    tags,
+    createdAt: props.at,
+  });
+}
 
 export type Review = Readonly<{
   id: string;

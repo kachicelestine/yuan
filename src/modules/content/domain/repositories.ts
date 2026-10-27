@@ -25,6 +25,8 @@ export interface VideoRepository {
   addWatches(tallies: readonly WatchTally[], day: string): Promise<void>;
   /** Someone's own videos in any state, newest first. */
   listByAuthor(authorId: string, limit: number): Promise<Video[]>;
+  /** Published videos with this hashtag, newest first. */
+  listReadyByTag(tag: string, limit: number): Promise<Video[]>;
   /** True when a video was already made from this upload. */
   hasSource(sourceKey: string): Promise<boolean>;
   /**
@@ -52,6 +54,11 @@ export interface CommentRepository {
 export interface NoteRepository {
   list(filter: { category?: string; limit: number }): Promise<Note[]>;
   find(id: string): Promise<Note | null>;
+  add(note: Note): Promise<void>;
+  listByAuthor(authorId: string, limit: number): Promise<Note[]>;
+  listByTag(tag: string, limit: number): Promise<Note[]>;
+  /** Deletes a note (a takedown); returns it, or null if it was already gone. */
+  remove(id: string): Promise<Note | null>;
   /** False when there's no such note. */
   bumpLikes(id: string, delta: number): Promise<boolean>;
 }

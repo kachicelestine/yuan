@@ -129,7 +129,13 @@ export function DiscoverBoard({ notes, categories }: { notes: BoardNote[]; categ
             <article key={note.id} className="group mb-2 break-inside-avoid overflow-hidden rounded-[18px] bg-surface ring-[0.5px] ring-white/10">
               {href ? <Link href={href} className="block">{media}</Link> : media}
               <div className="flex h-11 items-center gap-1.5 pr-1 pl-2.5">
-                <Image src={note.authorAvatar} alt="" width={20} height={20} sizes="20px" className="size-5 rounded-full object-cover" />
+                {note.authorAvatar ? (
+                  <Image src={note.authorAvatar} alt="" width={20} height={20} sizes="20px" className="size-5 rounded-full object-cover" />
+                ) : (
+                  <span aria-hidden="true" className="grid size-5 place-items-center rounded-full bg-white/15 text-[10px] font-bold uppercase">
+                    {note.authorName.slice(0, 1)}
+                  </span>
+                )}
                 <span className="min-w-0 flex-1 truncate text-xs text-ink-2">{note.authorName}</span>
                 <button
                   type="button"

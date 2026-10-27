@@ -9,7 +9,7 @@ const tsvector = customType<{ data: string }>({ dataType: () => "tsvector" });
 export const videoStatus = contentSchema.enum("video_status", ["processing", "review", "ready", "failed", "removed"]);
 export const targetType = contentSchema.enum("target_type", ["video", "note"]);
 export const likeTarget = contentSchema.enum("like_target", ["video", "note", "comment", "question", "review"]);
-export const reportTarget = contentSchema.enum("report_target", ["video", "comment", "question", "review"]);
+export const reportTarget = contentSchema.enum("report_target", ["video", "comment", "question", "review", "note"]);
 export const reportReason = contentSchema.enum("report_reason", ["counterfeit", "misleading", "offensive", "spam", "unsafe", "other"]);
 export const reportStatus = contentSchema.enum("report_status", ["open", "actioned", "dismissed"]);
 export const tone = contentSchema.enum("tone", ["light", "dark"]);
@@ -51,6 +51,7 @@ export const videos = contentSchema.table(
     uniqueIndex("videos_source_idx").on(t.sourceKey),
     index("videos_seller_idx").on(t.sellerId, t.publishedAt),
     index("videos_category_idx").on(t.category, t.publishedAt),
+    index("videos_tags_idx").using("gin", t.tags),
   ],
 );
 
@@ -119,9 +120,10 @@ export const notes = contentSchema.table(
     live: boolean().notNull().default(false),
     video: boolean().notNull().default(false),
     likes: integer().notNull().default(0),
+    tags: text().array().notNull().default(sql`'{}'`),
     createdAt: timestamp({ withTimezone: true }).notNull(),
   },
-  (t) => [index("notes_category_idx").on(t.category, t.createdAt)],
+  (t) => [index("notes_category_idx").on(t.category, t.createdAt), index("notes_author_idx").on(t.authorId, t.createdAt), index("notes_tags_idx").using("gin", t.tags)],
 );
 
 export const reviews = contentSchema.table(
