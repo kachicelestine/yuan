@@ -7,6 +7,7 @@ export interface AccountRepository {
   findByEmail(email: Email): Promise<Account | null>;
   findByWallet(address: string): Promise<Account | null>;
   save(account: Account): Promise<void>;
+  setSuspension(id: string, at: Date | null, reason: string | null): Promise<void>;
 }
 
 export interface ChallengeRepository {
@@ -22,4 +23,6 @@ export interface SessionRepository {
   findByTokenHash(tokenHash: string): Promise<Session | null>;
   save(session: Session): Promise<void>;
   delete(id: string): Promise<void>;
+  /** Ends every session of an account (signs it out everywhere). */
+  deleteForAccount(accountId: string): Promise<void>;
 }

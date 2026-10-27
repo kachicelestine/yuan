@@ -8,7 +8,7 @@ export const catalogSchema = pgSchema("catalog");
 const tsvector = customType<{ data: string }>({ dataType: () => "tsvector" });
 
 export const sellerKind = catalogSchema.enum("seller_kind", SELLER_KINDS);
-export const productStatus = catalogSchema.enum("product_status", ["draft", "active", "archived"]);
+export const productStatus = catalogSchema.enum("product_status", ["draft", "active", "archived", "removed", "suspended"]);
 
 export const categories = catalogSchema.table("categories", {
   id: text().primaryKey(),
@@ -32,6 +32,8 @@ export const sellers = catalogSchema.table("sellers", {
   /** Storefront value object; one per seller, always read with it. */
   storefront: jsonb().$type<Storefront>(),
   createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  suspendedAt: timestamp({ withTimezone: true }),
+  suspendReason: text(),
 });
 
 /** Stored option shape: money as integer cents. */
@@ -50,6 +52,8 @@ export const products = catalogSchema.table(
       .notNull()
       .references(() => sellers.id),
     status: productStatus().notNull().default("active"),
+    /** Why a moderator removed it. */
+    moderationNote: text(),
     images: text().array().notNull(),
     priceCents: integer(),
     wasCents: integer(),

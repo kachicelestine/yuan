@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { brand } from "@/config/brand";
 import { serverEnv } from "@/config/server-env";
-import { makeCatalogQueries, makeRatings, makeSearchProducts, makeSearchShops, makeSelling, type SellerId } from "@/modules/catalog";
+import { makeCatalogAdmin, makeCatalogQueries, makeRatings, makeSearchProducts, makeSearchShops, makeSelling, type SellerId } from "@/modules/catalog";
 import { DrizzleCategoryRepository, DrizzleProductRepository, DrizzleSellerRepository } from "@/modules/catalog/infrastructure/drizzle-catalog-repositories";
 import { DrizzleProductSearch } from "@/modules/catalog/infrastructure/drizzle-product-search";
 import { makeContentQueries, makeInteractions, makeModeration, makeUploads, type VideoEncoder } from "@/modules/content";
@@ -18,7 +18,7 @@ import {
   DrizzleVideoRepository,
 } from "@/modules/content/infrastructure/drizzle-content-repositories";
 import { FfmpegEncoder } from "@/modules/content/infrastructure/ffmpeg-encoder";
-import { makeBlindBoxes, makeBoards, makeDeposits, makeChops, makeEngagement, makePolls, makePromos, makeRewards, pollId } from "@/modules/engagement";
+import { makeBlindBoxes, makeBoards, makeCouponDesk, makeDeposits, makeChops, makeEngagement, makePolls, makePromos, makeRewards, pollId } from "@/modules/engagement";
 import { DrizzleBoardRepository } from "@/modules/engagement/infrastructure/drizzle-board-repository";
 import { DrizzleBlindBoxRepository } from "@/modules/engagement/infrastructure/drizzle-blindbox-repository";
 import { DrizzleDepositRepository } from "@/modules/engagement/infrastructure/drizzle-deposit-repository";
@@ -391,6 +391,8 @@ export function wire(db: Database, options: WireOptions = {}) {
     listMarkets: makeListMarkets({ countries, fx: new DrizzleFxRateRepository(db) }),
     catalog: makeCatalogQueries({ categories: new DrizzleCategoryRepository(db), sellers, products, clock }),
     ratings: makeRatings({ products, sellers }),
+    catalogAdmin: makeCatalogAdmin({ products, sellers }),
+    coupons: makeCouponDesk({ coupons: new DrizzleCouponRepository(db), claims: new DrizzleClaimRepository(db), clock, newId: () => newId() }),
     selling: makeSelling({ products, categories: new DrizzleCategoryRepository(db), sellers, photos: storage, clock, newId: () => newId() }),
     searchProducts: makeSearchProducts({ search: productSearch, sellers, clock }),
     searchShops,

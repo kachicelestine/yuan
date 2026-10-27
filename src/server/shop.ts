@@ -19,5 +19,16 @@ export async function currentShop(sellerId?: string) {
   if (!account) return null;
   const shops = await myShops();
   const shop = sellerId ? shops.find((m) => m.sellerId === sellerId) : shops[0];
-  return shop ? { account, sellerId: shop.sellerId, role: shop.role } : null;
+  if (!shop) return null;
+  // A suspended shop's tools are locked.
+  if (await (await services()).catalog.suspension(shop.sellerId)) return null;
+  return { account, sellerId: shop.sellerId, role: shop.role };
+}
+
+/** The signed-in person's shop when an admin suspended it: its id and the reason. */
+export async function suspendedShop() {
+  const [shop] = await myShops();
+  if (!shop) return null;
+  const s = await (await services()).catalog.suspension(shop.sellerId);
+  return s ? { sellerId: shop.sellerId, ...s } : null;
 }

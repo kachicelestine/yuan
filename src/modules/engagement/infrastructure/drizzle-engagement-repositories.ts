@@ -1,9 +1,9 @@
-import { and, asc, desc, eq, gte, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
 import type { Database } from "@/shared/infrastructure/database";
 import { cents } from "@/shared/kernel/money";
 import type { CoinEntry, CoinReason, Reward, Watch } from "../domain/coins";
 import type { Claim, Coupon } from "../domain/coupon";
-import type { ClaimRepository, CoinRepository, CouponRepository, ListKind, ListRepository, RewardRepository, WatchRepository } from "../domain/repositories";
+import type { ClaimRepository, CoinRepository, CouponRepository, CouponStats, ListKind, ListRepository, RewardRepository, WatchRepository } from "../domain/repositories";
 import { coinBalances, coinEntries, couponClaims, coupons, listItems, rewards, watches } from "./schema";
 
 const toCoupon = (r: typeof coupons.$inferSelect): Coupon => ({
@@ -28,6 +28,15 @@ export class DrizzleCouponRepository implements CouponRepository {
     const [r] = await this.db.select().from(coupons).where(eq(coupons.id, id)).limit(1);
     return r ? toCoupon(r) : null;
   }
+
+  async listForSeller(sellerId: string) {
+    return (await this.db.select().from(coupons).where(eq(coupons.sellerId, sellerId)).orderBy(desc(coupons.expiresAt))).map(toCoupon);
+  }
+
+  async save(c: Coupon) {
+    const row = { id: c.id, kind: c.kind, value: c.value, minSpendCents: c.minSpend, sellerId: c.sellerId, title: c.title, detail: c.detail, expiresAt: c.expiresAt };
+    await this.db.insert(coupons).values(row).onConflictDoUpdate({ target: coupons.id, set: { title: row.title, detail: row.detail, expiresAt: row.expiresAt } });
+  }
 }
 
 export class DrizzleClaimRepository implements ClaimRepository {
@@ -48,6 +57,18 @@ export class DrizzleClaimRepository implements ClaimRepository {
 
   async add(c: Claim) {
     await this.db.insert(couponClaims).values(c).onConflictDoNothing();
+  }
+
+  async stats(couponIds: readonly string[]) {
+    const out = new Map<string, CouponStats>();
+    if (!couponIds.length) return out;
+    const rows = await this.db
+      .select({ id: couponClaims.couponId, claimed: count(), used: sql<number>`count(${couponClaims.redeemedAt})::int` })
+      .from(couponClaims)
+      .where(inArray(couponClaims.couponId, [...couponIds]))
+      .groupBy(couponClaims.couponId);
+    for (const r of rows) out.set(r.id, { claimed: r.claimed, used: r.used });
+    return out;
   }
 
   /** One conditional UPDATE: only a free, unspent claim can be taken, and only by one order. */

@@ -34,4 +34,7 @@ export type Seller = Readonly<{
   audited: string | null;
   yearsInBusiness: number | null;
   storefront: Storefront | null;
+  /** Set by an admin: the shop's pages and listings are hidden and its tools are locked. */
+  suspendedAt?: Date | null;
+  suspendReason?: string | null;
 }>;

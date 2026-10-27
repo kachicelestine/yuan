@@ -79,7 +79,7 @@ export function MeScreen({
     { href: "/creator", label: "Creator", icon: "sparkle", note: "Earn" },
     { href: "/business", label: "Business", icon: "factory", note: "Bulk" },
     { href: "/sell", label: hasShop ? "Your shop" : "Sell", icon: "store", note: hasShop ? "Listings, orders" : "Open a shop" },
-    ...(admin ? [{ href: "/admin", label: "Admin", icon: "shield" as IconName, note: "Reviews" }] : []),
+    ...(admin ? [{ href: "/admin", label: "Admin", icon: "shield" as IconName, note: "Run the platform" }] : []),
   ];
 
   return (

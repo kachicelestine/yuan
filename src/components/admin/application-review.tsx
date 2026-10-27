@@ -21,7 +21,7 @@ export function ApplicationReview({ application: a }: { application: ReviewView 
     const r = approve ? await approveApplicationAction(a.id) : await rejectApplicationAction(a.id, note);
     setBusy(null);
     if (!r.ok) return setError(r.message);
-    router.push("/admin");
+    router.push("/admin/queues");
     router.refresh();
   }
 

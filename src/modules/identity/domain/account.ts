@@ -8,6 +8,9 @@ export type Account = Readonly<{
   /** EVM address in checksum form, from wallet sign-in. */
   wallet: string | null;
   createdAt: Date;
+  /** Set by an admin: the account can't sign in and its sessions end. */
+  suspendedAt?: Date | null;
+  suspendReason?: string | null;
 }>;
 
 export type Email = string & { readonly __brand: "Email" };

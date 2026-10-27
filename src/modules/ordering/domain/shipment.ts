@@ -86,6 +86,17 @@ export function openDispute(s: Shipment, reason: DisputeReason, note: string | n
 }
 
 /** A moderator decides: the buyer gets the shop's amount back, or the shop is paid. */
+/**
+ * An admin refunds a parcel that isn't settled yet (not shipped, on its way, or disputed),
+ * for example when a shop is suspended or never ships.
+ */
+export function adminRefund(s: Shipment, note: string, by: string, at: Date): Result<{ shipment: Shipment; event: ShipmentRefunded }, ShipmentError> {
+  if (s.status === "delivered" || s.status === "refunded") return err(domainError("not_disputable", "This parcel is already settled."));
+  const n = note.trim();
+  if (n.length < 5 || n.length > 1000) return err(domainError("invalid_note", "Explain the decision in a sentence: both sides see it."));
+  return ok({ shipment: { ...s, status: "refunded", resolution: { outcome: "refund", note: n, by, at } }, event: { type: "ShipmentRefunded", orderId: s.orderId, sellerId: s.sellerId, amount: s.amount, at } });
+}
+
 export function resolveDispute(
   s: Shipment,
   outcome: "refund" | "release",

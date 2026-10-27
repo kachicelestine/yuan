@@ -30,6 +30,10 @@ export class DrizzleAccountRepository implements AccountRepository {
     return r ? toAccount(r) : null;
   }
 
+  async setSuspension(id: string, at: Date | null, reason: string | null) {
+    await this.db.update(accounts).set({ suspendedAt: at, suspendReason: reason }).where(eq(accounts.id, id));
+  }
+
   async save(a: Account) {
     await this.db
       .insert(accounts)
@@ -88,5 +92,9 @@ export class DrizzleSessionRepository implements SessionRepository {
 
   async delete(id: string) {
     await this.db.delete(sessions).where(eq(sessions.id, id));
+  }
+
+  async deleteForAccount(accountId: string) {
+    await this.db.delete(sessions).where(eq(sessions.accountId, accountId));
   }
 }

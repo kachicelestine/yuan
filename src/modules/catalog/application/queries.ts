@@ -59,7 +59,8 @@ export function makeCatalogQueries({ categories, sellers, products, clock }: Cat
 
     async getSeller(id: string): Promise<SellerPage | null> {
       const s = await sellers.findById(id as SellerId);
-      return s && { seller: toSellerView(s), storefront: toStorefrontView(s) };
+      // A suspended shop has no public page.
+      return s && !s.suspendedAt ? { seller: toSellerView(s), storefront: toStorefrontView(s) } : null;
     },
 
     /** Sellers with listings in a category, in the order their first listing appeared. */
@@ -68,7 +69,7 @@ export function makeCatalogQueries({ categories, sellers, products, clock }: Cat
       const found = new Map((await sellers.findByIds(ids)).map((s) => [s.id, s]));
       return ids.flatMap((id) => {
         const s = found.get(id);
-        return s ? [{ seller: toSellerView(s), storefront: toStorefrontView(s) }] : [];
+        return s && !s.suspendedAt ? [{ seller: toSellerView(s), storefront: toStorefrontView(s) }] : [];
       });
     },
 
@@ -88,8 +89,14 @@ export function makeCatalogQueries({ categories, sellers, products, clock }: Cat
       return (await products.priceHistory(slug, since)).map((p) => ({ date: p.day, price: p.price / 100 }));
     },
 
+    /** Why a shop is suspended, or null when it isn't. */
+    async suspension(id: string): Promise<{ at: string; reason: string } | null> {
+      const s = await sellers.findById(id as SellerId);
+      return s?.suspendedAt ? { at: s.suspendedAt.toISOString(), reason: s.suspendReason ?? "" } : null;
+    },
+
     async listSellers(): Promise<SellerView[]> {
-      return (await sellers.list()).map(toSellerView);
+      return (await sellers.list()).filter((s) => !s.suspendedAt).map(toSellerView);
     },
 
     productSlugs: () => products.slugs(),

@@ -82,7 +82,7 @@ export class DrizzleProductSearch implements ProductSearch, ShopSearch {
       .select({ seller: sellers, matching: hits.matching, preview: hits.preview, named })
       .from(sellers)
       .leftJoin(hits, eq(hits.sellerId, sellers.id))
-      .where(sql`(${named} or ${hits.matching} > 0)`)
+      .where(sql`(${named} or ${hits.matching} > 0) and ${sellers.suspendedAt} is null`)
       .orderBy(desc(named), sql`${hits.matching} desc nulls last`, desc(sql`coalesce((${sellers.storefront}->>'rating')::numeric, 0)`), asc(sellers.id))
       .limit(limit);
     const previews = await this.previewsFor(rows.filter((r) => !r.preview?.length).map((r) => r.seller.id));

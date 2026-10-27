@@ -30,7 +30,7 @@ type Props = {
   boxes?: Record<string, { seriesTitle: string; caseNumber: number; index: number; figure: { name: string; secret: boolean } }[]>;
 };
 
-const STATUS: Record<ListingView["status"], string> = { active: "Live", draft: "Draft", archived: "Archived" };
+const STATUS: Record<ListingView["status"], string> = { active: "Live", draft: "Draft", archived: "Archived", removed: "Removed by moderators", suspended: "Shop suspended" };
 
 const PARCEL: Record<string, { label: string; tone: string }> = {
   none: { label: "Paid", tone: "bg-positive/15 text-positive" },
@@ -124,6 +124,7 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
                         {l.price === undefined ? "Quote" : money(l.price)} · {l.reviews ? `★ ${l.rating} · ` : ""}
                         {l.sold ? `${compact(l.sold)} sold` : "no sales yet"}
                       </span>
+                      {l.status === "removed" && l.moderationNote && <span className="block text-xs text-like">Removed: {l.moderationNote}</span>}
                     </span>
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${l.status === "active" ? "bg-positive/15 text-positive" : "bg-white/10 text-ink-2"}`}>{STATUS[l.status]}</span>
                     <Icon name="forward" className="size-4 text-ink-3" />

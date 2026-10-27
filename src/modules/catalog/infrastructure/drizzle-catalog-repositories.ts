@@ -19,6 +19,8 @@ export const toSeller = (r: typeof sellers.$inferSelect): Seller => ({
   audited: r.audited,
   yearsInBusiness: r.yearsInBusiness,
   storefront: r.storefront,
+  suspendedAt: r.suspendedAt,
+  suspendReason: r.suspendReason,
 });
 
 export function toProduct(r: typeof products.$inferSelect): Product {
@@ -44,6 +46,7 @@ export function toProduct(r: typeof products.$inferSelect): Product {
     shipsFrom: r.shipsFrom,
     leadTime: { minDays: r.leadMinDays, maxDays: r.leadMaxDays },
     dutyRate: r.dutyRate,
+    moderationNote: r.moderationNote,
   };
 }
 
@@ -74,6 +77,7 @@ export function toProductRow(p: Product): typeof products.$inferInsert {
     leadMinDays: p.leadTime.minDays,
     leadMaxDays: p.leadTime.maxDays,
     dutyRate: p.dutyRate,
+    moderationNote: p.moderationNote ?? null,
     keywords: keywordsOf(p),
   };
 }
@@ -106,6 +110,10 @@ export class DrizzleSellerRepository implements SellerRepository {
   async findByIds(ids: readonly SellerId[]) {
     if (!ids.length) return [];
     return (await this.db.select().from(sellers).where(inArray(sellers.id, [...ids]))).map(toSeller);
+  }
+
+  async setSuspension(id: string, at: Date | null, reason: string | null) {
+    await this.db.update(sellers).set({ suspendedAt: at, suspendReason: reason }).where(eq(sellers.id, id));
   }
 
   async save(s: Seller) {
@@ -191,6 +199,11 @@ export class DrizzleProductRepository implements ProductRepository {
       .from(products)
       .where(and(inArray(products.slug, [...slugs]), eq(products.status, "active")));
     return new Map(rows.flatMap((r) => (r.price === null ? [] : [[r.slug, r.price] as [string, number]])));
+  }
+
+  async setStatusForSeller(sellerId: string, from: Product["status"], to: Product["status"]) {
+    const rows = await this.db.update(products).set({ status: to }).where(and(eq(products.sellerId, sellerId), eq(products.status, from))).returning({ id: products.id });
+    return rows.length;
   }
 
   async applySales(orderId: string, lines: readonly { slug: string; qty: number }[]) {

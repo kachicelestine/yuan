@@ -10,7 +10,12 @@ import type { Deposit, DepositOffer, DepositStatus } from "./deposit";
 export interface CouponRepository {
   list(): Promise<Coupon[]>;
   find(id: string): Promise<Coupon | null>;
+  listForSeller(sellerId: string): Promise<Coupon[]>;
+  save(coupon: Coupon): Promise<void>;
 }
+
+/** How far a coupon has gone: into wallets, and spent on paid orders. */
+export type CouponStats = { claimed: number; used: number };
 
 export interface ClaimRepository {
   listForAccount(accountId: string): Promise<Claim[]>;
@@ -26,6 +31,7 @@ export interface ClaimRepository {
   redeemForOrder(orderId: string, at: Date): Promise<void>;
   /** Frees the coupon reserved for an order that lapsed unpaid. */
   releaseForOrder(orderId: string): Promise<void>;
+  stats(couponIds: readonly string[]): Promise<Map<string, CouponStats>>;
 }
 
 /** saved and alert hold product slugs; follow holds shop ids. */

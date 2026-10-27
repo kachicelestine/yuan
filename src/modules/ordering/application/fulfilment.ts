@@ -6,6 +6,7 @@ import {
   confirmDelivery,
   openDispute,
   resolveDispute,
+  adminRefund,
   ship,
   type DisputeReason,
   type OrderCompleted,
@@ -90,6 +91,16 @@ export function makeFulfilment({ orders, shipments, uow, clock }: FulfilmentDeps
       const s = await shipments.find(orderId, sellerId);
       if (!s) return missing();
       const r = resolveDispute(s, outcome, note, moderatorId, clock.now());
+      if (!r.ok) return r;
+      await commit(r.value.shipment, r.value.event);
+      return ok(toShipmentView(r.value.shipment));
+    },
+
+    /** An admin refunds an unsettled parcel outright (no dispute needed). */
+    async refund(adminId: string, orderId: string, sellerId: string, note: string): Promise<Result<ShipmentView, FulfilmentError>> {
+      const s = await shipments.find(orderId, sellerId);
+      if (!s) return missing();
+      const r = adminRefund(s, note, adminId, clock.now());
       if (!r.ok) return r;
       await commit(r.value.shipment, r.value.event);
       return ok(toShipmentView(r.value.shipment));

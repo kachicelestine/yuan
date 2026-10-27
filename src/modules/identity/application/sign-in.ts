@@ -25,6 +25,8 @@ export type IdentityDeps = Repos & {
 };
 
 export function makeIdentity(d: IdentityDeps) {
+  const suspended = () => err(domainError("suspended", "This account is suspended. Write to support if you think that's a mistake."));
+
   async function startSession(scope: Repos, account: Account): Promise<SignedIn> {
     const token = d.secrets.newToken();
     const session = openSession({ id: d.newId(), tokenHash: d.secrets.hashToken(token), accountId: account.id, at: d.clock.now() });
@@ -49,7 +51,7 @@ export function makeIdentity(d: IdentityDeps) {
     },
 
     /** Checks the code; signs in, creating the account on first use. */
-    async verifyEmailCode(challengeId: string, code: string): Promise<Result<SignedIn, ChallengeError | DomainError<"not_found">>> {
+    async verifyEmailCode(challengeId: string, code: string): Promise<Result<SignedIn, ChallengeError | DomainError<"not_found" | "suspended">>> {
       return d.uow.run(async (scope) => {
         const challenge = await scope.challenges.findEmailChallenge(challengeId);
         if (!challenge) return err(domainError("not_found", "That code request wasn't found. Ask for a new one."));
@@ -63,6 +65,7 @@ export function makeIdentity(d: IdentityDeps) {
           account = { id: d.newId(), email: result.value, wallet: null, createdAt: now };
           await scope.accounts.save(account);
         }
+        if (account.suspendedAt) return suspended();
         return ok(await startSession(scope, account));
       });
     },
@@ -77,7 +80,7 @@ export function makeIdentity(d: IdentityDeps) {
     },
 
     /** Verifies the signature over the issued message; signs in, creating the account on first use. */
-    async completeWalletSignIn(nonce: string, signature: string): Promise<Result<SignedIn, WalletError | DomainError<"not_found">>> {
+    async completeWalletSignIn(nonce: string, signature: string): Promise<Result<SignedIn, WalletError | DomainError<"not_found" | "suspended">>> {
       const challenge = await d.challenges.findWalletChallenge(nonce);
       if (!challenge) return err(domainError("not_found", "That sign-in request wasn't found. Try again."));
       const signer = await d.verifier.recoverSigner(challenge.message, signature);
@@ -92,6 +95,7 @@ export function makeIdentity(d: IdentityDeps) {
           account = { id: d.newId(), email: null, wallet: signer, createdAt: d.clock.now() };
           await scope.accounts.save(account);
         }
+        if (account.suspendedAt) return suspended();
         return ok(await startSession(scope, account));
       });
     },
@@ -103,10 +107,20 @@ export function makeIdentity(d: IdentityDeps) {
       const now = d.clock.now();
       if (!session || !isLive(session, now)) return null;
       const account = await d.accounts.findById(session.accountId);
-      if (!account) return null;
+      if (!account || account.suspendedAt) return null;
       const renewed = refreshed(session, now);
       if (renewed) await d.sessions.save(renewed);
       return { account: toAccountView(account), renewedUntil: renewed?.expiresAt ?? null };
+    },
+
+    /** An admin suspends an account (signing it out everywhere), or lifts the suspension. */
+    async setSuspended(accountId: string, reason: string | null): Promise<Result<true, DomainError<"not_found" | "invalid_reason">>> {
+      const account = await d.accounts.findById(accountId);
+      if (!account) return err(domainError("not_found", "No such account."));
+      if (reason !== null && (reason.trim().length < 5 || reason.length > 500)) return err(domainError("invalid_reason", "Say why in a sentence."));
+      await d.accounts.setSuspension(accountId, reason === null ? null : d.clock.now(), reason === null ? null : reason.trim());
+      if (reason !== null) await d.sessions.deleteForAccount(accountId);
+      return ok(true);
     },
 
     async signOut(token: string | undefined) {

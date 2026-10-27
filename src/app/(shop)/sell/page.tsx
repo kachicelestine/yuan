@@ -9,7 +9,7 @@ import { SellerDashboard } from "@/components/sell/seller-dashboard";
 import { SellFrame, SellSkeleton } from "@/components/sell/sell-frame";
 import { services } from "@/server/container";
 import { currentAccount } from "@/server/session";
-import { currentShop } from "@/server/shop";
+import { currentShop, suspendedShop } from "@/server/shop";
 
 export const metadata: Metadata = { title: "Sell" };
 
@@ -28,6 +28,18 @@ async function SellBody() {
   if (!account) redirect("/signin?next=/sell");
   const app = await services();
   const shop = await currentShop();
+  const suspended = shop ? null : await suspendedShop();
+  if (suspended) {
+    return (
+      <SellFrame title="Your shop is suspended" subtitle="Its page and listings are hidden, and its tools are locked.">
+        <p className="glass-inset rounded-[22px] p-4 text-sm text-ink-2">
+          <b className="block font-semibold text-ink">Reason from our team</b>
+          {suspended.reason}
+        </p>
+        <p className="mt-3 px-1 text-sm text-ink-2">Orders already paid are still protected and refunds still go through. Reply to the email we sent, or write to support, to ask for a review.</p>
+      </SellFrame>
+    );
+  }
   if (!shop) {
     return (
       <SellFrame title={`Sell on ${brand.name}`} subtitle="Tell us about your business. We check every seller by hand, so buyers can trust the badge.">

@@ -12,6 +12,7 @@ export interface SellerRepository {
   findById(id: SellerId): Promise<Seller | null>;
   findByIds(ids: readonly SellerId[]): Promise<Seller[]>;
   save(seller: Seller): Promise<void>;
+  setSuspension(id: string, at: Date | null, reason: string | null): Promise<void>;
 }
 
 /** Read side of products. Only active listings come back unless noted. */
@@ -37,4 +38,6 @@ export interface ProductRepository {
   /** Adds a paid order's quantities to its products' sold counts; a second delivery changes nothing. */
   applySales(orderId: string, lines: readonly { slug: string; qty: number }[]): Promise<boolean>;
   save(product: Product): Promise<void>;
+  /** Moves every listing of a shop from one status to another; returns how many. */
+  setStatusForSeller(sellerId: string, from: Product["status"], to: Product["status"]): Promise<number>;
 }

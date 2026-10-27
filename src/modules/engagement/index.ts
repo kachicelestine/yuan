@@ -12,8 +12,9 @@ export {
   type WatchView,
 } from "./application/engagement";
 export { CHECKIN_REWARDS, checkinReward, checkinState, dayOf, type Checkin, type CoinEntry, type CoinReason, type Reward, type Watch } from "./domain/coins";
-export { claim, isExpired, isUsable, type Claim, type Coupon, type CouponKind } from "./domain/coupon";
-export type { BlindBoxRepository, BoardRepository, DepositRepository, ChopRepository, ClaimRepository, DropRepository, PromoHold, PromoHoldRepository, Reminder, ReminderRepository, TeamRepository, CoinRepository, CouponRepository, ListKind, ListRepository, PollRepository, RewardRepository, WatchRepository } from "./domain/repositories";
+export { claim, createCoupon, endCoupon, isExpired, isUsable, MAX_COUPON_DAYS, type Claim, type Coupon, type CouponError, type CouponInput, type CouponKind } from "./domain/coupon";
+export { makeCouponDesk, type CouponDesk, type CouponDeskDeps, type ManagedCouponView } from "./application/coupons";
+export type { BlindBoxRepository, BoardRepository, DepositRepository, ChopRepository, ClaimRepository, CouponStats, DropRepository, PromoHold, PromoHoldRepository, Reminder, ReminderRepository, TeamRepository, CoinRepository, CouponRepository, ListKind, ListRepository, PollRepository, RewardRepository, WatchRepository } from "./domain/repositories";
 export { makePolls, type PollView, type Polls, type PollsDeps } from "./application/polls";
 export { makeBoards, type BoardView, type Boards, type BoardsDeps } from "./application/boards";
 export { makeDeposits, type DepositMoney, type DepositOfferView, type Deposits, type DepositsDeps, type SellerDepositOfferView } from "./application/deposits";

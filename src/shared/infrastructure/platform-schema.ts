@@ -39,6 +39,22 @@ export const schedules = platformSchema.table("schedules", {
   lastError: text(),
 });
 
+/** Every admin decision: who did what to which thing, and why. Rows are never edited. */
+export const adminActions = platformSchema.table(
+  "admin_actions",
+  {
+    id: uuid().primaryKey(),
+    adminId: uuid().notNull(),
+    /** e.g. "account.suspend", "listing.remove", "parcel.refund". */
+    action: text().notNull(),
+    targetType: text().notNull(),
+    targetId: text().notNull(),
+    note: text(),
+    at: timestamp({ withTimezone: true }).notNull(),
+  },
+  (t) => [index("admin_actions_at_idx").on(t.at), index("admin_actions_target_idx").on(t.targetType, t.targetId)],
+);
+
 /** Fixed-window counters, shared by every app instance. */
 export const rateLimits = platformSchema.table(
   "rate_limits",

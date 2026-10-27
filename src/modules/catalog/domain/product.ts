@@ -2,7 +2,13 @@ import { domainError, err, money, ok, type Cents, type DomainError, type Result 
 import type { CategoryId } from "./category";
 import type { SellerId } from "./seller";
 
-export type ProductStatus = "draft" | "active" | "archived";
+/**
+ * draft, active and archived are the seller's to choose. removed (a moderator took it down)
+ * and suspended (the whole shop is suspended) are locked: only an admin changes them.
+ */
+export type ProductStatus = "draft" | "active" | "archived" | "removed" | "suspended";
+export const LOCKED_STATUSES: readonly ProductStatus[] = ["removed", "suspended"];
+export const isLocked = (s: ProductStatus) => LOCKED_STATUSES.includes(s);
 
 /** A volume price: from `minQty` units, each costs `price`. */
 export type Tier = Readonly<{ minQty: number; price: Cents }>;
@@ -47,6 +53,8 @@ export type Product = Readonly<{
   leadTime: LeadTime;
   /** Share of the item price owed as import duty, 0–1. */
   dutyRate: number;
+  /** Why a moderator removed it, shown to the seller. */
+  moderationNote?: string | null;
 }>;
 
 export type ProductError = DomainError<"invalid_product">;

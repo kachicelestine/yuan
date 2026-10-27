@@ -2,9 +2,10 @@
 export { FAST_DAYS, makeSearchProducts, makeSearchShops, PRODUCT_SORTS, type ProductSearch, type ProductSort, type SearchCriteria, type ShopHit, type ShopResult, type ShopSearch } from "./application/search";
 export { centsOrNull, makeSelling, slugify, type ListingInput, type ListingView, type Selling, type SellingDeps, type SellingError, type StorefrontInput } from "./application/selling";
 export { makeRatings } from "./application/ratings";
+export { makeCatalogAdmin, type CatalogAdmin } from "./application/catalog-admin";
 export { makeCatalogQueries, type CatalogDeps, type CatalogQueries, type SellerPage } from "./application/queries";
 export { formatDeliveryWindow, type CategoryView, type ProductView, type SellerSummary, type SellerView, type StorefrontView } from "./application/views";
 export type { Category, CategoryId } from "./domain/category";
-export { createProduct, isQuoteOnly, unitPrice, type LeadTime, type Product, type ProductError, type ProductOption, type ProductStatus, type Tier } from "./domain/product";
+export { createProduct, isLocked, isQuoteOnly, LOCKED_STATUSES, unitPrice, type LeadTime, type Product, type ProductError, type ProductOption, type ProductStatus, type Tier } from "./domain/product";
 export type { CategoryRepository, ProductRepository, SellerRepository } from "./domain/repositories";
 export { SELLER_KINDS, type Seller, type SellerId, type SellerKind, type Storefront } from "./domain/seller";

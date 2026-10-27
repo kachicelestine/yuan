@@ -39,7 +39,8 @@ export async function endSession() {
  * Admins are the people whose sign-in email is in ADMIN_EMAILS. Email sign-in proves they
  * own the address, so the list is all the configuration a small team needs.
  */
-export const isAdmin = (account: AccountView | null) => !!account?.email && serverEnv.ADMIN_EMAILS.includes(account.email.toLowerCase());
+export const isAdminEmail = (email: string | null | undefined) => !!email && serverEnv.ADMIN_EMAILS.includes(email.toLowerCase());
+export const isAdmin = (account: AccountView | null) => isAdminEmail(account?.email);
 
 /** The signed-in admin, or null. */
 export async function currentAdmin() {

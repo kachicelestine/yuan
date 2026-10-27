@@ -10,6 +10,8 @@ export const accounts = identitySchema.table(
     email: text(),
     wallet: text(),
     createdAt: timestamp({ withTimezone: true }).notNull(),
+    suspendedAt: timestamp({ withTimezone: true }),
+    suspendReason: text(),
   },
   (t) => [
     uniqueIndex("accounts_email_uq").on(t.email),

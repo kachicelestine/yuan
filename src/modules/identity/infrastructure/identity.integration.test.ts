@@ -57,6 +57,28 @@ describe("identity on Postgres", () => {
     expect(await id.currentAccount(signedIn.value.token)).toBeNull();
   });
 
+  it("signs a suspended account out everywhere and keeps it out until the suspension is lifted", async () => {
+    const id = identity(true);
+    const signIn = async () => {
+      const r = await id.requestEmailCode("grace@example.com");
+      if (!r.ok) throw new Error(r.error.message);
+      return id.verifyEmailCode(r.value.challengeId, r.value.devCode!);
+    };
+    const first = await signIn();
+    if (!first.ok) throw new Error(first.error.message);
+    const accountId = first.value.account.id;
+
+    expect(await id.setSuspended(accountId, "x")).toMatchObject({ ok: false, error: { code: "invalid_reason" } });
+    expect(await id.setSuspended(newId(), "Selling counterfeit goods.")).toMatchObject({ ok: false, error: { code: "not_found" } });
+    expect((await id.setSuspended(accountId, "Selling counterfeit goods.")).ok).toBe(true);
+    expect(await id.currentAccount(first.value.token)).toBeNull();
+    expect(await signIn()).toMatchObject({ ok: false, error: { code: "suspended" } });
+
+    expect((await id.setSuspended(accountId, null)).ok).toBe(true);
+    const back = await signIn();
+    expect(back.ok && back.value.account.id).toBe(accountId);
+  });
+
   it("refuses wrong codes, reused codes and floods", async () => {
     const id = identity(true);
     const r = await id.requestEmailCode("flood@example.com");

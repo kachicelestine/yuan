@@ -31,7 +31,7 @@ async function ApplicationBody({ params }: { params: PageProps<"/admin/applicati
   const application = await (await services()).onboarding.review(id);
   if (!application) notFound();
   return (
-    <SellFrame title="Review application" back="/admin">
+    <SellFrame title="Review application" back="/admin/queues">
       <ApplicationReview application={application} />
     </SellFrame>
   );

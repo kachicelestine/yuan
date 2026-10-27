@@ -1,6 +1,6 @@
 import { domainError, err, money, ok, type Cents, type Clock, type DomainError, type ObjectStorage, type Result } from "@/shared/kernel";
 import type { CategoryId } from "../domain/category";
-import { createProduct, type LeadTime, type Product, type ProductError, type ProductOption, type ProductStatus, type Tier } from "../domain/product";
+import { createProduct, isLocked, type LeadTime, type Product, type ProductError, type ProductOption, type ProductStatus, type Tier } from "../domain/product";
 import type { CategoryRepository, ProductRepository, SellerRepository } from "../domain/repositories";
 import type { SellerId, Storefront } from "../domain/seller";
 import { toProductView, type ProductView } from "./views";
@@ -31,10 +31,10 @@ export type ListingInput = Readonly<{
   leadTime: LeadTime;
   /** Import duty as a share of the price; null uses what similar listings in the category pay. */
   dutyRate: number | null;
-  status: Exclude<ProductStatus, "archived">;
+  status: "draft" | "active";
 }>;
 
-export type ListingView = ProductView & { status: ProductStatus };
+export type ListingView = ProductView & { status: ProductStatus; moderationNote: string | null };
 
 export type StorefrontInput = Readonly<{
   bio: string;
@@ -72,7 +72,7 @@ const ownPhoto = (sellerId: string, kind: "catalog" | "shops", url: string) => u
 
 /** A shop managing its own listings and storefront. Every call is scoped to one shop. */
 export function makeSelling({ products, categories, sellers, photos, clock, newId }: SellingDeps) {
-  const view = (p: Product): ListingView => ({ ...toProductView(p, clock.now()), status: p.status });
+  const view = (p: Product): ListingView => ({ ...toProductView(p, clock.now()), status: p.status, moderationNote: p.moderationNote ?? null });
 
   async function owned(sellerId: string, productId: string) {
     const p = await products.findById(productId);
@@ -135,7 +135,9 @@ export function makeSelling({ products, categories, sellers, photos, clock, newI
         title: input.title.trim(),
         categoryId: input.categoryId as CategoryId,
         sellerId: sellerId as SellerId,
-        status: existing?.status === "archived" && input.status === "draft" ? "archived" : input.status,
+        // A listing a moderator removed, or of a suspended shop, keeps that status.
+        status: existing && isLocked(existing.status) ? existing.status : existing?.status === "archived" && input.status === "draft" ? "archived" : input.status,
+        moderationNote: existing?.moderationNote ?? null,
         images,
         price: input.price,
         was: input.was,
@@ -160,6 +162,7 @@ export function makeSelling({ products, categories, sellers, photos, clock, newI
     async setStatus(sellerId: string, productId: string, status: ProductStatus): Promise<Result<ListingView, SellingError>> {
       const p = await owned(sellerId, productId);
       if (!p) return err(domainError("not_found", "That listing isn't yours or no longer exists."));
+      if (isLocked(p.status) || isLocked(status)) return err(domainError("not_found", p.status === "removed" ? "Moderators removed this listing. Write to support to have it reviewed." : "Your shop is suspended."));
       const next = { ...p, status };
       await products.save(next);
       return ok(view(next));
