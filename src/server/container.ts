@@ -42,8 +42,9 @@ import { makeLive, type LiveBus } from "@/modules/live";
 import { DrizzleChatRepository, DrizzleHoldRepository, DrizzleLotRepository, DrizzleShowRepository } from "@/modules/live/infrastructure/drizzle-live-repositories";
 import { PostgresBus } from "@/modules/live/infrastructure/postgres-bus";
 import { makeListMarkets, makeRefreshRates } from "@/modules/markets";
-import { makeOnboarding } from "@/modules/merchants";
-import { DrizzleApplicationRepository, DrizzleMembershipRepository } from "@/modules/merchants/infrastructure/drizzle-merchants-repositories";
+import { makeOnboarding, makeTeam } from "@/modules/merchants";
+import { DrizzleApplicationRepository, DrizzleInvitationRepository, DrizzleMembershipRepository } from "@/modules/merchants/infrastructure/drizzle-merchants-repositories";
+import { accountEmails } from "./adapters/account-emails";
 import { DrizzleCountryRepository, DrizzleFxRateRepository } from "@/modules/markets/infrastructure/drizzle-markets-repository";
 import { OpenErApiRateSource } from "@/modules/markets/infrastructure/open-er-api-rate-source";
 import { makeCancelUnpaidOrder, makeCart, makeCheckout, makeCloseDeposit, makeDepositCheckout, makeFulfilment, makeGetOrder, makeGifts, makeMarkOrderPaid, makeSellerOrders, orderNumber } from "@/modules/ordering";
@@ -333,6 +334,7 @@ export function wire(db: Database, options: WireOptions = {}) {
     gifts: new DrizzleGiftRepository(tx),
     payments: { request: makeRequestPayment({ network, invoices: new DrizzleInvoiceRepository(tx), clock, newId: () => newId(), newTag }) },
     coupons: { reserve: (buyerId: string, couponId: string, orderId: string) => new DrizzleClaimRepository(tx).reserve(buyerId, couponId, orderId) },
+    stock: { reserve: (orderId: string, lines: readonly { slug: string; qty: number }[]) => new DrizzleProductRepository(tx).reserveStock(orderId, lines) },
     events: new OutboxEventLog(tx, () => clock.now()),
   }));
 
@@ -466,6 +468,7 @@ export function wire(db: Database, options: WireOptions = {}) {
     storage,
     privateStorage,
     onboarding,
+    team: makeTeam({ memberships: new DrizzleMembershipRepository(db), invitations: new DrizzleInvitationRepository(db), emails: (ids) => accountEmails(db, ids), clock, newId: () => newId() }),
     cart: makeCart({ carts: new DrizzleCartRepository(db), catalog: pricing, holds }),
 
     live,

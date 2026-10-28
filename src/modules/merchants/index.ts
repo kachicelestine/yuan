@@ -16,5 +16,6 @@ export {
   type DocumentKind,
   type KycDocument,
 } from "./domain/application";
-export type { Membership, MemberRole } from "./domain/membership";
-export type { ApplicationRepository, MembershipRepository } from "./domain/repositories";
+export { INVITE_DAYS, invite, isOpen as isInvitationOpen, MAX_TEAM, type Invitation, type Membership, type MemberRole, type TeamError } from "./domain/membership";
+export { makeTeam, type InvitationView, type MemberView, type Team, type TeamDeps } from "./application/team";
+export type { ApplicationRepository, InvitationRepository, MembershipRepository } from "./domain/repositories";

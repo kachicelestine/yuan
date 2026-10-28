@@ -100,7 +100,13 @@ export function eventHandlers(app: Services): Record<string, OutboxHandler> {
     },
     // An unpaid deposit gives its place back.
     OrderCancelled: async ({ payload }) => {
-      await app.deposits.unpaid((payload as { orderId: string }).orderId);
+      const { orderId } = payload as { orderId: string };
+      await app.deposits.unpaid(orderId);
+      // Stock the lapsed order took goes back on sale.
+      if (await app.ratings.releaseStock(orderId)) {
+        const order = await app.getOrder.internal(orderId);
+        if (order) await revalidateTags([...new Set(order.lines.map((l) => productTag(l.slug)))]);
+      }
     },
     ShipmentDelivered: async ({ id, payload }) => {
       const p = payload as { orderId: string; sellerId: string; amount: number };

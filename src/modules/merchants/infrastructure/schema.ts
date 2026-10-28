@@ -35,6 +35,22 @@ export const applications = merchantsSchema.table(
   ],
 );
 
+/** An owner's invitation to help run the shop, addressed to an email. */
+export const invitations = merchantsSchema.table(
+  "invitations",
+  {
+    id: uuid().primaryKey(),
+    sellerId: text().notNull(),
+    email: text().notNull(),
+    invitedBy: uuid().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull(),
+    acceptedAt: timestamp({ withTimezone: true }),
+    acceptedBy: uuid(),
+    revokedAt: timestamp({ withTimezone: true }),
+  },
+  (t) => [index("invitations_seller_idx").on(t.sellerId, t.createdAt), index("invitations_email_idx").on(t.email)],
+);
+
 export const members = merchantsSchema.table(
   "members",
   {

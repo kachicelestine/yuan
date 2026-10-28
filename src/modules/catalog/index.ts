@@ -6,6 +6,6 @@ export { makeCatalogAdmin, type CatalogAdmin } from "./application/catalog-admin
 export { makeCatalogQueries, type CatalogDeps, type CatalogQueries, type SellerPage } from "./application/queries";
 export { formatDeliveryWindow, type CategoryView, type ProductView, type SellerSummary, type SellerView, type StorefrontView } from "./application/views";
 export type { Category, CategoryId } from "./domain/category";
-export { createProduct, isLocked, isQuoteOnly, LOCKED_STATUSES, unitPrice, type LeadTime, type Product, type ProductError, type ProductOption, type ProductStatus, type Tier } from "./domain/product";
+export { available, createProduct, isLocked, isQuoteOnly, LOCKED_STATUSES, MAX_STOCK, unitPrice, type LeadTime, type OptionValue, type Product, type ProductError, type ProductOption, type ProductStatus, type Tier } from "./domain/product";
 export type { CategoryRepository, ProductRepository, SellerRepository } from "./domain/repositories";
 export { SELLER_KINDS, type Seller, type SellerId, type SellerKind, type Storefront } from "./domain/seller";

@@ -1,4 +1,4 @@
-import { unitPrice, type ProductRepository } from "@/modules/catalog";
+import { available, unitPrice, type OptionValue, type ProductRepository } from "@/modules/catalog";
 import type { CatalogLine, CatalogLineError, OrderCatalog } from "@/modules/ordering";
 import { domainError, err, money, ok, type Result } from "@/shared/kernel";
 
@@ -14,10 +14,18 @@ export class CatalogPricing implements OrderCatalog {
     const picked = option ? option.split(" · ") : [];
     if (picked.length && picked.length !== p.options.length) return err(domainError("unknown_option", `"${option}" isn't an option for ${p.title}.`));
     let delta = money.ZERO;
+    const values: OptionValue[] = [];
     for (const [i, o] of p.options.entries()) {
       const value = picked.length ? o.values.find((v) => v.label === picked[i]) : o.values[o.defaultIndex];
       if (!value) return err(domainError("unknown_option", `"${picked[i]}" isn't a ${o.name.toLowerCase()} for ${p.title}.`));
       delta = money.add(delta, value.delta);
+      values.push(value);
+    }
+    // Stock is checked here for a clear message; checkout takes it in the order's transaction.
+    const left = available(p, values);
+    if (left !== null && qty > left) {
+      const soldOutValue = values.find((v) => v.soldOut);
+      return err(domainError("out_of_stock", soldOutValue ? `${p.title} in ${soldOutValue.label} is sold out.` : left === 0 ? `${p.title} is sold out.` : `Only ${left} left of ${p.title}.`));
     }
 
     return ok({

@@ -9,7 +9,7 @@ import type { CategoryView, ListingView } from "@/modules/catalog";
 import { uploadFile } from "@/lib/upload";
 import { saveListingAction, setListingStatusAction, startPhotoAction } from "@/server/actions/shop";
 
-type OptionDraft = { name: string; values: string };
+type OptionDraft = { name: string; values: string; soldOut: string[] };
 type Draft = {
   title: string;
   categoryId: string;
@@ -17,6 +17,8 @@ type Draft = {
   price: string;
   was: string;
   minOrder: string;
+  /** Units to sell; "" when the shop doesn't count them. */
+  stock: string;
   tiers: { min: string; price: string }[];
   options: OptionDraft[];
   highlights: string;
@@ -33,8 +35,9 @@ const fromListing = (l: ListingView | null): Draft => ({
   price: l?.price?.toString() ?? "",
   was: l?.was?.toString() ?? "",
   minOrder: String(l?.moq ?? 1),
+  stock: l?.stock === undefined ? "" : String(l.stock),
   tiers: l?.tiers?.map((t) => ({ min: String(t.min), price: String(t.price) })) ?? [],
-  options: l?.options?.map((o) => ({ name: o.name, values: o.values.map((v) => v.label).join(", ") })) ?? [],
+  options: l?.options?.map((o) => ({ name: o.name, values: o.values.map((v) => v.label).join(", "), soldOut: o.values.filter((v) => v.soldOut).map((v) => v.label) })) ?? [],
   highlights: l?.highlights.join("\n") ?? "",
   specs: l?.specs ?? [],
   shipsFrom: l?.shipsFrom ?? "",
@@ -88,6 +91,7 @@ export function ListingEditor({ listing, categories }: { listing: ListingView | 
         was: num(d.was),
         tiers: d.tiers.flatMap((t) => (num(t.min) && num(t.price) ? [{ min: num(t.min)!, price: num(t.price)! }] : [])),
         minOrder: num(d.minOrder) ?? 1,
+        stock: d.stock.trim() === "" ? null : Math.max(0, Math.floor(num(d.stock) ?? 0)),
         options: d.options
           .filter((o) => o.name.trim() && o.values.trim())
           .map((o) => {
@@ -99,7 +103,7 @@ export function ListingEditor({ listing, categories }: { listing: ListingView | 
                 .split(",")
                 .map((v) => v.trim())
                 .filter(Boolean)
-                .map((label) => ({ label, sub: before.get(label)?.sub ?? null, delta: before.get(label)?.delta ?? null })),
+                .map((label) => ({ label, sub: before.get(label)?.sub ?? null, delta: before.get(label)?.delta ?? null, soldOut: o.soldOut.includes(label) })),
             };
           }),
         highlights: d.highlights.split("\n").map((h) => h.trim()).filter(Boolean),
@@ -189,6 +193,16 @@ export function ListingEditor({ listing, categories }: { listing: ListingView | 
           </Field>
         </div>
         <p className="-mt-1 text-xs text-ink-3">Leave the price empty for made-to-order items buyers ask you to quote.</p>
+        <Field label="In stock">
+          <input className={input} inputMode="numeric" value={d.stock} onChange={(e) => set("stock", e.target.value.replace(/[^0-9]/g, ""))} placeholder="Not counted" />
+        </Field>
+        <p className="-mt-1 text-xs text-ink-3">
+          {d.stock.trim() === ""
+            ? "Leave it empty if you make to order. With a number, each sale takes one off and it shows as sold out at 0."
+            : d.stock.trim() === "0"
+              ? "Sold out. People can ask to be told when it's back; putting stock back in tells them."
+              : "Each sale takes one off; buyers see “Only a few left” when it runs low."}
+        </p>
 
         <div>
           <p className="mb-1.5 text-[13px] font-semibold text-ink-2">Volume prices</p>
@@ -220,8 +234,40 @@ export function ListingEditor({ listing, categories }: { listing: ListingView | 
             </button>
           </div>
         ))}
+        {d.options.some((o) => o.values.trim()) && (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-ink-3">Tap a value that&apos;s sold out; the rest keep selling.</p>
+            {d.options.map((o, i) => {
+              const labels = o.values
+                .split(",")
+                .map((v) => v.trim())
+                .filter(Boolean);
+              if (!labels.length) return null;
+              return (
+                <ul key={i} aria-label={`${o.name || "Option"} stock`} className="flex flex-wrap gap-1.5">
+                  {labels.map((label) => {
+                    const out = o.soldOut.includes(label);
+                    return (
+                      <li key={label}>
+                        <button
+                          type="button"
+                          aria-pressed={out}
+                          onClick={() => set("options", d.options.map((x, j) => (j === i ? { ...x, soldOut: out ? x.soldOut.filter((s) => s !== label) : [...x.soldOut, label] } : x)))}
+                          className={`h-8 rounded-full px-3 text-xs font-semibold ${out ? "bg-like/15 text-like line-through" : "glass-inset text-ink-2"}`}
+                        >
+                          {label}
+                          {out && <span className="sr-only"> (sold out)</span>}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              );
+            })}
+          </div>
+        )}
         {d.options.length < 4 && (
-          <button type="button" onClick={() => set("options", [...d.options, { name: "", values: "" }])} className="self-start text-[13px] font-semibold text-agent">
+          <button type="button" onClick={() => set("options", [...d.options, { name: "", values: "", soldOut: [] }])} className="self-start text-[13px] font-semibold text-agent">
             + Add an option (size, colour, capacity…)
           </button>
         )}

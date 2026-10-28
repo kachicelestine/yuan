@@ -7,6 +7,7 @@ import { brand } from "@/config/brand";
 import { serverEnv } from "@/config/server-env";
 import { SellerDashboard } from "@/components/sell/seller-dashboard";
 import { SellFrame, SellSkeleton } from "@/components/sell/sell-frame";
+import { ShopInvites, type ShopInvite } from "@/components/sell/shop-invites";
 import { services } from "@/server/container";
 import { currentAccount } from "@/server/session";
 import { currentShop, suspendedShop } from "@/server/shop";
@@ -27,6 +28,15 @@ async function SellBody() {
   const account = await currentAccount();
   if (!account) redirect("/signin?next=/sell");
   const app = await services();
+  // Invitations to help run a shop, addressed to the email they signed in with.
+  const invites: ShopInvite[] = (
+    await Promise.all(
+      (await app.team.invitesFor(account.email)).map(async (i) => {
+        const page = await app.catalog.getSeller(i.sellerId);
+        return page ? [{ id: i.id, sellerId: i.sellerId, shopName: page.seller.name }] : [];
+      }),
+    )
+  ).flat();
   const shop = await currentShop();
   const suspended = shop ? null : await suspendedShop();
   if (suspended) {
@@ -43,6 +53,7 @@ async function SellBody() {
   if (!shop) {
     return (
       <SellFrame title={`Sell on ${brand.name}`} subtitle="Tell us about your business. We check every seller by hand, so buyers can trust the badge.">
+        <ShopInvites invites={invites} />
         <ApplyForm application={await app.onboarding.mine(account.id)} />
       </SellFrame>
     );
@@ -71,9 +82,11 @@ async function SellBody() {
     explorer: serverEnv.PAYMENTS_BASE_CHAIN === "base" ? "https://basescan.org" : "https://sepolia.basescan.org",
   };
   if (!page) redirect("/me");
-  const boxes = Object.groupBy(await app.blindBoxes.forOrders(orders.filter((o) => o.status !== "awaiting_payment").map((o) => o.id)), (b) => b.orderId);
+  // A plain object: Object.groupBy's has no prototype, which can't be sent to a Client Component.
+  const boxes = Object.fromEntries(Object.entries(Object.groupBy(await app.blindBoxes.forOrders(orders.filter((o) => o.status !== "awaiting_payment").map((o) => o.id)), (b) => b.orderId)));
   return (
     <SellFrame title="Your shop">
+      <ShopInvites invites={invites.filter((i) => i.sellerId !== shop.sellerId)} />
       <SellerDashboard seller={page.seller} storefront={page.storefront} listings={listings} orders={orders} questions={questions} money={money} newRequests={requests.filter((r) => r.status === "open" && !r.mine).length} boxes={boxes as Record<string, NonNullable<(typeof boxes)[string]>>} />
     </SellFrame>
   );

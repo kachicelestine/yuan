@@ -118,8 +118,14 @@ export function makeCheckout(deps: CheckoutDeps) {
     const gift = req.gift ? createGift({ orderId: order.id, token: deps.newToken(), senderId: req.buyerId, input: req.gift, at: deps.clock.now() }) : null;
     if (gift && !gift.ok) return gift;
 
-    return deps.uow.run(async ({ orders, gifts, payments, coupons, events }) => {
+    return deps.uow.run(async ({ orders, gifts, payments, coupons, stock, events }) => {
       await orders.save(order);
+      // Listings that count stock give up these units now; a lapsed order gives them back.
+      const short = stock ? await stock.reserve(order.id, order.lines.map((l) => ({ slug: l.slug, qty: l.qty }))) : null;
+      if (short) {
+        const title = order.lines.find((l) => l.slug === short.slug)?.title ?? short.slug;
+        throw new CheckoutAbort(domainError("out_of_stock", short.left > 0 ? `Only ${short.left} left of ${title}. Change the quantity and try again.` : `${title} just sold out.`));
+      }
       if (gift?.ok) await gifts.save(gift.value);
       await events.record(order.id, event);
       // Re-checked inside the transaction: another checkout may have used it a moment ago.
@@ -138,7 +144,7 @@ export function makeCheckout(deps: CheckoutDeps) {
 }
 
 class CheckoutAbort extends Error {
-  constructor(readonly error: DomainError<"rail_unavailable" | "invalid_amount" | "coupon_unavailable">) {
+  constructor(readonly error: DomainError<"rail_unavailable" | "invalid_amount" | "coupon_unavailable" | "out_of_stock">) {
     super(error.message);
   }
 }

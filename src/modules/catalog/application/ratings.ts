@@ -7,6 +7,8 @@ export function makeRatings({ products, sellers }: { products: ProductRepository
     apply: (reviewId: string, productSlug: string, rating: number) => products.applyRating(reviewId, productSlug, rating),
     /** Counts a paid order into its products' sold counts, once. */
     sales: (orderId: string, lines: readonly { slug: string; qty: number }[]) => products.applySales(orderId, lines),
+    /** An order lapsed unpaid: the stock it took goes back on sale. */
+    releaseStock: (orderId: string) => products.releaseStock(orderId),
     /** Sets each storefront's follower count to the real one; returns the shops that changed. */
     async followers(counts: ReadonlyMap<string, number>): Promise<string[]> {
       if (!sellers) return [];

@@ -47,6 +47,8 @@ export interface ListRepository {
   addedBetween(kind: ListKind, from: Date, to: Date): Promise<Map<string, number>>;
   /** How many accounts have each item on this kind of list. */
   counts(kind: ListKind): Promise<Map<string, number>>;
+  /** Accounts with this item on this kind of list. */
+  holders(kind: ListKind, slug: string, limit: number): Promise<string[]>;
 }
 
 export interface WatchRepository {

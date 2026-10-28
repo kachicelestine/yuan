@@ -32,6 +32,8 @@ export type ListingInput = Readonly<{
   /** Import duty as a share of the price; null uses what similar listings in the category pay. */
   dutyRate: number | null;
   status: "draft" | "active";
+  /** Units to sell; null when the shop doesn't count (made to order). Absent keeps what's there. */
+  stock?: number | null;
 }>;
 
 export type ListingView = ProductView & { status: ProductStatus; moderationNote: string | null };
@@ -153,6 +155,7 @@ export function makeSelling({ products, categories, sellers, photos, clock, newI
         shipsFrom: input.shipsFrom.trim(),
         leadTime: input.leadTime,
         dutyRate: input.dutyRate ?? existing?.dutyRate ?? (await categoryDuty(input.categoryId as CategoryId)),
+        stock: input.stock === undefined ? (existing?.stock ?? null) : input.stock,
       });
       if (!made.ok) return made;
       await products.save(made.value);

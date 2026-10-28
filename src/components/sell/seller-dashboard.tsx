@@ -77,6 +77,9 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
         <Link href="/sell/inbox" aria-label="Messages from buyers" className="glass-inset grid size-9 shrink-0 place-items-center rounded-full">
           <Icon name="chat" className="size-4" />
         </Link>
+        <Link href="/sell/team" aria-label="Team" className="glass-inset grid size-9 shrink-0 place-items-center rounded-full">
+          <Icon name="users" className="size-4" />
+        </Link>
         <Link href={`/s/${seller.id}`} aria-label="View shop" className="glass-inset grid size-9 shrink-0 place-items-center rounded-full">
           <Icon name="store" className="size-4" />
         </Link>
@@ -123,6 +126,7 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
                       <span className="block text-xs text-ink-2">
                         {l.price === undefined ? "Quote" : money(l.price)} · {l.reviews ? `★ ${l.rating} · ` : ""}
                         {l.sold ? `${compact(l.sold)} sold` : "no sales yet"}
+                        {l.stock !== undefined && (l.stock === 0 ? <b className="font-semibold text-like"> · sold out</b> : <span className={l.stock <= 5 ? "font-semibold text-save" : ""}> · {l.stock} in stock</span>)}
                       </span>
                       {l.status === "removed" && l.moderationNote && <span className="block text-xs text-like">Removed: {l.moderationNote}</span>}
                     </span>

@@ -136,6 +136,10 @@ export class DrizzleListRepository implements ListRepository {
     const rows = await this.db.select({ slug: listItems.slug, n: sql<number>`count(*)::int` }).from(listItems).where(eq(listItems.kind, kind)).groupBy(listItems.slug);
     return new Map(rows.map((r) => [r.slug, r.n]));
   }
+
+  async holders(kind: ListKind, slug: string, limit: number) {
+    return (await this.db.select({ id: listItems.accountId }).from(listItems).where(and(eq(listItems.kind, kind), eq(listItems.slug, slug))).limit(limit)).map((r) => r.id);
+  }
 }
 
 export class DrizzleWatchRepository implements WatchRepository {

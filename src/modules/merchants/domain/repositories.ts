@@ -1,5 +1,5 @@
 import type { Application, ApplicationStatus } from "./application";
-import type { Membership } from "./membership";
+import type { Invitation, Membership } from "./membership";
 
 export interface ApplicationRepository {
   find(id: string): Promise<Application | null>;
@@ -19,4 +19,13 @@ export interface MembershipRepository {
   forSeller(sellerId: string): Promise<Membership[]>;
   find(sellerId: string, accountId: string): Promise<Membership | null>;
   add(membership: Membership): Promise<void>;
+  remove(sellerId: string, accountId: string): Promise<boolean>;
+}
+
+export interface InvitationRepository {
+  save(invitation: Invitation): Promise<void>;
+  find(id: string): Promise<Invitation | null>;
+  forSeller(sellerId: string): Promise<Invitation[]>;
+  /** Invitations addressed to this email, newest first. */
+  forEmail(email: string): Promise<Invitation[]>;
 }

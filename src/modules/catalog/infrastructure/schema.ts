@@ -37,7 +37,7 @@ export const sellers = catalogSchema.table("sellers", {
 });
 
 /** Stored option shape: money as integer cents. */
-export type StoredOption = Omit<ProductOption, "values"> & { values: { label: string; sub: string | null; deltaCents: number; swatch: string | null }[] };
+export type StoredOption = Omit<ProductOption, "values"> & { values: { label: string; sub: string | null; deltaCents: number; swatch: string | null; soldOut?: boolean }[] };
 
 export const products = catalogSchema.table(
   "products",
@@ -54,6 +54,8 @@ export const products = catalogSchema.table(
     status: productStatus().notNull().default("active"),
     /** Why a moderator removed it. */
     moderationNote: text(),
+    /** Units left; null when the shop doesn't count stock. */
+    stock: integer(),
     images: text().array().notNull(),
     priceCents: integer(),
     wasCents: integer(),
@@ -86,6 +88,7 @@ export const products = catalogSchema.table(
     check("products_min_order", sql`${t.minOrder} >= 1`),
     check("products_lead_time", sql`${t.leadMinDays} >= 1 and ${t.leadMaxDays} >= ${t.leadMinDays}`),
     check("products_duty_rate", sql`${t.dutyRate} between 0 and 1`),
+    check("products_stock", sql`${t.stock} is null or ${t.stock} >= 0`),
   ],
 );
 
@@ -102,6 +105,18 @@ export const pricePoints = catalogSchema.table(
 );
 
 /** Orders already counted into products' sold counts (OrderPaid is delivered at least once). */
+/** Stock an order took when it was placed, given back if it lapses unpaid. */
+export const stockHolds = catalogSchema.table(
+  "stock_holds",
+  {
+    orderId: uuid().notNull(),
+    slug: text().notNull(),
+    qty: integer().notNull(),
+    releasedAt: timestamp({ withTimezone: true }),
+  },
+  (t) => [primaryKey({ columns: [t.orderId, t.slug] })],
+);
+
 export const appliedSales = catalogSchema.table("applied_sales", {
   orderId: uuid().primaryKey(),
   appliedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),

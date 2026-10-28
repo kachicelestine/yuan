@@ -30,11 +30,25 @@ const RfqForm = dynamic(() => import("@/components/business/rfq-form").then((m) 
 export function BuyBox({ product, variant = "page" }: Props) {
   const router = useRouter();
   const onClient = useSyncExternalStore(noSubscribe, () => true, () => false);
-  const { addToCart, market, account } = useStore();
+  const { addToCart, market, account, alerts, toggleAlert } = useStore();
   const money = useMoney();
   const options = product.options ?? [];
-  const [choices, setChoices] = useState(() => options.map((o) => o.defaultIndex ?? 0));
+  // Start on a value that's in stock when the default one isn't.
+  const [choices, setChoices] = useState(() =>
+    options.map((o) => {
+      const d = o.defaultIndex ?? 0;
+      if (!o.values[d]?.soldOut) return d;
+      const free = o.values.findIndex((v) => !v.soldOut);
+      return free === -1 ? d : free;
+    }),
+  );
   const [qty, setQty] = useState(product.moq ?? 1);
+  // Stock, when the shop counts it: undefined means made to order (no limit shown).
+  const stock = product.stock;
+  const pickedSoldOut = options.some((o, i) => o.values[choices[i]]?.soldOut);
+  const soldOut = stock === 0 || pickedSoldOut;
+  const maxQty = stock === undefined ? 999 : Math.max(stock, 1);
+  const waiting = alerts.includes(product.slug);
   const [dutiesNow, setDutiesNow] = useState(true);
   const [added, setAdded] = useState(false);
   // Listings sold by quote: the request sheet, and the request once sent.
@@ -70,7 +84,16 @@ export function BuyBox({ product, variant = "page" }: Props) {
     setAdded(true);
   }
 
-  const actions = quoteOnly ? (
+  const actions = soldOut && !quoteOnly ? (
+    <button
+      type="button"
+      aria-pressed={waiting}
+      onClick={() => toggleAlert(product.slug)}
+      className={`h-[52px] flex-1 rounded-full text-[15px] font-bold ${waiting ? "glass-inset text-positive" : "bg-white text-black"}`}
+    >
+      {waiting ? "We'll tell you when it's back" : pickedSoldOut && stock !== 0 ? "This one's sold out · tell me when it's back" : "Sold out · tell me when it's back"}
+    </button>
+  ) : quoteOnly ? (
     quoted ? (
       <Link href={`/business#rfq-${quoted}`} className="grid h-[52px] flex-1 place-items-center rounded-full bg-white/15 text-[15px] font-bold">
         Request sent · see quotes
@@ -151,15 +174,16 @@ export function BuyBox({ product, variant = "page" }: Props) {
             <div className={swatches ? "flex gap-1.5" : "flex flex-wrap gap-2"}>
               {option.values.map((value, vi) => {
                 const on = choices[oi] === vi;
+                const out = !!value.soldOut;
                 const pick = () => setChoices((c) => c.map((x, i) => (i === oi ? vi : x)));
                 return swatches ? (
                   <button
                     key={value.label}
                     type="button"
-                    aria-label={value.label}
+                    aria-label={out ? `${value.label} (sold out)` : value.label}
                     aria-pressed={on}
                     onClick={pick}
-                    className={`grid size-11 place-items-center rounded-full transition-shadow ${on ? "shadow-[inset_0_0_0_2px_#fff]" : ""}`}
+                    className={`grid size-11 place-items-center rounded-full transition-shadow ${on ? "shadow-[inset_0_0_0_2px_#fff]" : ""} ${out ? "opacity-40" : ""}`}
                   >
                     <span className="size-[30px] rounded-full shadow-[inset_0_1px_1px_rgb(255_255_255/0.4),inset_0_-2px_4px_rgb(0_0_0/0.25)]" style={{ background: value.swatch }} />
                   </button>
@@ -169,10 +193,10 @@ export function BuyBox({ product, variant = "page" }: Props) {
                     type="button"
                     aria-pressed={on}
                     onClick={pick}
-                    className={`flex min-h-11 min-w-16 flex-col items-center justify-center rounded-2xl px-3.5 py-2 transition-[background,box-shadow] ${on ? "bg-white/20 shadow-[inset_0_0_0_1.5px_#fff]" : "glass-inset"}`}
+                    className={`flex min-h-11 min-w-16 flex-col items-center justify-center rounded-2xl px-3.5 py-2 transition-[background,box-shadow] ${on ? "bg-white/20 shadow-[inset_0_0_0_1.5px_#fff]" : "glass-inset"} ${out ? "opacity-50" : ""}`}
                   >
-                    <span className="text-sm font-semibold">{value.label}</span>
-                    {value.sub && <span className="text-[11px] text-ink-2">{value.sub}</span>}
+                    <span className={`text-sm font-semibold ${out ? "line-through" : ""}`}>{value.label}</span>
+                    {out ? <span className="text-[11px] text-like">Sold out</span> : value.sub && <span className="text-[11px] text-ink-2">{value.sub}</span>}
                   </button>
                 );
               })}
@@ -181,9 +205,12 @@ export function BuyBox({ product, variant = "page" }: Props) {
         );
       })}
 
-      {!quoteOnly && (
+      {!quoteOnly && !soldOut && (
         <div className="flex items-center justify-between">
-          <span className="text-[13px] font-semibold text-ink-2">Quantity</span>
+          <span className="text-[13px] font-semibold text-ink-2">
+            Quantity
+            {stock !== undefined && stock <= 10 && <span className="ml-2 rounded-full bg-like/15 px-2 py-0.5 text-[11px] font-bold text-like">Only {stock} left</span>}
+          </span>
           <div className="glass flex h-12 items-center rounded-full p-0.5">
             <button type="button" aria-label="Decrease quantity" disabled={qty <= (product.moq ?? 1)} onClick={() => setQty((q) => q - 1)} className="grid size-11 place-items-center rounded-full disabled:opacity-35">
               <Icon name="minus" className="size-5" />
@@ -191,7 +218,7 @@ export function BuyBox({ product, variant = "page" }: Props) {
             <output aria-live="polite" className="min-w-10 text-center font-display text-lg font-bold">
               {qty}
             </output>
-            <button type="button" aria-label="Increase quantity" onClick={() => setQty((q) => Math.min(999, q + 1))} className="grid size-11 place-items-center rounded-full">
+            <button type="button" aria-label="Increase quantity" disabled={qty >= maxQty} onClick={() => setQty((q) => Math.min(maxQty, q + 1))} className="grid size-11 place-items-center rounded-full disabled:opacity-35">
               <Icon name="plus" className="size-5" />
             </button>
           </div>

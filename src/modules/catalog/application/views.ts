@@ -58,7 +58,9 @@ export type ProductView = {
   rating: number;
   reviews: number;
   sold?: number;
-  options?: { name: string; values: { label: string; sub?: string; delta?: number; swatch?: string }[]; defaultIndex?: number }[];
+  options?: { name: string; values: { label: string; sub?: string; delta?: number; swatch?: string; soldOut?: boolean }[]; defaultIndex?: number }[];
+  /** Units left, when the shop counts them. */
+  stock?: number;
   highlights: string[];
   specs: [string, string][];
   buyersSay?: string;
@@ -109,7 +111,7 @@ export function toProductView(p: Product, today: Date, seller?: Seller): Product
       ? p.options.map((o) => ({
           name: o.name,
           defaultIndex: o.defaultIndex || undefined,
-          values: o.values.map((v) => ({ label: v.label, sub: opt(v.sub), delta: v.delta ? dollars(v.delta) : undefined, swatch: opt(v.swatch) })),
+          values: o.values.map((v) => ({ label: v.label, sub: opt(v.sub), delta: v.delta ? dollars(v.delta) : undefined, swatch: opt(v.swatch), ...(v.soldOut && { soldOut: true }) })),
         }))
       : undefined,
     highlights: [...p.highlights],
@@ -119,6 +121,7 @@ export function toProductView(p: Product, today: Date, seller?: Seller): Product
     delivery: formatDeliveryWindow(p.leadTime, today),
     leadTime: { ...p.leadTime },
     dutyRate: p.dutyRate,
+    ...(p.stock != null && { stock: p.stock }),
     seller: seller && { id: seller.id, name: seller.name, avatar: seller.avatar, verified: seller.verified, kind: seller.kind, city: seller.city, audited: opt(seller.audited) },
   };
 }

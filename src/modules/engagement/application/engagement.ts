@@ -83,6 +83,11 @@ export function makeEngagement(d: EngagementDeps) {
   }
 
   return {
+    /** People who asked to hear about this product (its price alert, or "tell me when it's back"). */
+    async watchersOf(slug: string, limit = 5000): Promise<string[]> {
+      return d.lists.holders("alert", slug, limit);
+    },
+
     /** Every coupon that's still running, for the "free to claim" list. */
     async activeCoupons(): Promise<CouponView[]> {
       const now = d.clock.now();

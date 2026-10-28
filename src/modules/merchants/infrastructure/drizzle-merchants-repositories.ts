@@ -1,9 +1,9 @@
 import { and, asc, desc, eq, ne } from "drizzle-orm";
 import type { Database } from "@/shared/infrastructure/database";
 import type { Application, ApplicationStatus } from "../domain/application";
-import type { Membership } from "../domain/membership";
-import type { ApplicationRepository, MembershipRepository } from "../domain/repositories";
-import { applications, members } from "./schema";
+import type { Invitation, Membership } from "../domain/membership";
+import type { ApplicationRepository, InvitationRepository, MembershipRepository } from "../domain/repositories";
+import { applications, invitations, members } from "./schema";
 
 const toApplication = (r: typeof applications.$inferSelect): Application => {
   const { handle: _handle, documents, ...rest } = r;
@@ -71,5 +71,30 @@ export class DrizzleMembershipRepository implements MembershipRepository {
 
   async add(m: Membership) {
     await this.db.insert(members).values(m).onConflictDoNothing();
+  }
+
+  async remove(sellerId: string, accountId: string) {
+    return (await this.db.delete(members).where(and(eq(members.sellerId, sellerId), eq(members.accountId, accountId))).returning({ id: members.accountId })).length === 1;
+  }
+}
+
+export class DrizzleInvitationRepository implements InvitationRepository {
+  constructor(private readonly db: Database) {}
+
+  async save(i: Invitation) {
+    await this.db.insert(invitations).values(i).onConflictDoUpdate({ target: invitations.id, set: { acceptedAt: i.acceptedAt, acceptedBy: i.acceptedBy, revokedAt: i.revokedAt } });
+  }
+
+  async find(id: string) {
+    const [r] = await this.db.select().from(invitations).where(eq(invitations.id, id)).limit(1);
+    return r ?? null;
+  }
+
+  async forSeller(sellerId: string) {
+    return this.db.select().from(invitations).where(eq(invitations.sellerId, sellerId)).orderBy(desc(invitations.createdAt)).limit(100);
+  }
+
+  async forEmail(email: string) {
+    return this.db.select().from(invitations).where(eq(invitations.email, email)).orderBy(desc(invitations.createdAt)).limit(20);
   }
 }

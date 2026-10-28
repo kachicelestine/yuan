@@ -21,6 +21,8 @@ export type OptionValue = Readonly<{
   delta: Cents;
   /** CSS colour for colour options. */
   swatch: string | null;
+  /** The shop has none of this one left (the rest of the listing can still sell). */
+  soldOut?: boolean;
 }>;
 
 export type ProductOption = Readonly<{ name: string; values: readonly OptionValue[]; defaultIndex: number }>;
@@ -55,7 +57,18 @@ export type Product = Readonly<{
   dutyRate: number;
   /** Why a moderator removed it, shown to the seller. */
   moderationNote?: string | null;
+  /** Units left to sell; null (or absent) when the shop doesn't count them (made to order). */
+  stock?: number | null;
 }>;
+
+/** The most a listing can count as in stock. */
+export const MAX_STOCK = 1_000_000;
+
+/** How many of this listing (and these picked values) can be bought now; null when unlimited. */
+export function available(p: Pick<Product, "stock" | "options">, picked: readonly (OptionValue | undefined)[] = []): number | null {
+  if (picked.some((v) => v?.soldOut)) return 0;
+  return p.stock ?? null;
+}
 
 export type ProductError = DomainError<"invalid_product">;
 
@@ -83,9 +96,11 @@ export function createProduct(props: Omit<Product, "status"> & { status?: Produc
   if (p.rating < 0 || p.rating > 5) return invalid("rating must be between 0 and 5");
   if (p.dutyRate < 0 || p.dutyRate > 1) return invalid("duty rate must be a fraction between 0 and 1");
   if (p.leadTime.minDays < 1 || p.leadTime.maxDays < p.leadTime.minDays) return invalid("lead time must be at least a day, min ≤ max");
+  if (p.stock != null && (!Number.isInteger(p.stock) || p.stock < 0 || p.stock > MAX_STOCK)) return invalid("stock must be a whole number from 0, or empty when you don't count it");
   for (const o of p.options) {
     if (o.values.length === 0) return invalid(`option "${o.name}" needs at least one value`);
     if (o.defaultIndex < 0 || o.defaultIndex >= o.values.length) return invalid(`option "${o.name}" default is out of range`);
+    if (o.values.every((v) => v.soldOut)) return invalid(`every ${o.name.toLowerCase()} is sold out: set the listing's stock to 0 instead`);
   }
   return ok(p);
 }

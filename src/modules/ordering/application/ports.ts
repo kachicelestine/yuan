@@ -16,7 +16,7 @@ export type CatalogLine = Readonly<{
   shipsFrom: string;
 }>;
 
-export type CatalogLineError = DomainError<"unknown_product" | "quote_only" | "unknown_option">;
+export type CatalogLineError = DomainError<"unknown_product" | "quote_only" | "unknown_option" | "out_of_stock">;
 
 export interface OrderCatalog {
   /** Prices `qty` of a product with the chosen option labels ("M · Ink"), or explains why it can't. */
@@ -58,4 +58,10 @@ export interface CouponReservations {
   reserve(buyerId: string, couponId: string, orderId: string): Promise<boolean>;
 }
 
-export type CheckoutScope = { orders: OrderRepository; gifts: GiftRepository; payments: PaymentRequester; coupons: CouponReservations; events: EventLog };
+/** Listings that count stock: checkout takes units in the order's own transaction. */
+export interface StockReservations {
+  /** Takes stock for these lines, all or nothing; the first listing short (and how many it has), or null. */
+  reserve(orderId: string, lines: readonly { slug: string; qty: number }[]): Promise<{ slug: string; left: number } | null>;
+}
+
+export type CheckoutScope = { orders: OrderRepository; gifts: GiftRepository; payments: PaymentRequester; coupons: CouponReservations; stock?: StockReservations; events: EventLog };

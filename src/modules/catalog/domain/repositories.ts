@@ -37,6 +37,13 @@ export interface ProductRepository {
   prices(slugs: readonly string[]): Promise<Map<string, number>>;
   /** Adds a paid order's quantities to its products' sold counts; a second delivery changes nothing. */
   applySales(orderId: string, lines: readonly { slug: string; qty: number }[]): Promise<boolean>;
+  /**
+   * Takes stock for an order being placed, all or nothing: listings that count stock must
+   * have enough. Returns the first one short, with how many it has left, or null when done.
+   */
+  reserveStock(orderId: string, lines: readonly { slug: string; qty: number }[]): Promise<{ slug: string; left: number } | null>;
+  /** Gives back what an order that lapsed unpaid had taken; a second call does nothing. */
+  releaseStock(orderId: string): Promise<number>;
   save(product: Product): Promise<void>;
   /** Moves every listing of a shop from one status to another; returns how many. */
   setStatusForSeller(sellerId: string, from: Product["status"], to: Product["status"]): Promise<number>;

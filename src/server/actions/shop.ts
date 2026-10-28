@@ -52,8 +52,10 @@ const Listing = z.object({
   tiers: z.array(z.object({ min: z.number().int().min(1).max(1_000_000), price: dollars })).max(8),
   minOrder: z.number().int().min(1).max(1_000_000),
   options: z
-    .array(z.object({ name: text(40), values: z.array(z.object({ label: text(60), sub: text(80).nullable(), delta: z.number().min(0).max(100_000).nullable() })).min(1).max(30) }))
+    .array(z.object({ name: text(40), values: z.array(z.object({ label: text(60), sub: text(80).nullable(), delta: z.number().min(0).max(100_000).nullable(), soldOut: z.boolean().optional() })).min(1).max(30) }))
     .max(4),
+  /** Units to sell; null when the shop doesn't count them. */
+  stock: z.number().int().min(0).max(1_000_000).nullable().optional(),
   highlights: z.array(text(80)).max(12),
   specs: z.array(z.tuple([text(60), text(200)])).max(40),
   shipsFrom: text(80),
@@ -68,6 +70,8 @@ export async function saveListingAction(input: z.input<typeof Listing>, productI
   const parsed = Listing.safeParse(input);
   if (!parsed.success) return fail("invalid", "Check the listing and try again.");
   const l = parsed.data;
+  const id = productId ? z.uuid().catch("").parse(productId) : "";
+  const before = id ? await s.app.selling.listing(s.sellerId, id) : null;
   const r = await s.app.selling.save(
     s.sellerId,
     {
@@ -81,8 +85,9 @@ export async function saveListingAction(input: z.input<typeof Listing>, productI
       options: l.options.map((o) => ({
         name: o.name.trim(),
         defaultIndex: 0,
-        values: o.values.map((v) => ({ label: v.label.trim(), sub: v.sub?.trim() || null, delta: money.fromDollars(v.delta ?? 0), swatch: null })),
+        values: o.values.map((v) => ({ label: v.label.trim(), sub: v.sub?.trim() || null, delta: money.fromDollars(v.delta ?? 0), swatch: null, ...(v.soldOut && { soldOut: true }) })),
       })),
+      stock: l.stock,
       highlights: l.highlights,
       specs: l.specs,
       shipsFrom: l.shipsFrom,
@@ -94,6 +99,12 @@ export async function saveListingAction(input: z.input<typeof Listing>, productI
   );
   if (!r.ok) return fail(r.error.code, r.error.message);
   refresh(s.sellerId, r.value.slug);
+  // Back in stock: tell the people waiting for it.
+  if (before?.stock === 0 && r.value.status === "active" && (r.value.stock === undefined || r.value.stock > 0)) {
+    const watchers = await s.app.engagement.watchersOf(r.value.slug);
+    if (watchers.length)
+      await s.app.notifications.notify(watchers, { kind: "restock", title: "Back in stock", body: `${r.value.title} is back. Get it before it goes again.`, link: `/p/${r.value.slug}`, email: true }, `restock:${r.value.slug}:${Date.now()}`);
+  }
   return { ok: true, listing: r.value };
 }
 

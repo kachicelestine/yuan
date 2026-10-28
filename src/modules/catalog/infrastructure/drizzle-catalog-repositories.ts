@@ -1,11 +1,11 @@
-import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
 import type { Database } from "@/shared/infrastructure/database";
 import { cents } from "@/shared/kernel/money";
 import type { Category, CategoryId } from "../domain/category";
 import type { Product } from "../domain/product";
 import type { CategoryRepository, ProductRepository, SellerRepository } from "../domain/repositories";
 import type { Seller, SellerId } from "../domain/seller";
-import { appliedRatings, appliedSales, categories, pricePoints, products, sellers, type StoredOption } from "./schema";
+import { appliedRatings, appliedSales, categories, pricePoints, products, sellers, stockHolds, type StoredOption } from "./schema";
 
 const toCategory = (r: typeof categories.$inferSelect): Category => ({ ...r, id: r.id as CategoryId });
 
@@ -47,7 +47,15 @@ export function toProduct(r: typeof products.$inferSelect): Product {
     leadTime: { minDays: r.leadMinDays, maxDays: r.leadMaxDays },
     dutyRate: r.dutyRate,
     moderationNote: r.moderationNote,
+    stock: r.stock,
   };
+}
+
+/** Quantities per listing, adding up lines of the same listing (different options). */
+function group(lines: readonly { slug: string; qty: number }[]) {
+  const bySlug = new Map<string, number>();
+  for (const l of lines) bySlug.set(l.slug, (bySlug.get(l.slug) ?? 0) + l.qty);
+  return bySlug;
 }
 
 /** Words a buyer might search that aren't in the title. */
@@ -78,6 +86,7 @@ export function toProductRow(p: Product): typeof products.$inferInsert {
     leadMaxDays: p.leadTime.maxDays,
     dutyRate: p.dutyRate,
     moderationNote: p.moderationNote ?? null,
+    stock: p.stock ?? null,
     keywords: keywordsOf(p),
   };
 }
@@ -210,16 +219,49 @@ export class DrizzleProductRepository implements ProductRepository {
     return this.db.transaction(async (tx) => {
       const fresh = await tx.insert(appliedSales).values({ orderId }).onConflictDoNothing().returning({ id: appliedSales.orderId });
       if (!fresh.length) return false;
-      const bySlug = new Map<string, number>();
-      for (const l of lines) bySlug.set(l.slug, (bySlug.get(l.slug) ?? 0) + l.qty);
-      for (const [slug, qty] of bySlug) {
+      const holds = new Map((await tx.select().from(stockHolds).where(eq(stockHolds.orderId, orderId))).map((h) => [h.slug, h]));
+      for (const [slug, qty] of group(lines)) {
+        // Stock still held for the order was taken at checkout. Stock given back when it
+        // lapsed (then paid late anyway), or never held, is taken now, never below zero.
+        const held = holds.get(slug);
+        const take = held && !held.releasedAt ? 0 : qty;
         await tx
           .update(products)
-          .set({ soldCount: sql`coalesce(${products.soldCount}, 0) + ${qty}` })
+          .set({
+            soldCount: sql`coalesce(${products.soldCount}, 0) + ${qty}`,
+            ...(take ? { stock: sql`case when ${products.stock} is null then null else greatest(${products.stock} - ${take}, 0) end` } : {}),
+          })
           .where(eq(products.slug, slug));
+        if (held?.releasedAt) await tx.update(stockHolds).set({ releasedAt: null }).where(and(eq(stockHolds.orderId, orderId), eq(stockHolds.slug, slug)));
       }
       return true;
     });
+  }
+
+  async reserveStock(orderId: string, lines: readonly { slug: string; qty: number }[]) {
+    for (const [slug, qty] of group(lines)) {
+      const [p] = await this.db.select({ stock: products.stock }).from(products).where(eq(products.slug, slug)).limit(1);
+      if (!p || p.stock === null) continue;
+      // One conditional update, so two checkouts can't both take the last one.
+      const taken = await this.db
+        .update(products)
+        .set({ stock: sql`${products.stock} - ${qty}` })
+        .where(and(eq(products.slug, slug), gte(products.stock, qty)))
+        .returning({ stock: products.stock });
+      if (!taken.length) return { slug, left: p.stock };
+      await this.db.insert(stockHolds).values({ orderId, slug, qty }).onConflictDoNothing();
+    }
+    return null;
+  }
+
+  async releaseStock(orderId: string) {
+    const released = await this.db
+      .update(stockHolds)
+      .set({ releasedAt: new Date() })
+      .where(and(eq(stockHolds.orderId, orderId), isNull(stockHolds.releasedAt)))
+      .returning({ slug: stockHolds.slug, qty: stockHolds.qty });
+    for (const r of released) await this.db.update(products).set({ stock: sql`${products.stock} + ${r.qty}` }).where(and(eq(products.slug, r.slug), isNotNull(products.stock)));
+    return released.length;
   }
 
   async slugExists(slug: string) {
