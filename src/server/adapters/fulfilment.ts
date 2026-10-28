@@ -16,7 +16,7 @@ export class OrderingTotals implements OrderTotals {
 
   async find(orderId: string) {
     const o = await this.orders.findById(orderId);
-    return o && { buyerId: o.buyerId, subtotal: o.pricing.subtotal, discount: o.pricing.discount };
+    return o && { buyerId: o.buyerId, subtotal: o.pricing.subtotal, discount: o.pricing.discount, shopFunded: o.pricing.fundedBy !== null };
   }
 }
 

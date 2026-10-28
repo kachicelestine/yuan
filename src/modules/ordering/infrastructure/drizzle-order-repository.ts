@@ -71,6 +71,7 @@ export class DrizzleOrderRepository implements OrderRepository {
         total: cents(o.totalCents),
         parcels: o.parcels,
         couponId: o.couponId,
+        fundedBy: o.couponSellerId,
       },
       lines: lines.map((l) => ({
         productId: l.productId,
@@ -121,6 +122,7 @@ export class DrizzleOrderRepository implements OrderRepository {
       totalCents: p.total,
       parcels: p.parcels,
       couponId: p.couponId,
+      couponSellerId: p.fundedBy,
       referral: o.referral,
       placedAt: o.placedAt,
       paidAt: o.paidAt,

@@ -55,6 +55,17 @@ export function makeCouponDesk(d: CouponDeskDeps) {
       return list.sort((a, z) => Number(z.running) - Number(a.running) || z.expiresAt.localeCompare(a.expiresAt));
     },
 
+    /** These coupons (for a wallet), running or not; unknown ids drop out. */
+    async byIds(ids: readonly string[]): Promise<CouponView[]> {
+      return (await d.coupons.findMany(ids)).map(toCouponView);
+    },
+
+    /** Platform coupons anyone can claim right now. */
+    async openPlatform(): Promise<CouponView[]> {
+      const now = d.clock.now();
+      return (await d.coupons.list()).filter((c) => c.sellerId === null && now < c.expiresAt).map(toCouponView);
+    },
+
     /** A shop's vouchers a buyer can claim right now (store and product pages). */
     async runningForSeller(sellerId: string): Promise<CouponView[]> {
       const now = d.clock.now();

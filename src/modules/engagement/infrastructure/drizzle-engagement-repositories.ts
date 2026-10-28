@@ -29,6 +29,11 @@ export class DrizzleCouponRepository implements CouponRepository {
     return r ? toCoupon(r) : null;
   }
 
+  async findMany(ids: readonly string[]) {
+    if (!ids.length) return [];
+    return (await this.db.select().from(coupons).where(inArray(coupons.id, [...ids]))).map(toCoupon);
+  }
+
   async listForSeller(sellerId: string) {
     return (await this.db.select().from(coupons).where(eq(coupons.sellerId, sellerId)).orderBy(desc(coupons.expiresAt))).map(toCoupon);
   }

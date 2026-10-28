@@ -253,6 +253,13 @@
       "when": 1793144627628,
       "tag": "0035_photo_posts",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793165188157,
+      "tag": "0036_coupon_funding",
+      "breakpoints": true
     }
   ]
 }

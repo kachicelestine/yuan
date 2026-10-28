@@ -1,11 +1,11 @@
 "use server";
 
-import { revalidateTag } from "next/cache";
+import { revalidateTag, updateTag } from "next/cache";
 import { z } from "zod";
 import type { DropView, TeamOfferView, TeamView } from "@/modules/engagement";
 import { money } from "@/shared/kernel";
 import { actorFor } from "../actor";
-import { PROMOS_TAG } from "../cache-tags";
+import { PROMOS_TAG, sellerTag } from "../cache-tags";
 import { services } from "../container";
 import { allow, RATE_LIMITED } from "../rate-limits";
 import { currentAccount } from "../session";
@@ -81,6 +81,36 @@ async function owner() {
   if (s.role !== "owner") return { allowed: false as const, error: fail("forbidden", "Only the shop's owner can run promotions.") };
   if (!(await allow("account.write", s.account.id))) return { allowed: false as const, error: RATE_LIMITED as Failure };
   return { allowed: true as const, ...s, app: await services() };
+}
+
+const Voucher = z.object({
+  kind: z.enum(["amount", "percent", "free_shipping"]),
+  value: z.number().finite(),
+  minSpend: z.number().finite(),
+  title: z.string().max(60),
+  detail: z.string().max(200),
+  days: z.number().int(),
+});
+
+/** A shop voucher: only this shop's items count towards it. */
+export async function issueShopVoucherAction(input: z.input<typeof Voucher>): Promise<{ ok: true; id: string } | Failure> {
+  const s = await owner();
+  if (!s.allowed) return s.error;
+  const p = Voucher.safeParse(input);
+  if (!p.success) return fail("invalid", "That couldn't be read.");
+  const r = await s.app.coupons.issue(s.sellerId, p.data);
+  if (!r.ok) return fail(r.error.code, r.error.message);
+  updateTag(sellerTag(s.sellerId));
+  return { ok: true, id: r.value.id };
+}
+
+export async function endShopVoucherAction(couponId: string): Promise<{ ok: true } | Failure> {
+  const s = await owner();
+  if (!s.allowed) return s.error;
+  const r = await s.app.coupons.end(z.string().max(60).catch("").parse(couponId), s.sellerId);
+  if (!r.ok) return fail(r.error.code, r.error.message);
+  updateTag(sellerTag(s.sellerId));
+  return { ok: true };
 }
 
 const Drop = z.object({

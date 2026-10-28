@@ -118,6 +118,8 @@ export type Coupon = {
   minSpend: number;
   sellerId?: string;
   expires: string;
+  /** When it ends (ISO); coupons from the server carry it. */
+  expiresAt?: string;
 };
 
 export type RewardItem = { id: string; title: string; cost: number; couponId: string };

@@ -45,6 +45,9 @@ export function openShipments(order: Order): Shipment[] {
   if (order.kind === "deposit") return [];
   const bySeller = new Map<string, Cents>();
   for (const l of order.lines) bySeller.set(l.sellerId, money.add(bySeller.get(l.sellerId) ?? money.ZERO, money.cents(l.unitPrice * l.qty)));
+  // A shop's own voucher comes out of what that shop is paid.
+  const funder = order.pricing.fundedBy;
+  if (funder && bySeller.has(funder)) bySeller.set(funder, money.max(money.ZERO, money.subtract(bySeller.get(funder)!, order.pricing.discount)));
   return [...bySeller].map(([sellerId, amount]) => ({
     orderId: order.id,
     sellerId,

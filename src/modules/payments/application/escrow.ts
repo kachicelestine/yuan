@@ -6,8 +6,8 @@ import type { RailId } from "../domain/rails";
 
 /** What payments needs to know about an order to close its escrow (ordering owns the order). */
 export interface OrderTotals {
-  /** The buyer, the lines' total before the coupon, and the coupon. */
-  find(orderId: string): Promise<{ buyerId: string; subtotal: Cents; discount: Cents } | null>;
+  /** The buyer, the lines' total before the coupon, the coupon, and whether a shop paid for it. */
+  find(orderId: string): Promise<{ buyerId: string; subtotal: Cents; discount: Cents; shopFunded?: boolean } | null>;
 }
 
 /** Where a shop or creator wants its money (merchants and affiliates own the wallets). */
@@ -136,9 +136,13 @@ export function makeEscrow({ ledger, disbursements, invoices, orders, wallets, r
     async settle(e: { orderId: string }): Promise<boolean> {
       const [order, invoice] = await Promise.all([orders.find(e.orderId), invoices.findByOrder(e.orderId)]);
       if (!order || !invoice) throw new Error(`Order ${e.orderId} has no paid invoice`);
-      const remainder = money.cents(invoice.amount - order.subtotal);
-      if (remainder === 0 && order.discount === 0) return false;
-      const j = orderSettled({ id: newId(), orderId: e.orderId, remainder, discount: order.discount, at: clock.now() });
+      // A shop's own voucher was taken from its parcel, so the shops were released the lines
+      // less the discount; a platform coupon is booked as a promotion instead.
+      const released = order.shopFunded ? order.subtotal - order.discount : order.subtotal;
+      const discount = order.shopFunded ? 0 : order.discount;
+      const remainder = money.cents(invoice.amount - released);
+      if (remainder === 0 && discount === 0) return false;
+      const j = orderSettled({ id: newId(), orderId: e.orderId, remainder, discount: money.cents(discount), at: clock.now() });
       if (!j.ok) throw new Error(j.error.message);
       return ledger.postOnce(j.value);
     },

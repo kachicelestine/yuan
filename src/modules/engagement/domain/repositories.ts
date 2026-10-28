@@ -10,6 +10,7 @@ import type { Deposit, DepositOffer, DepositStatus } from "./deposit";
 export interface CouponRepository {
   list(): Promise<Coupon[]>;
   find(id: string): Promise<Coupon | null>;
+  findMany(ids: readonly string[]): Promise<Coupon[]>;
   listForSeller(sellerId: string): Promise<Coupon[]>;
   save(coupon: Coupon): Promise<void>;
 }

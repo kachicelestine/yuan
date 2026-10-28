@@ -58,6 +58,8 @@ export type Pricing = Readonly<{
   total: Cents;
   parcels: number;
   couponId: string | null;
+  /** The shop that pays for the discount (its own voucher); null when the platform does. */
+  fundedBy: string | null;
 }>;
 
 /** What a coupon takes off, or zero when the order doesn't qualify. */
@@ -95,5 +97,6 @@ export function priceOrder(input: PricingInput): Pricing {
     total,
     parcels,
     couponId: discount > 0 ? (input.coupon?.id ?? null) : null,
+    fundedBy: discount > 0 ? (input.coupon?.sellerId ?? null) : null,
   };
 }

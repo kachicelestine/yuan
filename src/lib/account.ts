@@ -1,22 +1,18 @@
-// Account queries over the fixtures: check-in rewards and coupon copy.
-import { products } from "@/fixtures/products";
+// Account helpers: check-in reward copy (fixtures) and choosing the best coupon.
 import type { Coupon } from "./types";
-import { checkinRewards, coupons, rewardStore } from "@/fixtures/account";
+import { checkinRewards, rewardStore } from "@/fixtures/account";
 
-export { checkinRewards, coupons, rewardStore };
-
-export function getCoupon(id: string) {
-  return coupons.find((c) => c.id === id);
-}
+export { checkinRewards, rewardStore };
 
 /**
- * The coupon in the wallet that saves the most on these lines: seller coupons count only
- * that seller's items, free-shipping coupons are worth the shipping.
+ * The coupon in the wallet that saves the most on these lines: a shop's voucher counts only
+ * that shop's items, free-shipping coupons are worth the shipping. Checkout reprices on the
+ * server; this is the preview, and picks which coupon to send.
  */
-export function bestCoupon(walletIds: string[], lines: { slug: string; unitPrice: number; qty: number }[], shipping: number) {
+export function bestCoupon(wallet: readonly Coupon[], lines: { unitPrice: number; qty: number; sellerId?: string }[], shipping: number) {
   let best: { coupon: Coupon; discount: number } | null = null;
-  for (const c of coupons.filter((x) => walletIds.includes(x.id))) {
-    const base = lines.filter((l) => !c.sellerId || products.find((p) => p.slug === l.slug)?.sellerId === c.sellerId).reduce((n, l) => n + l.unitPrice * l.qty, 0);
+  for (const c of wallet) {
+    const base = lines.filter((l) => !c.sellerId || l.sellerId === c.sellerId).reduce((n, l) => n + l.unitPrice * l.qty, 0);
     if (base < c.minSpend) continue;
     const discount = c.freeShipping ? shipping : c.percent ? base * c.value : c.value;
     if (discount > 0 && (!best || discount > best.discount)) best = { coupon: c, discount };

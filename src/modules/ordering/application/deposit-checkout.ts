@@ -30,7 +30,7 @@ export function makeDepositCheckout(deps: { catalog: OrderCatalog; destinations:
     const priced = await deps.catalog.priceLine(req.slug, null, 1);
     if (!priced.ok) return priced;
     const c = priced.value;
-    const pricing: Pricing = { subtotal: req.amount, discount: 0 as Cents, shipping: 0 as Cents, duty: 0 as Cents, vat: 0 as Cents, dueAtDoor: 0 as Cents, total: req.amount, parcels: 0, couponId: null };
+    const pricing: Pricing = { subtotal: req.amount, discount: 0 as Cents, shipping: 0 as Cents, duty: 0 as Cents, vat: 0 as Cents, dueAtDoor: 0 as Cents, total: req.amount, parcels: 0, couponId: null, fundedBy: null };
     const placed = placeOrder({
       id: deps.newId(),
       number: deps.newOrderNumber(),

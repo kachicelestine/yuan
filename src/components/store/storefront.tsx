@@ -8,6 +8,7 @@ import { Flag } from "@/components/market/flag";
 import { ProductCard } from "@/components/product/product-card";
 import { useStore } from "@/components/providers";
 import { RatingSummary, ReviewList } from "@/components/reviews/reviews";
+import { SellerCouponChip } from "@/components/rewards/coupon-wallet";
 import { brand } from "@/config/brand";
 import type { Product, Review, ReviewSummary, Seller, SellerProfile, Video } from "@/lib/catalog";
 import { compact } from "@/lib/format";
@@ -121,6 +122,9 @@ export function Storefront({ seller, profile, products, videos, reviews, reviewC
               <span className="text-ink-2"> · {shipsHere ? "duties shown before you pay" : "first orders ship with extra tracking"}</span>
             </span>
           </p>
+        </div>
+        <div className="mt-3">
+          <SellerCouponChip sellerId={seller.id} limit={3} />
         </div>
       </div>
 

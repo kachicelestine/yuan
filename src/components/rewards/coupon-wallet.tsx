@@ -5,14 +5,20 @@ import Link from "next/link";
 import { Icon } from "@/components/icon";
 import { useMoney } from "@/components/price";
 import { useStore } from "@/components/providers";
-import { coupons } from "@/lib/account";
 import { getSeller, type Coupon } from "@/lib/catalog";
+import { useNow } from "@/lib/use-now";
+import { forgetCoupons, useCoupons } from "./use-coupons";
 
 /** Claimed coupons, and the ones you can still claim. Checkout applies the best one for you. */
 export function CouponWallet() {
   const { coupons: wallet, claimCoupon } = useStore();
-  const mine = coupons.filter((c) => wallet.includes(c.id));
-  const open = coupons.filter((c) => !wallet.includes(c.id));
+  const now = useNow();
+  const held = useCoupons({ ids: wallet });
+  const offered = useCoupons({ open: true });
+  const running = (c: Coupon) => !c.expiresAt || !now || new Date(c.expiresAt).getTime() > now;
+  const mine = (held ?? []).filter(running);
+  const open = (offered ?? []).filter((c) => !wallet.includes(c.id));
+  const loading = held === null || offered === null;
 
   return (
     <div className="mx-auto max-w-[760px] px-3.5 pt-safe pb-36 lg:px-6 lg:pt-6 lg:pb-16">
@@ -33,14 +39,21 @@ export function CouponWallet() {
             <CouponCard coupon={c} />
           </li>
         ))}
-        {!mine.length && <li className="glass-inset rounded-[22px] p-4 text-sm text-ink-2">No coupons yet. Claim one below or earn coins in Rewards.</li>}
+        {!mine.length && !loading && <li className="glass-inset rounded-[22px] p-4 text-sm text-ink-2">No coupons yet. Claim one below, from a shop&apos;s page, or with coins in Rewards.</li>}
+        {loading && <li aria-hidden="true" className="skeleton h-24 rounded-[22px]" />}
       </ul>
 
       <h2 className="mt-6 mb-2 px-1 text-[11px] font-bold tracking-[0.08em] text-ink-3">FREE TO CLAIM</h2>
       <ul className="flex flex-col gap-2.5">
         {open.map((c) => (
           <li key={c.id}>
-            <CouponCard coupon={c} onClaim={() => void claimCoupon(c.id)} />
+            <CouponCard
+              coupon={c}
+              onClaim={() => {
+                forgetCoupons();
+                void claimCoupon(c.id);
+              }}
+            />
           </li>
         ))}
       </ul>
@@ -62,9 +75,14 @@ export function CouponCard({ coupon: c, onClaim, compact }: { coupon: Coupon; on
       <div className={`flex min-w-0 flex-1 items-center gap-3 ${compact ? "px-3 py-2.5" : "px-4 py-4"}`}>
         {seller && <Image src={seller.avatar} alt="" width={32} height={32} sizes="32px" className="size-8 shrink-0 rounded-full object-cover" />}
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold">{seller ? seller.name : "Any seller"}</span>
+          <span className="block truncate text-sm font-semibold">{seller ? seller.name : c.sellerId ? c.detail || "Shop voucher" : "Any seller"}</span>
           <span className="block text-[11px] text-ink-2">Ends {c.expires}</span>
         </span>
+        {seller === undefined && c.sellerId && (
+          <Link href={`/s/${c.sellerId}`} className="sr-only">
+            Visit the shop
+          </Link>
+        )}
         {onClaim && (
           <button type="button" onClick={onClaim} className="h-9 shrink-0 rounded-full bg-white px-4 text-[13px] font-bold text-black">
             Claim
@@ -76,30 +94,41 @@ export function CouponCard({ coupon: c, onClaim, compact }: { coupon: Coupon; on
   );
 }
 
-/** A seller's coupon offered right where you buy: claim it in one tap. */
-export function SellerCouponChip({ sellerId }: { sellerId: string }) {
+/** A shop's vouchers offered right where you buy: claim each in one tap. */
+export function SellerCouponChip({ sellerId, limit = 2 }: { sellerId: string; limit?: number }) {
   const money = useMoney();
   const { coupons: wallet, claimCoupon } = useStore();
-  const coupon = coupons.find((c) => c.sellerId === sellerId);
-  if (!coupon) return null;
-  const owned = wallet.includes(coupon.id);
-  const headline = couponHeadline(coupon, money);
+  const vouchers = (useCoupons({ seller: sellerId }) ?? []).filter((c) => c.sellerId === sellerId).slice(0, limit);
+  if (!vouchers.length) return null;
   return (
-    <div className="flex items-center gap-2.5 rounded-2xl bg-[linear-gradient(110deg,rgb(204_58_23/0.25),rgb(255_197_61/0.1))] px-3 py-2 ring-1 ring-white/10">
-      <Icon name="card" className="size-5 shrink-0 text-accent-light" />
-      <span className="min-w-0 flex-1 text-[13px]">
-        <b className="font-semibold">{headline}</b>
-        <span className="text-ink-2"> over {money(coupon.minSpend, { nice: true })} · ends {coupon.expires}</span>
-      </span>
-      <button
-        type="button"
-        onClick={() => !owned && void claimCoupon(coupon.id)}
-        aria-pressed={owned}
-        className={`h-8 shrink-0 rounded-full px-3 text-xs font-bold ${owned ? "bg-positive/15 text-positive" : "bg-white text-black"}`}
-      >
-        {owned ? "Claimed" : "Claim"}
-      </button>
-    </div>
+    <ul aria-label="Shop vouchers" className="flex flex-col gap-1.5">
+      {vouchers.map((coupon) => {
+        const owned = wallet.includes(coupon.id);
+        return (
+          <li key={coupon.id} className="flex items-center gap-2.5 rounded-2xl bg-[linear-gradient(110deg,rgb(204_58_23/0.25),rgb(255_197_61/0.1))] px-3 py-2 ring-1 ring-white/10">
+            <Icon name="card" className="size-5 shrink-0 text-accent-light" />
+            <span className="min-w-0 flex-1 text-[13px]">
+              <b className="font-semibold">{couponHeadline(coupon, money)}</b>
+              <span className="text-ink-2">
+                {coupon.minSpend > 0 ? ` over ${money(coupon.minSpend, { nice: true })}` : ""} · ends {coupon.expires}
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                if (owned) return;
+                forgetCoupons();
+                void claimCoupon(coupon.id);
+              }}
+              aria-pressed={owned}
+              className={`h-8 shrink-0 rounded-full px-3 text-xs font-bold ${owned ? "bg-positive/15 text-positive" : "bg-white text-black"}`}
+            >
+              {owned ? "Claimed" : "Claim"}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

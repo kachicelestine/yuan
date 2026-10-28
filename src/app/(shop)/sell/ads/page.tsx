@@ -7,8 +7,11 @@ import { ChopOffersManager } from "@/components/sell/chop-offers-manager";
 import { BlindBoxManager } from "@/components/sell/blindbox-manager";
 import { DepositOffersManager } from "@/components/sell/deposit-offers-manager";
 import { DropsManager, TeamOffersManager } from "@/components/sell/drops-manager";
+import { CouponForm } from "@/components/coupons/coupon-form";
+import { ManagedCoupons } from "@/components/coupons/managed-coupons";
 import { SamplesManager } from "@/components/sell/samples-manager";
 import { SellFrame, SellSkeleton } from "@/components/sell/sell-frame";
+import { endShopVoucherAction, issueShopVoucherAction } from "@/server/actions/promos";
 import { services } from "@/server/container";
 import { currentShop } from "@/server/shop";
 
@@ -27,7 +30,7 @@ async function Body() {
   const shop = await currentShop();
   if (!shop) redirect("/sell");
   const app = await services();
-  const [campaigns, listings, available, offers, drops, teams, sampleOffers, sampleRequests, depositOffers, boxSeries] = await Promise.all([
+  const [campaigns, listings, available, offers, drops, teams, sampleOffers, sampleRequests, depositOffers, boxSeries, vouchers] = await Promise.all([
     app.ads.list(shop.sellerId),
     app.selling.listings(shop.sellerId),
     app.escrow.available(shop.sellerId),
@@ -38,6 +41,7 @@ async function Body() {
     app.samples.sellerRequests(shop.sellerId),
     app.deposits.sellerOffers(shop.sellerId),
     app.blindBoxes.sellerSeries(shop.sellerId),
+    app.coupons.forSeller(shop.sellerId),
   ]);
   const live = listings.filter((l) => l.status === "active").map(({ slug, title, images, price }) => ({ slug, title, image: images[0], price: price ?? null }));
   return (
@@ -47,6 +51,14 @@ async function Body() {
           Sponsored listings
         </h2>
         <AdsManager campaigns={campaigns} listings={live} balance={available / 100} owner={shop.role === "owner"} />
+      </section>
+      <section aria-labelledby="vouchers-h" className="mt-6 flex flex-col gap-2">
+        <h2 id="vouchers-h" className="px-1 font-display text-xl font-bold">
+          Shop vouchers
+        </h2>
+        <p className="px-1 text-xs text-ink-2">Shoppers claim them on your shop and product pages; checkout applies the best one to your items. You pay the discount.</p>
+        {shop.role === "owner" && <CouponForm scope="shop" action={issueShopVoucherAction} />}
+        <ManagedCoupons list={vouchers} end={endShopVoucherAction} />
       </section>
       <section aria-labelledby="chops-h" className="mt-6 flex flex-col gap-2">
         <h2 id="chops-h" className="px-1 font-display text-xl font-bold">

@@ -33,6 +33,8 @@ export const orders = orderingSchema.table(
     totalCents: integer().notNull(),
     parcels: integer().notNull(),
     couponId: text(),
+    /** The shop paying for the discount (its own voucher); null when the platform pays. */
+    couponSellerId: text(),
     /** Creator code the buyer arrived through. */
     referral: text(),
     placedAt: timestamp({ withTimezone: true }).notNull(),

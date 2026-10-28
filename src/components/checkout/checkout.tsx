@@ -11,6 +11,7 @@ import { ProductCard } from "@/components/product/product-card";
 import { useStore, type CartLine } from "@/components/providers";
 import { couponHeadline } from "@/components/rewards/coupon-wallet";
 import { DEFAULT_RAIL, RAILS, type RailId } from "@/modules/payments";
+import { useCoupons } from "@/components/rewards/use-coupons";
 import { bestCoupon } from "@/lib/account";
 import { getSeller } from "@/lib/catalog";
 import { useProducts, useSimilar } from "@/components/product/use-products";
@@ -87,7 +88,12 @@ export function Checkout({ rails: available, signedIn }: { rails: string[]; sign
   const shipPrice = (id: (typeof shipping)[number]["id"]) => perParcel(id) * parcels;
   const shipCost = shipPrice(ship);
   const combineSaving = perParcel(ship) * (groups.length - 1);
-  const coupon = bestCoupon(wallet, cart, shipCost);
+  const walletCoupons = useCoupons({ ids: wallet }) ?? [];
+  const coupon = bestCoupon(
+    walletCoupons,
+    cart.map((l) => ({ unitPrice: l.unitPrice, qty: l.qty, sellerId: getProduct(l.slug)?.sellerId })),
+    shipCost,
+  );
   const discount = coupon?.discount ?? 0;
   const duty = cart.reduce((sum, l) => sum + l.unitPrice * l.qty * (getProduct(l.slug)?.dutyRate ?? 0.06), 0);
   const duties = duty + (subtotal + shipCost + duty) * market.vat;
