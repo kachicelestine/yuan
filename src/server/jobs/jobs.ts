@@ -347,6 +347,15 @@ function recurringJobs(app: Services, dispatcher: OutboxDispatcher): ScheduledJo
       run: async () => void (await app.chops.expire()),
     },
     {
+      // Parcels a shop never shipped in time go back to the buyer.
+      name: "shipments.overdue",
+      everyMs: DAY / 24,
+      run: async () => {
+        const n = await app.fulfilment.refundOverdue();
+        if (n) jobLog.info("unshipped parcels refunded", { count: n });
+      },
+    },
+    {
       // Parcels nobody confirmed or disputed are taken as delivered, which pays the shop.
       name: "shipments.autoconfirm",
       everyMs: DAY / 24,

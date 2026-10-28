@@ -8,7 +8,7 @@ import { Icon } from "@/components/icon";
 import { useMoney } from "@/components/price";
 import { useStore } from "@/components/providers";
 import type { MachineView } from "@/modules/engagement";
-import { openBoxAction, pickBoxAction, shakeBoxAction } from "@/server/actions/blindboxes";
+import { holdCaseAction, openBoxAction, pickBoxAction, shakeBoxAction } from "@/server/actions/blindboxes";
 
 type Figure = MachineView["series"]["figures"][number];
 
@@ -28,6 +28,7 @@ export function UnboxScreen({ initial, price, signedIn }: { initial: MachineView
   const [showOdds, setShowOdds] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [added, setAdded] = useState<number[]>([]);
+  const [wholeCase, setWholeCase] = useState<number | null>(null);
   const [busy, start] = useTransition();
   const figure = (id: string) => m.series.figures.find((f) => f.id === id)!;
   const secret = m.series.figures.find((f) => f.secret);
@@ -59,6 +60,17 @@ export function UnboxScreen({ initial, price, signedIn }: { initial: MachineView
         addToCart({ ...r.line, option: undefined, qty: 1 });
         setAdded((a) => [...a, pick]);
       }
+    });
+  }
+
+  /** A fresh sealed case, every box in it held for this shopper and put in the bag. */
+  function buyCase() {
+    setError(null);
+    start(async () => {
+      const r = await holdCaseAction(m.series.id);
+      if (!r.ok) return setError(r.message);
+      if (wholeCase !== r.caseNumber) addToCart({ ...r.line, option: undefined });
+      setWholeCase(r.caseNumber);
     });
   }
 
@@ -176,6 +188,26 @@ export function UnboxScreen({ initial, price, signedIn }: { initial: MachineView
           </div>
         )}
       </section>
+
+      {signedIn && (
+        <section aria-label="Whole case" className="glass-inset mt-4 flex items-center gap-3 rounded-[22px] p-3.5">
+          <span className="min-w-0 flex-1">
+            <b className="block text-sm font-semibold">Want the set? Buy a whole case</b>
+            <span className="block text-xs text-ink-2">
+              {m.case.size} sealed boxes, each regular figure once{secret ? " (unless the secret takes one's place)" : ""} · {money(price * m.case.size)}
+            </span>
+          </span>
+          {wholeCase !== null ? (
+            <Link href="/checkout" className="grid h-10 shrink-0 place-items-center rounded-full bg-accent px-4 text-[13px] font-bold">
+              Case #{wholeCase} · check out
+            </Link>
+          ) : (
+            <button type="button" onClick={buyCase} disabled={busy} className="h-10 shrink-0 rounded-full bg-white px-4 text-[13px] font-bold text-black disabled:opacity-50">
+              Buy case
+            </button>
+          )}
+        </section>
+      )}
 
       {unopened.length > 0 && (
         <section aria-labelledby="open-h" className="glass mt-4 rounded-[26px] p-4">

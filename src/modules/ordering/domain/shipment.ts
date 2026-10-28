@@ -15,6 +15,10 @@ export const CARRIERS = ["DHL", "FedEx", "UPS", "EMS", "China Post", "SF Express
 
 /** Shipped parcels confirm themselves this long after shipping if the buyer says nothing. */
 export const AUTO_CONFIRM_DAYS = 21;
+/** A shop has this long after payment to ship a parcel; after that it's refunded. */
+export const SHIP_WITHIN_DAYS = 15;
+/** Who decided, when nobody did: the platform's own rules (a job). */
+export const SYSTEM_ACTOR = "00000000-0000-0000-0000-000000000000";
 
 export type Shipment = Readonly<{
   orderId: string;

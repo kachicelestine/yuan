@@ -108,6 +108,20 @@ describe("admin panel", () => {
     expect((await app().fulfilment.refund(adminId, o.orderId, parcel.sellerId, "Second attempt at a refund.")).ok).toBe(false);
   });
 
+  it("refunds parcels a shop never ships within the deadline", async () => {
+    const o = await paidOrder("hoodie-heavyweight");
+    // Still within the deadline: nothing happens.
+    expect(await app().fulfilment.refundOverdue()).toBe(0);
+    const later = wire(db, { clock: { now: () => new Date(now.getTime() + 16 * 86_400_000) }, payments: { network, simulator: network }, media: { storage, privateStorage: storage, encoder: new CopyEncoder(storage), premoderated: false } });
+    expect(await later.fulfilment.refundOverdue()).toBeGreaterThanOrEqual(1);
+    const [parcel] = await later.fulfilment.forOrder(o.orderId);
+    expect(parcel.status).toBe("refunded");
+    const at = new Date(now.getTime() + 16 * 86_400_000);
+    const dispatcher = new OutboxDispatcher(db, eventHandlers(later), { now: () => at, maxAttempts: 1 });
+    for (let i = 0; i < 10; i++) if ((await dispatcher.dispatchOnce()).claimed === 0) break;
+    expect((await later.escrow.pending()).some((x) => x.kind === "refund" && x.orderId === o.orderId)).toBe(true);
+  });
+
   it("issues platform coupons and shop vouchers, counts claims, and ends them", async () => {
     const desk = app().coupons;
     expect(await desk.issue(null, { kind: "amount", value: 50, minSpend: 20, title: "$50 off", detail: "", days: 7 })).toMatchObject({ ok: false, error: { code: "invalid_coupon" } });

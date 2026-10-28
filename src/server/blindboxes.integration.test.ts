@@ -118,4 +118,22 @@ describe("blind boxes", () => {
     const next = (await app().blindBoxes.machine(series.id, null))!;
     expect(next.case).toMatchObject({ number: 2, left: 12 });
   });
+  it("sells a whole fresh case to one shopper, every box held until they pay", async () => {
+    const [series] = await app().blindBoxes.series();
+    const shopper = newId();
+    const held = await app().blindBoxes.holdCase(shopper, series.id);
+    if (!held.ok) throw new Error(held.error.message);
+    expect(held.value.size).toBe(12);
+    // Asking again returns the same case; other shoppers can't take its boxes.
+    expect(await app().blindBoxes.holdCase(shopper, series.id)).toMatchObject({ ok: true, value: { caseId: held.value.caseId } });
+    expect((await app().blindBoxes.pick(newId(), held.value.caseId, 0)).ok).toBe(false);
+    // Everyone else gets the next case.
+    expect((await app().blindBoxes.machine(series.id, null))!.case.number).toBeGreaterThan(held.value.caseNumber);
+
+    const orderId = await buy(shopper, held.value.size);
+    const boxes = (await app().blindBoxes.forOrders([orderId])).filter((b) => b.caseNumber === held.value.caseNumber);
+    expect(boxes.length).toBe(12);
+    // Every regular figure once, unless the secret took one's place.
+    expect(new Set(boxes.map((b) => b.figure.name)).size).toBe(12);
+  });
 });

@@ -35,6 +35,8 @@ export interface ShipmentRepository {
   forSeller(sellerId: string, statuses: readonly ShipmentStatus[], limit: number): Promise<Shipment[]>;
   /** Shipped before `before` and never confirmed or disputed. */
   dueForAutoConfirm(before: Date, limit: number): Promise<Shipment[]>;
+  /** Parcels still waiting to ship whose order was paid before this time. */
+  overdueForShipping(paidBefore: Date, limit: number): Promise<Shipment[]>;
   /** Open disputes, oldest first. */
   disputed(limit: number): Promise<Shipment[]>;
 }

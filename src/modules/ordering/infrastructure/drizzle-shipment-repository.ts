@@ -78,6 +78,17 @@ export class DrizzleShipmentRepository implements ShipmentRepository {
     return rows.map(toShipment);
   }
 
+  async overdueForShipping(paidBefore: Date, limit: number) {
+    const rows = await this.db
+      .select({ s: shipments })
+      .from(shipments)
+      .innerJoin(orders, eq(orders.id, shipments.orderId))
+      .where(and(eq(shipments.status, "awaiting_shipment"), lt(orders.paidAt, paidBefore)))
+      .orderBy(asc(orders.paidAt))
+      .limit(limit);
+    return rows.map((r) => toShipment(r.s));
+  }
+
   async disputed(limit: number) {
     return (await this.db.select().from(shipments).where(eq(shipments.status, "disputed")).orderBy(asc(shipments.disputeOpenedAt)).limit(limit)).map(toShipment);
   }

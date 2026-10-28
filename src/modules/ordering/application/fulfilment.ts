@@ -3,6 +3,8 @@ import type { OrderRepository, ShipmentRepository } from "../domain/repositories
 import {
   allSettled,
   AUTO_CONFIRM_DAYS,
+  SHIP_WITHIN_DAYS,
+  SYSTEM_ACTOR,
   confirmDelivery,
   openDispute,
   resolveDispute,
@@ -104,6 +106,20 @@ export function makeFulfilment({ orders, shipments, uow, clock }: FulfilmentDeps
       if (!r.ok) return r;
       await commit(r.value.shipment, r.value.event);
       return ok(toShipmentView(r.value.shipment));
+    },
+
+    /** Background job: parcels a shop never shipped in time are refunded to the buyer. */
+    async refundOverdue(limit = 100): Promise<number> {
+      const now = clock.now();
+      const due = await shipments.overdueForShipping(new Date(now.getTime() - SHIP_WITHIN_DAYS * 86_400_000), limit);
+      let done = 0;
+      for (const s of due) {
+        const r = adminRefund(s, `Not shipped within ${SHIP_WITHIN_DAYS} days of payment, so it was refunded automatically.`, SYSTEM_ACTOR, now);
+        if (!r.ok) continue;
+        await commit(r.value.shipment, r.value.event);
+        done++;
+      }
+      return done;
     },
 
     /** Background job: parcels shipped long ago that nobody confirmed or disputed. */

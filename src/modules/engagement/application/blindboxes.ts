@@ -1,5 +1,5 @@
 import { domainError, err, ok, type Clock, type Result } from "@/shared/kernel";
-import { holdBox, isFree, makeCase, odds, shakeHint, validSeries, type Box, type BoxError, type Case, type Figure, type Series } from "../domain/blindbox";
+import { HOLD_MINUTES, holdBox, isFree, makeCase, odds, shakeHint, validSeries, type Box, type BoxError, type Case, type Figure, type Series } from "../domain/blindbox";
 import type { BlindBoxRepository } from "../domain/repositories";
 
 export type BlindBoxDeps = {
@@ -126,6 +126,33 @@ export function makeBlindBoxes({ boxes, clock, newId, random, listings }: BlindB
       if (!held.ok) return held;
       if (!(await boxes.hold(held.value, now))) return err(domainError("taken", "Someone else just took that box. Pick another."));
       return ok({ view: await view(found.s, buyerId, { c: found.c, taken: await boxes.boxes([caseId]) }), slug: found.s.slug, caseNumber: found.c.number });
+    },
+
+    /**
+     * Buying a whole case: a fresh sealed case is opened for this shopper and every box in it
+     * held while they check out (paying for that many boxes sells them these). Asking again
+     * while the hold lasts returns the same case.
+     */
+    async holdCase(buyerId: string, seriesId: string): Promise<Result<{ caseId: string; caseNumber: number; size: number; slug: string; title: string; poster: string }, BoxError>> {
+      const s = await boxes.series(seriesId);
+      if (!s || !s.active) return err(domainError("not_found", "That series isn't on sale."));
+      const now = clock.now();
+      const held = await boxes.heldBy(buyerId, now);
+      const byCase = new Map<string, number>();
+      for (const b of held) byCase.set(b.caseId, (byCase.get(b.caseId) ?? 0) + 1);
+      for (const [caseId, count] of byCase) {
+        const c = await boxes.findCase(caseId);
+        if (c && c.seriesId === s.id && count === c.boxes.length) return ok({ caseId: c.id, caseNumber: c.number, size: c.boxes.length, slug: s.slug, title: s.title, poster: s.poster });
+      }
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const latest = await boxes.latestCase(s.id);
+        const c = makeCase(s, newId(), (latest?.number ?? 0) + 1, random, now);
+        if (!(await boxes.createCase(c))) continue;
+        const heldUntil = new Date(now.getTime() + HOLD_MINUTES * 60_000);
+        for (let index = 0; index < c.boxes.length; index++) await boxes.hold({ caseId: c.id, index, buyerId, state: "held", heldUntil, orderId: null, openedAt: null, at: now }, now);
+        return ok({ caseId: c.id, caseNumber: c.number, size: c.boxes.length, slug: s.slug, title: s.title, poster: s.poster });
+      }
+      return err(domainError("taken", "Busy right now. Try again in a moment."));
     },
 
     async release(buyerId: string, caseId: string, index: number) {

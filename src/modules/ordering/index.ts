@@ -17,6 +17,7 @@ export { toShipmentView, type ShipmentView } from "./application/orders";
 export {
   allSettled,
   AUTO_CONFIRM_DAYS,
+  SHIP_WITHIN_DAYS,
   CARRIERS,
   confirmDelivery,
   DISPUTE_REASONS,

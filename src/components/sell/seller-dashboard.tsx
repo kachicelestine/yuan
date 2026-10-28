@@ -8,7 +8,7 @@ import { Icon } from "@/components/icon";
 import { useMoney } from "@/components/price";
 import type { ListingView, SellerView, StorefrontView } from "@/modules/catalog";
 import type { QuestionView } from "@/modules/content";
-import type { SellerOrderView } from "@/modules/ordering";
+import { SHIP_WITHIN_DAYS, type SellerOrderView } from "@/modules/ordering";
 import { compact } from "@/lib/format";
 import { CARRIERS } from "@/modules/ordering";
 import { answerQuestionAction, shipAction } from "@/server/actions/shop";
@@ -191,7 +191,10 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
                 )}
                 {o.address && o.shipment?.status === "awaiting_shipment" && (
                   <address className="mt-2.5 rounded-2xl bg-white/[0.05] p-3 text-[13px] leading-snug not-italic">
-                    <span className="mb-0.5 block text-[11px] font-semibold text-ink-3">Ship to</span>
+                    <span className="mb-0.5 block text-[11px] font-semibold text-ink-3">
+                      Ship to
+                      {o.paidAt && <> · by {new Date(new Date(o.paidAt).getTime() + SHIP_WITHIN_DAYS * 86_400_000).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}, or it&apos;s refunded</>}
+                    </span>
                     <b className="font-semibold">{o.address.name}</b> · {o.address.phone}
                     <br />
                     {o.address.line1}

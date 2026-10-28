@@ -33,6 +33,23 @@ export async function pickBoxAction(caseId: string, index: number): Promise<{ ok
   return { ok: true, view: r.value.view, line: { slug: p.slug, title: `${r.value.view.series.title} blind box`, image: r.value.view.series.poster, unitPrice: p.price, note: `Box ${Index.parse(index) + 1} from case #${r.value.caseNumber}, held 30 min` } };
 }
 
+/** Holds a whole fresh case for the shopper; the bag gets that many boxes. */
+export async function holdCaseAction(seriesId: string): Promise<{ ok: true; caseNumber: number; line: { slug: string; title: string; image: string; unitPrice: number; qty: number; note: string } } | Failure> {
+  const s = await signedIn();
+  if ("error" in s) return s.error!;
+  const id = z.string().min(1).max(64).safeParse(seriesId);
+  if (!id.success) return fail("not_found", "That series isn't on sale.");
+  const r = await s.app.blindBoxes.holdCase(s.account.id, id.data);
+  if (!r.ok) return fail(r.error.code, r.error.message);
+  const [p] = await s.app.catalog.getProductsBySlugs([r.value.slug]);
+  if (!p || p.price === undefined) return fail("unknown_product", "This series isn't for sale right now.");
+  return {
+    ok: true,
+    caseNumber: r.value.caseNumber,
+    line: { slug: p.slug, title: `${r.value.title} blind box`, image: r.value.poster, unitPrice: p.price, qty: r.value.size, note: `Whole case #${r.value.caseNumber}, held 30 min` },
+  };
+}
+
 export async function releaseBoxAction(caseId: string, index: number): Promise<{ ok: true } | Failure> {
   const s = await signedIn();
   if ("error" in s) return s.error!;

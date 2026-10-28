@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import { AddToBoard } from "@/components/collections/add-to-board";
 import { Icon, type IconName } from "@/components/icon";
 import { useMoney } from "@/components/price";
 import { BuyBox } from "@/components/product/buy-box";
@@ -26,6 +27,7 @@ export function ShopTab({ product, look, onFocus, onAsk }: Props) {
         <Action icon="chat" label="Ask seller" onClick={onAsk} />
         <Action icon="expand" label="Full page" href={`/p/${product.slug}`} />
       </div>
+      {isSaved && <AddToBoard key={product.slug} slug={product.slug} />}
       <BuyBox key={product.slug} product={product} variant="panel" />
     </div>
   );
