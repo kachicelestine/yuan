@@ -61,6 +61,8 @@ export type FeedItem = {
   ref?: string;
   /** The person who posted it (videos from shops have none). */
   creator?: { handle: string; name: string; avatar: string };
+  /** A boosted video: shown with a "Sponsored" label; opening its shop sheet bills the tap. */
+  sponsored?: { token: string };
 };
 
 /** A page of the feed and where the next one starts (null at the end). */

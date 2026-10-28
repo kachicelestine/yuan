@@ -14,6 +14,11 @@ export interface AdProducts {
   live(sellerId: string, slugs: readonly string[]): Promise<string[]>;
 }
 
+/** Videos a shop may boost: published, and showing one of the shop's live listings (content owns them). */
+export interface AdVideos {
+  find(videoId: string): Promise<{ id: string; sellerId: string; productSlug: string; caption: string; ready: boolean } | null>;
+}
+
 /** Signs what an impression may be billed, so a click can't name its own price. */
 export interface TokenSigner {
   sign(data: string): string;
@@ -25,6 +30,7 @@ export type AdsDeps = {
   stats: AdStatsRepository;
   billing: AdBilling;
   products: AdProducts;
+  videos: AdVideos;
   signer: TokenSigner;
   clock: Clock;
   newId: () => string;
@@ -38,13 +44,15 @@ export type CampaignView = {
   bid: number;
   dailyBudget: number;
   status: CampaignStatus;
+  /** Set for a video boost. */
+  videoId: string | null;
   today: { impressions: number; clicks: number; spend: number };
   total: { impressions: number; clicks: number; spend: number };
 };
 
-/** A product that can fill a sponsored slot here, and the campaign promoting it. */
-export type Eligible = { campaignId: string; sellerId: string; slug: string };
-export type Served = { campaignId: string; slug: string; price: number; token: string };
+/** A product (or, for a boost, a video) that can fill a sponsored slot, and the campaign promoting it. */
+export type Eligible = { campaignId: string; sellerId: string; slug: string; videoId?: string };
+export type Served = { campaignId: string; slug: string; price: number; token: string; videoId?: string };
 
 const ZERO: DailyStats = { impressions: 0, clicks: 0, spend: 0 };
 const DAY = 86_400_000;
@@ -56,7 +64,7 @@ const b64 = (s: string) => Buffer.from(s).toString("base64url");
 const unb64 = (s: string) => Buffer.from(s, "base64url").toString();
 
 export function makeAds(deps: AdsDeps) {
-  const { campaigns, stats, billing, products, signer, clock, newId } = deps;
+  const { campaigns, stats, billing, products, videos, signer, clock, newId } = deps;
   const random = deps.random ?? Math.random;
 
   const view = (c: Campaign, today: DailyStats, total: DailyStats): CampaignView => ({
@@ -66,6 +74,7 @@ export function makeAds(deps: AdsDeps) {
     bid: dollars(c.bid),
     dailyBudget: dollars(c.dailyBudget),
     status: c.status,
+    videoId: c.videoId,
     today: statsView(today),
     total: statsView(total),
   });
@@ -78,6 +87,18 @@ export function makeAds(deps: AdsDeps) {
   return {
     async create(sellerId: string, input: CampaignInput): Promise<Result<CampaignView, AdError>> {
       const c = createCampaign({ ...input, id: newId(), sellerId, owned: await products.live(sellerId, input.slugs), at: clock.now() });
+      if (!c.ok) return c;
+      await campaigns.save(c.value);
+      return ok(view(c.value, ZERO, ZERO));
+    },
+
+    /** Boosts a video of one of the shop's products: it shows as a sponsored slide in the feed, paid per tap. */
+    async boost(sellerId: string, input: { videoId: string; bid: Cents; dailyBudget: Cents }): Promise<Result<CampaignView, AdError>> {
+      const v = await videos.find(input.videoId);
+      if (!v || !v.ready || v.sellerId !== sellerId) return err(domainError("invalid_products", "Pick a published video of one of your products."));
+      const caption = v.caption.trim().replace(/\s+/g, " ");
+      const name = `Boost: ${caption.length > 40 ? `${caption.slice(0, 39)}…` : caption || v.productSlug}`;
+      const c = createCampaign({ name, slugs: [v.productSlug], bid: input.bid, dailyBudget: input.dailyBudget, videoId: v.id, id: newId(), sellerId, owned: await products.live(sellerId, [v.productSlug]), at: clock.now() });
       if (!c.ok) return c;
       await campaigns.save(c.value);
       return ok(view(c.value, ZERO, ZERO));
@@ -100,9 +121,14 @@ export function makeAds(deps: AdsDeps) {
       return list.map((c) => view(c, today.get(c.id) ?? ZERO, total.get(c.id) ?? ZERO));
     },
 
-    /** Every listing being advertised right now, with its campaign. */
+    /** Every listing being advertised right now (in search and category slots), with its campaign. */
     async promoted(): Promise<Eligible[]> {
-      return (await campaigns.active()).flatMap((c) => c.slugs.map((slug) => ({ campaignId: c.id, sellerId: c.sellerId, slug })));
+      return (await campaigns.active()).filter((c) => !c.videoId).flatMap((c) => c.slugs.map((slug) => ({ campaignId: c.id, sellerId: c.sellerId, slug })));
+    },
+
+    /** Every boosted video running right now, for the feed's sponsored slides. */
+    async promotedVideos(): Promise<Eligible[]> {
+      return (await campaigns.active()).flatMap((c) => (c.videoId && c.slugs[0] ? [{ campaignId: c.id, sellerId: c.sellerId, slug: c.slugs[0], videoId: c.videoId }] : []));
     },
 
     /**
@@ -141,7 +167,8 @@ export function makeAds(deps: AdsDeps) {
       );
       return wins.map((w) => {
         const data = b64(JSON.stringify({ c: w.campaignId, s: w.slug, p: w.price, t: now.getTime(), n: newId() }));
-        return { campaignId: w.campaignId, slug: w.slug, price: dollars(w.price), token: `${data}.${signer.sign(data)}` };
+        const videoId = byId.get(w.campaignId)?.videoId ?? undefined;
+        return { campaignId: w.campaignId, slug: w.slug, price: dollars(w.price), token: `${data}.${signer.sign(data)}`, ...(videoId && { videoId }) };
       });
     },
 

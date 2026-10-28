@@ -1,0 +1,1 @@
+ALTER TABLE "ads"."campaigns" ADD COLUMN "video_id" text;

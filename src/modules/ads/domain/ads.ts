@@ -25,13 +25,15 @@ export type Campaign = Readonly<{
   bid: Cents;
   dailyBudget: Cents;
   status: CampaignStatus;
+  /** A boost: this video is shown as a sponsored slide in the feed (its product is `slugs[0]`). */
+  videoId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }>;
 
 export type AdError = DomainError<"invalid_bid" | "invalid_budget" | "invalid_products" | "invalid_name" | "not_found">;
 
-export type CampaignInput = { name: string; slugs: readonly string[]; bid: Cents; dailyBudget: Cents };
+export type CampaignInput = { name: string; slugs: readonly string[]; bid: Cents; dailyBudget: Cents; videoId?: string | null };
 
 function check(input: CampaignInput, owned: readonly string[]): AdError | null {
   if (input.name.trim().length < 2 || input.name.trim().length > 60) return domainError("invalid_name", "Give the campaign a short name.");
@@ -55,6 +57,7 @@ export function createCampaign(props: CampaignInput & { id: string; sellerId: st
     bid: props.bid,
     dailyBudget: props.dailyBudget,
     status: "active",
+    videoId: props.videoId ?? null,
     createdAt: props.at,
     updatedAt: props.at,
   });

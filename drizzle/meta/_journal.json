@@ -260,6 +260,13 @@
       "when": 1793165188157,
       "tag": "0036_coupon_funding",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793166554051,
+      "tag": "0037_video_boosts",
+      "breakpoints": true
     }
   ]
 }

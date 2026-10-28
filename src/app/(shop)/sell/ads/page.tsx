@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { AdsManager } from "@/components/sell/ads-manager";
+import { BoostVideo } from "@/components/sell/boost-video";
 import { ChopOffersManager } from "@/components/sell/chop-offers-manager";
 import { BlindBoxManager } from "@/components/sell/blindbox-manager";
 import { DepositOffersManager } from "@/components/sell/deposit-offers-manager";
@@ -30,7 +31,7 @@ async function Body() {
   const shop = await currentShop();
   if (!shop) redirect("/sell");
   const app = await services();
-  const [campaigns, listings, available, offers, drops, teams, sampleOffers, sampleRequests, depositOffers, boxSeries, vouchers] = await Promise.all([
+  const [campaigns, listings, available, offers, drops, teams, sampleOffers, sampleRequests, depositOffers, boxSeries, vouchers, videos] = await Promise.all([
     app.ads.list(shop.sellerId),
     app.selling.listings(shop.sellerId),
     app.escrow.available(shop.sellerId),
@@ -42,15 +43,23 @@ async function Body() {
     app.deposits.sellerOffers(shop.sellerId),
     app.blindBoxes.sellerSeries(shop.sellerId),
     app.coupons.forSeller(shop.sellerId),
+    app.content.videosForSeller(shop.sellerId, 30),
   ]);
+  const boosted = new Set(campaigns.filter((c) => c.videoId && c.status === "active").map((c) => c.videoId));
   const live = listings.filter((l) => l.status === "active").map(({ slug, title, images, price }) => ({ slug, title, image: images[0], price: price ?? null }));
   return (
-    <SellFrame title="Promote" back="/sell" subtitle="Sponsored listings put you first in search; drops, team buys and chops bring shoppers back with their friends.">
+    <SellFrame title="Promote" back="/sell" subtitle="Sponsored listings and boosted videos put you in front of shoppers; vouchers, drops, team buys and chops bring them back with their friends.">
       <section aria-labelledby="ads-h" className="flex flex-col gap-2">
         <h2 id="ads-h" className="px-1 font-display text-xl font-bold">
           Sponsored listings
         </h2>
         <AdsManager campaigns={campaigns} listings={live} balance={available / 100} owner={shop.role === "owner"} />
+      </section>
+      <section aria-labelledby="boost-h" className="mt-6 flex flex-col gap-2">
+        <h2 id="boost-h" className="px-1 font-display text-xl font-bold">
+          Boost a video
+        </h2>
+        <BoostVideo videos={videos.map((v) => ({ id: v.id, image: v.image, caption: v.caption, views: v.views, boosted: boosted.has(v.id) }))} owner={shop.role === "owner"} />
       </section>
       <section aria-labelledby="vouchers-h" className="mt-6 flex flex-col gap-2">
         <h2 id="vouchers-h" className="px-1 font-display text-xl font-bold">

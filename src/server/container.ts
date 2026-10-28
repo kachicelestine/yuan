@@ -79,7 +79,7 @@ import { DrizzleConversationRepository, DrizzleMessageRepository } from "@/modul
 import { DrizzleSampleRepository } from "@/modules/affiliates/infrastructure/drizzle-sample-repository";
 import { makeAds } from "@/modules/ads";
 import { DrizzleAdStatsRepository, DrizzleCampaignRepository } from "@/modules/ads/infrastructure/drizzle-ads-repositories";
-import { CatalogAdProducts, EscrowAdBilling, HmacSigner } from "./adapters/ads";
+import { CatalogAdProducts, ContentAdVideos, EscrowAdBilling, HmacSigner } from "./adapters/ads";
 import { affiliatesRepos, DrizzleCommissionRepository } from "@/modules/affiliates/infrastructure/drizzle-affiliates-repositories";
 import { AppActivity } from "./adapters/activity";
 import { CatalogForLive } from "./adapters/live";
@@ -498,6 +498,7 @@ export function wire(db: Database, options: WireOptions = {}) {
       stats: new DrizzleAdStatsRepository(db),
       billing: new EscrowAdBilling(() => escrow),
       products: new CatalogAdProducts(products),
+      videos: new ContentAdVideos(content.videos),
       signer: new HmacSigner(authSecret(), "ad-clicks"),
       clock,
       newId: () => newId(),

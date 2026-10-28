@@ -50,3 +50,15 @@ export async function updateCampaignAction(id: string, patch: z.input<typeof Pat
   });
   return r.ok ? { ok: true, campaign: r.value } : fail(r.error.code, r.error.message);
 }
+
+const Boost = z.object({ videoId: z.string().min(1).max(64), bid: dollars, dailyBudget: dollars });
+
+/** Boosts a video of one of the shop's products into For You as a sponsored slide, paid per tap. */
+export async function boostVideoAction(input: z.input<typeof Boost>): Promise<{ ok: true; campaign: CampaignView } | Failure> {
+  const s = await owner();
+  if (!s.allowed) return s.error;
+  const p = Boost.safeParse(input);
+  if (!p.success) return fail("invalid", "Check the video, bid and budget.");
+  const r = await s.app.ads.boost(s.sellerId, { videoId: p.data.videoId, bid: money.fromDollars(p.data.bid), dailyBudget: money.fromDollars(p.data.dailyBudget) });
+  return r.ok ? { ok: true, campaign: r.value } : fail(r.error.code, r.error.message);
+}

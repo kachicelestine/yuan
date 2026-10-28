@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import type { AdBilling, AdProducts, TokenSigner } from "@/modules/ads";
+import type { AdBilling, AdProducts, AdVideos, TokenSigner } from "@/modules/ads";
+import type { VideoRepository } from "@/modules/content";
 import type { ProductRepository } from "@/modules/catalog";
 import type { Escrow } from "@/modules/payments";
 import type { Cents } from "@/shared/kernel";
@@ -25,6 +26,16 @@ export class CatalogAdProducts implements AdProducts {
   async live(sellerId: string, slugs: readonly string[]) {
     if (!slugs.length) return [];
     return (await this.products.findBySlugs(slugs)).filter((p) => p.sellerId === sellerId && p.status === "active").map((p) => p.slug);
+  }
+}
+
+/** A boost needs a published video; its shop is the shop whose product it shows. */
+export class ContentAdVideos implements AdVideos {
+  constructor(private readonly videos: VideoRepository) {}
+
+  async find(videoId: string) {
+    const v = await this.videos.find(videoId);
+    return v && { id: v.id, sellerId: v.sellerId, productSlug: v.productSlug, caption: v.caption, ready: v.status === "ready" };
   }
 }
 

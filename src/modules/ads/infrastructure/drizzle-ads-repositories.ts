@@ -13,6 +13,7 @@ const toCampaign = (r: typeof campaigns.$inferSelect): Campaign => ({
   bid: cents(r.bidCents),
   dailyBudget: cents(r.dailyBudgetCents),
   status: r.status,
+  videoId: r.videoId,
   createdAt: r.createdAt,
   updatedAt: r.updatedAt,
 });
@@ -34,6 +35,7 @@ export class DrizzleCampaignRepository implements CampaignRepository {
       bidCents: c.bid,
       dailyBudgetCents: c.dailyBudget,
       status: c.status,
+      videoId: c.videoId,
       createdAt: c.createdAt,
       updatedAt: c.updatedAt,
     };

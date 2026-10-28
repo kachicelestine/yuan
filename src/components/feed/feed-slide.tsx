@@ -112,6 +112,12 @@ export function FeedSlide({ item, index, total, active, near, showProgress, burs
         </div>
       )}
 
+      {item.sponsored && (
+        <span className="pointer-events-none absolute top-[calc(max(env(safe-area-inset-top),12px)+64px)] left-4 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-semibold text-white/90 backdrop-blur lg:top-4">
+          Sponsored
+        </span>
+      )}
+
       {burst && (
         <Icon
           key={`${burst.x},${burst.y}`}

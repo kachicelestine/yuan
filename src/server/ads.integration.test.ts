@@ -86,4 +86,32 @@ describe("sponsored listings", () => {
     // Another shop can't touch it.
     expect((await app().ads.update("mei", panels.id, { status: "active" })).ok).toBe(false);
   });
+  it("boosts a shop's video into For You and bills the tap once", async () => {
+    const order = await app().content.feedOrder();
+    const videos = await app().content.videosByIds(order);
+    const video = videos.find((v) => v.sellerId === "streetlab") ?? videos[0];
+    const other = video.sellerId === "sunvolt" ? "streetlab" : "sunvolt";
+    await fund(video.sellerId, 20);
+    // Only the shop whose product the video shows can boost it.
+    expect((await app().ads.boost(other, { videoId: video.id, bid: money.fromDollars(0.4), dailyBudget: money.fromDollars(5) })).ok).toBe(false);
+    expect((await app().ads.boost(video.sellerId, { videoId: "no-such-video", bid: money.fromDollars(0.4), dailyBudget: money.fromDollars(5) })).ok).toBe(false);
+    const boost = await app().ads.boost(video.sellerId, { videoId: video.id, bid: money.fromDollars(0.4), dailyBudget: money.fromDollars(5) });
+    if (!boost.ok) throw new Error(boost.error.message);
+    expect(boost.value).toMatchObject({ videoId: video.id, slugs: [video.productSlug] });
+    expect(boost.value.name).toMatch(/^Boost: /);
+
+    // Boosts fill feed slides, not search slots.
+    expect((await app().ads.promoted()).some((e) => e.campaignId === boost.value.id)).toBe(false);
+    const eligible = (await app().ads.promotedVideos()).filter((e) => e.campaignId === boost.value.id);
+    expect(eligible).toEqual([{ campaignId: boost.value.id, sellerId: video.sellerId, slug: video.productSlug, videoId: video.id }]);
+    const [served] = await app().ads.serve(eligible, 1);
+    expect(served).toMatchObject({ campaignId: boost.value.id, videoId: video.id });
+
+    const before = await balance(video.sellerId);
+    expect((await app().ads.click(served.token)).billed).toBe(true);
+    expect((await app().ads.click(served.token)).billed).toBe(false);
+    expect(await balance(video.sellerId)).toBeLessThan(before);
+    await app().ads.update(video.sellerId, boost.value.id, { status: "paused" });
+    expect((await app().ads.promotedVideos()).some((e) => e.campaignId === boost.value.id)).toBe(false);
+  });
 });

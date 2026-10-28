@@ -15,6 +15,8 @@ export const campaigns = adsSchema.table(
     bidCents: integer().notNull(),
     dailyBudgetCents: integer().notNull(),
     status: campaignStatus().notNull(),
+    /** Set for a video boost: the video shown as a sponsored slide. */
+    videoId: text(),
     createdAt: timestamp({ withTimezone: true }).notNull(),
     updatedAt: timestamp({ withTimezone: true }).notNull(),
   },

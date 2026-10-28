@@ -38,6 +38,24 @@ async function fetchPage(query: string): Promise<FeedPage | null> {
   }
 }
 
+/** For You carries one boosted video every this many slides, when one wins the auction. */
+const SPONSORED_EVERY = 6;
+
+/**
+ * Puts sponsored slides at their places in the organic list. One already shown before its
+ * place is dropped; a later organic copy of it is dropped instead, so nothing shows twice.
+ */
+function withSponsored(list: FeedItem[], ads: { at: number; item: FeedItem }[]) {
+  let out = [...list];
+  for (const a of [...ads].sort((x, y) => x.at - y.at)) {
+    if (a.at > out.length) continue;
+    const before = out.slice(0, a.at);
+    if (before.some((i) => i.video.id === a.item.video.id)) continue;
+    out = [...before, a.item, ...out.slice(a.at).filter((i) => i.video.id !== a.item.video.id)];
+  }
+  return out;
+}
+
 /** Appends items, skipping any already loaded (pages are cut from an order that can refresh). */
 function merge(list: FeedItem[], more: FeedItem[]) {
   const have = new Set(list.map((item) => item.video.id));
@@ -88,7 +106,10 @@ export function Feed({ first }: { first: FeedPage }) {
   // Posts from people you follow stay; a shop's own videos go as soon as you unfollow it.
   const allowed = (item: FeedItem) => !hidden.includes(item.video.id) && !prefs.muted.includes(item.seller.id) && (feed === "foryou" || following.includes(item.seller.id) || !!item.creator);
   const ahead = all.filter((item) => !seen.includes(item.video.id)).sort((a, b) => weight(a, prefs) - weight(b, prefs));
-  const items = [...seen.flatMap((id) => all.find((item) => item.video.id === id) ?? []), ...ahead].filter(allowed);
+  const organic = [...seen.flatMap((id) => all.find((item) => item.video.id === id) ?? []), ...ahead].filter(allowed);
+  // Boosted videos sit at fixed places in For You, so swiping back finds them where they were.
+  const [ads, setAds] = useState<{ at: number; item: FeedItem }[]>([]);
+  const items = feed === "foryou" ? withSponsored(organic, ads.filter((a) => allowed(a.item))) : organic;
   const index = Math.min(active, items.length - 1);
   // Undefined only when the Following feed is empty.
   const current = items[index] as FeedItem | undefined;
@@ -122,6 +143,33 @@ export function Feed({ first }: { first: FeedPage }) {
       else setFollowed((f) => (f && f.key === feedKey ? { ...f, items: merge(f.items, page.items), next: page.next } : f));
     });
   }, [nearEnd, source, feed, feedKey, followingQuery]);
+
+  // Ask for the next sponsored slide a few swipes before its place.
+  const askedAds = useRef(new Set<number>());
+  const nextAd = (Math.floor(index / SPONSORED_EVERY) + 1) * SPONSORED_EVERY;
+  // Only what comes before the slot is off limits; a later organic copy makes way for it.
+  const organicIds = organic
+    .slice(0, nextAd)
+    .map((item) => item.video.id)
+    .join(",");
+  useEffect(() => {
+    if (feed !== "foryou" || index < nextAd - 3 || askedAds.current.has(nextAd)) return;
+    askedAds.current.add(nextAd);
+    void fetch(`/api/feed/sponsored?skip=${encodeURIComponent(organicIds)}`)
+      .then((res) => (res.ok ? (res.json() as Promise<{ item: FeedItem | null }>) : { item: null }))
+      .then(({ item }) => item && setAds((list) => [...list, { at: nextAd, item }]))
+      .catch(() => {});
+  }, [feed, index, nextAd, organicIds]);
+
+  // Opening a sponsored video's shop sheet is the tap the shop pays for (once per showing).
+  const billedAds = useRef(new Set<string>());
+  const adToken = current?.sponsored?.token;
+  useEffect(() => {
+    if (sheet === "closed" || !adToken || billedAds.current.has(adToken)) return;
+    billedAds.current.add(adToken);
+    if (navigator.sendBeacon) navigator.sendBeacon("/api/ads/click", adToken);
+    else void fetch("/api/ads/click", { method: "POST", body: adToken, keepalive: true });
+  }, [sheet, adToken]);
 
   // Following loads when opened, and again if who you follow changed since.
   useEffect(() => {

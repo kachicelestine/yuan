@@ -1,5 +1,5 @@
 // Public surface of the ads context: sponsored listings, their auction, pacing and billing.
-export { makeAds, type AdBilling, type AdProducts, type Ads, type AdsDeps, type CampaignView, type Eligible, type Served, type TokenSigner } from "./application/ads";
+export { makeAds, type AdBilling, type AdProducts, type AdVideos, type Ads, type AdsDeps, type CampaignView, type Eligible, type Served, type TokenSigner } from "./application/ads";
 export {
   auction,
   CLICK_WINDOW_MS,
