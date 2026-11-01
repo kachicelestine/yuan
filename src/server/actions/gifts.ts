@@ -19,6 +19,8 @@ const Address = z.object({
   line1: z.string().max(300),
   line2: z.string().max(300).optional(),
   city: z.string().max(120),
+  region: z.string().max(120).optional(),
+  postcode: z.string().max(40).optional(),
 });
 const Token = z.string().regex(/^[A-Za-z0-9_-]{16,64}$/).catch("");
 

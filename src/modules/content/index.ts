@@ -13,7 +13,7 @@ export {
   type QuestionAnswered,
   type QuestionAsked,
 } from "./application/interactions";
-export { makeModeration, type ContentRemoved, type Moderation, type ModerationDeps, type ModerationError, type ModerationItemView, type ModerationScope, type PendingVideoView } from "./application/moderation";
+export { makeModeration, type ContentRemoved, type Moderation, type ModerationDeps, type ModerationError, type ModerationItemView, type ModerationScope, type PendingPhotoView, type PendingVideoView } from "./application/moderation";
 export { REASON_LABELS, REPORT_REASONS, REPORT_TARGETS, fileReport, type Report, type ReportError, type ReportReason, type ReportStatus, type ReportTarget } from "./domain/moderation";
 export { makePhotoPosts, type PhotoPostDeps, type PhotoPostError, type PhotoPosts } from "./application/photo-posts";
 export { ENCODE_ATTEMPTS, ENCODE_LEASE_MS, makeUploads, type EncodeError, type MyVideoView, type UploadDeps, type UploadError, type Uploads, type VideoEncoder } from "./application/uploads";

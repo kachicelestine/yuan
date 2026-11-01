@@ -204,7 +204,17 @@ export function SignInScreen({ next }: { next: string }) {
         </p>
       )}
 
-      <p className="mt-auto pt-10 pb-4 text-center text-[11px] text-ink-3">By continuing you agree to the Terms and Privacy Policy. We never sell your data.</p>
+      <p className="mt-auto pt-10 pb-4 text-center text-[11px] text-ink-3">
+        By continuing you agree to the{" "}
+        <Link href="/terms" className="underline underline-offset-2">
+          Terms
+        </Link>{" "}
+        and{" "}
+        <Link href="/privacy" className="underline underline-offset-2">
+          Privacy Policy
+        </Link>
+        . We never sell your data.
+      </p>
     </div>
   );
 }

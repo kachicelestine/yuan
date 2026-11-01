@@ -53,6 +53,9 @@ export type ModerationItemView = {
 /** A video waiting for approval. */
 export type PendingVideoView = { id: string; caption: string; image: string; clip: string | null; productSlug: string; sellerId: string; authorId: string | null; at: string };
 
+/** A photo post waiting for approval. */
+export type PendingPhotoView = { id: string; caption: string; image: string; authorId: string | null; authorName: string; productSlug: string | null; at: string };
+
 /** Reports from people, and the decisions moderators take on them and on new uploads. */
 export function makeModeration({ reports, videos, notes, comments, questions, reviews, uow, clock, newId }: ModerationDeps) {
   /** What's being reported, or null when it's already gone. */
@@ -157,6 +160,14 @@ export function makeModeration({ reports, videos, notes, comments, questions, re
         authorId: v.authorId,
         at: v.createdAt.toISOString(),
       }));
+    },
+
+    async pendingPhotos(limit = 50): Promise<PendingPhotoView[]> {
+      return (await notes.listInReview(limit)).map((n) => ({ id: n.id, caption: n.title, image: n.imageUrl, authorId: n.authorId, authorName: n.authorName, productSlug: n.productSlug, at: n.createdAt.toISOString() }));
+    },
+
+    async approvePhoto(noteId: string): Promise<Result<true, ModerationError>> {
+      return (await notes.approve(noteId)) ? ok(true) : err(domainError("not_found", "No such post."));
     },
 
     async approveVideo(videoId: string): Promise<Result<true, ModerationError>> {

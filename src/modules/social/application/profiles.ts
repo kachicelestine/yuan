@@ -84,6 +84,12 @@ export function makeProfiles({ profiles, follows, photos, clock }: ProfilesDeps)
     },
 
     /** A profile page by handle; null when nobody has it. */
+    /** A closed account: nothing that says who it was. */
+    async close(accountId: string) {
+      const p = await profiles.find(accountId);
+      if (p) await profiles.save({ ...p, handle: `closed_${accountId.slice(0, 8)}`, name: "Closed account", bio: "", avatar: "", updatedAt: clock.now() });
+    },
+
     async page(handle: string, viewerId: string | null): Promise<ProfilePageView | null> {
       const h = handle.toLowerCase();
       if (!isHandle(h)) return null;

@@ -17,6 +17,9 @@ export type DatabaseTarget =
 
 const MIGRATIONS = { migrationsFolder: "drizzle", migrationsSchema: "public" };
 
+/** Neon's pooled host works per transaction, so anything that needs a session uses the direct host. */
+export const directUrl = (url: string) => url.replace("-pooler.", ".");
+
 /**
  * Opens a database and, for embedded targets, applies migrations so it's ready to use.
  * Server databases are migrated by `pnpm db:migrate` as a deploy step instead.
@@ -24,7 +27,8 @@ const MIGRATIONS = { migrationsFolder: "drizzle", migrationsSchema: "public" };
 export async function openDatabase(target: DatabaseTarget): Promise<Database> {
   if (target.kind === "postgres") {
     const [{ drizzle }, { default: postgres }] = await Promise.all([import("drizzle-orm/postgres-js"), import("postgres")]);
-    return drizzle({ client: postgres(target.url, { max: target.maxConnections ?? 10 }), casing: "snake_case" });
+    // Idle connections close soon enough that frozen serverless instances don't hold them open.
+    return drizzle({ client: postgres(target.url, { max: target.maxConnections ?? 10, idle_timeout: 20 }), casing: "snake_case" });
   }
 
   const [{ PGlite }, { drizzle }, { migrate }] = await Promise.all([import("@electric-sql/pglite"), import("drizzle-orm/pglite"), import("drizzle-orm/pglite/migrator")]);

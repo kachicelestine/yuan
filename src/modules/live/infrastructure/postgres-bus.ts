@@ -19,18 +19,24 @@ export class PostgresBus implements LiveBus {
   private readonly listeners = new Map<string, Set<Listener>>();
   private listening: Promise<unknown> | null = null;
 
-  constructor(private readonly db: Database) {}
+  /** `listener` is a connection that stays with one server: LISTEN doesn't survive a pooler. */
+  constructor(
+    private readonly db: Database,
+    private readonly listener: () => Promise<ListeningClient> = async () => (db as unknown as { $client: ListeningClient }).$client,
+  ) {}
 
   private ensureListening() {
-    this.listening ??= (this.db as unknown as { $client: ListeningClient }).$client
-      .listen(CHANNEL, (payload) => {
-        try {
-          const { s, d } = JSON.parse(payload) as { s: string; d: LiveSignal };
-          for (const l of this.listeners.get(s) ?? []) l(d);
-        } catch {
-          // A malformed notification is dropped; viewers resync on reconnect.
-        }
-      })
+    this.listening ??= this.listener()
+      .then((client) =>
+        client.listen(CHANNEL, (payload) => {
+          try {
+            const { s, d } = JSON.parse(payload) as { s: string; d: LiveSignal };
+            for (const l of this.listeners.get(s) ?? []) l(d);
+          } catch {
+            // A malformed notification is dropped; viewers resync on reconnect.
+          }
+        }),
+      )
       .catch((error) => {
         this.listening = null;
         throw error;

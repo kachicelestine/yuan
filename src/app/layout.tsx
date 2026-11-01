@@ -6,6 +6,7 @@ import { CommandPaletteLoader } from "@/components/shell/command-palette-loader"
 import { FlyToBag } from "@/components/shell/fly-to-bag";
 import { ReferralCapture } from "@/components/shell/referral-capture";
 import { brand } from "@/config/brand";
+import { serverEnv } from "@/config/server-env";
 import { packMarkets } from "@/lib/markets-wire";
 import { getMarkets } from "@/server/markets";
 import "./globals.css";
@@ -22,6 +23,7 @@ const interTight = Inter_Tight({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(brand.url),
   title: {
     default: `${brand.name} · Shop China, straight from the source`,
     template: `%s · ${brand.name}`,
@@ -46,7 +48,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" data-glass="regular" className={`${inter.variable} ${interTight.variable} antialiased`}>
       <body className="min-h-dvh">
-        <StoreProvider markets={markets}>
+        <StoreProvider markets={markets} translation={!!serverEnv.ANTHROPIC_API_KEY}>
           {children}
           <FlyToBag />
           <AppShellExtras />

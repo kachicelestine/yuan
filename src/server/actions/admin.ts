@@ -67,6 +67,19 @@ export async function approveVideoAction(videoId: string): Promise<Done> {
   return done(r);
 }
 
+export async function approvePhotoAction(noteId: string): Promise<Done> {
+  const s = await admin();
+  if (!s) return forbidden();
+  const parsed = z.string().min(1).max(64).safeParse(noteId);
+  if (!parsed.success) return fail("invalid", "No such post.");
+  const r = await s.app.moderation.approvePhoto(parsed.data);
+  if (r.ok) {
+    await audit(s.app, s.admin.id, "photo.approve", "note", parsed.data);
+    updateTag("notes");
+  }
+  return done(r);
+}
+
 /** Take something down (or keep it and close its reports). Videos waiting for review can be rejected this way too. */
 export async function resolveAction(targetType: string, targetId: string, action: "remove" | "dismiss"): Promise<Done> {
   const s = await admin();

@@ -3,4 +3,5 @@ export { makeListMarkets, toMarketView, type MarketView } from "./application/li
 export { makeRefreshRates, type RateSource } from "./application/refresh-rates";
 export { parseCountryCode, REGIONS, type Country, type CountryCode, type FxRates, type Region } from "./domain/country";
 export { landedCost, type LandedCost } from "./domain/landed-cost";
+export { DEFAULT_RESTRICTED, parseRestricted } from "./domain/restricted";
 export type { CountryRepository, FxRateRepository } from "./domain/repositories";

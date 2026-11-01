@@ -41,10 +41,11 @@ import { DrizzleAccountRepository, DrizzleChallengeRepository, DrizzleSessionRep
 import { makeLive, type LiveBus } from "@/modules/live";
 import { DrizzleChatRepository, DrizzleHoldRepository, DrizzleLotRepository, DrizzleShowRepository } from "@/modules/live/infrastructure/drizzle-live-repositories";
 import { PostgresBus } from "@/modules/live/infrastructure/postgres-bus";
-import { makeListMarkets, makeRefreshRates } from "@/modules/markets";
+import { makeListMarkets, makeRefreshRates, parseRestricted } from "@/modules/markets";
 import { makeOnboarding, makeTeam } from "@/modules/merchants";
 import { DrizzleApplicationRepository, DrizzleInvitationRepository, DrizzleMembershipRepository } from "@/modules/merchants/infrastructure/drizzle-merchants-repositories";
 import { accountEmails } from "./adapters/account-emails";
+import { deliverEventsSoon } from "./jobs/deliver-soon";
 import { DrizzleCountryRepository, DrizzleFxRateRepository } from "@/modules/markets/infrastructure/drizzle-markets-repository";
 import { OpenErApiRateSource } from "@/modules/markets/infrastructure/open-er-api-rate-source";
 import { makeCancelUnpaidOrder, makeCart, makeCheckout, makeCloseDeposit, makeDepositCheckout, makeFulfilment, makeGetOrder, makeGifts, makeMarkOrderPaid, makeSellerOrders, orderNumber } from "@/modules/ordering";
@@ -61,8 +62,8 @@ import { ConsoleEmail, ResendEmail } from "@/modules/notifications/infrastructur
 import { RailRouter, SimulatedNetwork } from "@/modules/payments/infrastructure/networks";
 import { SolanaUsdcNetwork } from "@/modules/payments/infrastructure/solana-usdc-network";
 import { TronUsdtNetwork } from "@/modules/payments/infrastructure/tron-usdt-network";
-import type { Database } from "@/shared/infrastructure/database";
-import { OutboxDispatcher, OutboxEventLog } from "@/shared/infrastructure/outbox";
+import { directUrl, type Database } from "@/shared/infrastructure/database";
+import { OutboxDispatcher, OutboxEventLog, outboxSignal } from "@/shared/infrastructure/outbox";
 import { PostgresRateLimiter } from "@/shared/infrastructure/rate-limit";
 import { LocalStorage } from "@/shared/infrastructure/storage/local-storage";
 import { R2Storage } from "@/shared/infrastructure/storage/r2-storage";
@@ -147,9 +148,18 @@ function media(): Media {
 const buses = new WeakMap<Database, PostgresBus>();
 function liveBus(db: Database) {
   let bus = buses.get(db);
-  if (!bus) buses.set(db, (bus = new PostgresBus(db)));
+  if (!bus) buses.set(db, (bus = new PostgresBus(db, serverEnv.DATABASE_URL ? listenClient(serverEnv.DATABASE_LISTEN_URL ?? directUrl(serverEnv.DATABASE_URL)) : undefined)));
   return bus;
 }
+
+/** A connection of its own for LISTEN, on the direct host when the app's own goes through a pooler. */
+const listenClient = (url: string) => async () => {
+  const { default: postgres } = await import("postgres");
+  return postgres(url, { max: 1 });
+};
+
+// No background process on serverless hosts: events go out right after the response.
+if (process.env.VERCEL) outboxSignal.onRecorded = deliverEventsSoon;
 
 /** What tests swap out; production uses the defaults. */
 export type WireOptions = { clock?: Clock; newTag?: () => number; payments?: Payments; media?: Media; bus?: LiveBus };
@@ -162,6 +172,7 @@ export function wire(db: Database, options: WireOptions = {}) {
   const clock = options.clock ?? systemClock;
   const newTag = options.newTag ?? randomTag;
   const countries = new DrizzleCountryRepository(db);
+  const restricted = parseRestricted(serverEnv.RESTRICTED_COUNTRIES);
   const sellers = new DrizzleSellerRepository(db);
   const products = new DrizzleProductRepository(db);
   const productSearch = new DrizzleProductSearch(db);
@@ -392,7 +403,8 @@ export function wire(db: Database, options: WireOptions = {}) {
       newId: () => newId(),
       revealCodes: serverEnv.AUTH_DEV_CODES,
     }),
-    listMarkets: makeListMarkets({ countries, fx: new DrizzleFxRateRepository(db) }),
+    listMarkets: makeListMarkets({ countries, fx: new DrizzleFxRateRepository(db), restricted }),
+    accounts: new DrizzleAccountRepository(db),
     catalog: makeCatalogQueries({ categories: new DrizzleCategoryRepository(db), sellers, products, clock }),
     ratings: makeRatings({ products, sellers }),
     catalogAdmin: makeCatalogAdmin({ products, sellers }),
@@ -457,7 +469,7 @@ export function wire(db: Database, options: WireOptions = {}) {
       newId: () => newId(),
       premoderated,
     }),
-    photoPosts: makePhotoPosts({ storage, notes: content.notes, products: new CatalogProductDirectory(products), clock, newId: () => newId() }),
+    photoPosts: makePhotoPosts({ storage, notes: content.notes, products: new CatalogProductDirectory(products), clock, newId: () => newId(), premoderated }),
     moderation: makeModeration({
       ...content,
       // A takedown, its counters, the closed reports and the event commit together.
@@ -511,7 +523,7 @@ export function wire(db: Database, options: WireOptions = {}) {
     checkout: makeCheckout({
       catalog: pricing,
       holds,
-      destinations: new MarketDestinations(countries),
+      destinations: new MarketDestinations(countries, restricted),
       coupons: new WalletCoupons(engagement),
       uow: checkoutUow,
       clock,
@@ -520,7 +532,7 @@ export function wire(db: Database, options: WireOptions = {}) {
       newToken: () => randomBytes(18).toString("base64url"),
     }),
     deposits,
-    depositCheckout: makeDepositCheckout({ catalog: pricing, destinations: new MarketDestinations(countries), uow: checkoutUow, clock, newId: () => newId(), newOrderNumber: () => orderNumber("LY", random) }),
+    depositCheckout: makeDepositCheckout({ catalog: pricing, destinations: new MarketDestinations(countries, restricted), uow: checkoutUow, clock, newId: () => newId(), newOrderNumber: () => orderNumber("LY", random) }),
     closeDeposit: makeCloseDeposit({ orders: new DrizzleOrderRepository(db) }),
     getOrder: makeGetOrder({ orders: new DrizzleOrderRepository(db) }),
     sellerOrders: makeSellerOrders({ orders: new DrizzleOrderRepository(db), shipments: new DrizzleShipmentRepository(db), gifts: new DrizzleGiftRepository(db) }),

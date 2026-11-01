@@ -14,7 +14,8 @@ import { seedAll } from "./seed";
  *   because several build workers can't share one embedded folder.
  */
 function target(): DatabaseTarget {
-  if (serverEnv.DATABASE_URL) return { kind: "postgres", url: serverEnv.DATABASE_URL };
+  // Each serverless instance serves one request at a time; many instances share the pooler.
+  if (serverEnv.DATABASE_URL) return { kind: "postgres", url: serverEnv.DATABASE_URL, maxConnections: process.env.VERCEL ? 3 : undefined };
   const building = process.env.NEXT_PHASE === "phase-production-build";
   // `next dev` runs generateStaticParams in short-lived worker processes. The embedded
   // folder belongs to the dev server's own process (PGlite can't be shared between

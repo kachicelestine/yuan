@@ -2,15 +2,16 @@
 
 import { createContext, startTransition, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { Watch } from "@/components/product/price-history";
+import { guessMarket } from "@/lib/detect-market";
 import { announceAdd, haptic } from "@/lib/feedback";
 import { unpackMarkets, type PackedMarket } from "@/lib/markets-wire";
 import type { Market } from "@/lib/types";
 import { removeStored, useStored, writeStored } from "@/lib/use-stored";
 import { cartKey, type CartItem } from "@/modules/ordering";
 import type { AccountState } from "@/server/account-data";
-import { checkInAction, claimCouponAction, redeemRewardAction, syncAccountAction } from "@/server/actions/account";
+import { checkInAction, claimCouponAction, redeemRewardAction, saveMarketAction, syncAccountAction } from "@/server/actions/account";
 
-/** Ship-to country for first-time visitors, until they pick one. */
+/** Ship-to country when nothing says where a visitor is. */
 const DEFAULT_MARKET = "US";
 
 export type CartLine = {
@@ -32,6 +33,8 @@ export type Checkin = { streak: number; claimedToday: boolean };
 type Account = { id: string };
 
 type Store = {
+  /** Whether people's words can be translated on this deployment. */
+  translation: boolean;
   ready: boolean;
   cart: CartLine[];
   cartCount: number;
@@ -143,7 +146,7 @@ export function glassLevel(value: number) {
   return "tinted";
 }
 
-export function StoreProvider({ markets: packed, children }: { markets: PackedMarket[]; children: React.ReactNode }) {
+export function StoreProvider({ markets: packed, translation, children }: { markets: PackedMarket[]; translation: boolean; children: React.ReactNode }) {
   const markets = useMemo(() => unpackMarkets(packed), [packed]);
   const [ready, setReady] = useState(false);
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -182,6 +185,14 @@ export function StoreProvider({ markets: packed, children }: { markets: PackedMa
     writeStored(KEYS.coinsEarned, state.coinsEarned);
     writeStored(KEYS.checkin, state.checkin);
     write(KEYS.owner, state.accountId);
+    // The account's country wins; a country picked before signing in becomes the account's.
+    if (state.market) {
+      setMarketCode(state.market);
+      write(KEYS.market, state.market);
+    } else {
+      const picked = read<string | null>(KEYS.market, null);
+      if (picked) void saveMarketAction(picked);
+    }
     confirmed.current = JSON.stringify(deviceData({ cart: lines, saved: state.saved, alerts: state.alerts, watches: state.watches, following: state.following }));
   }, []);
 
@@ -236,10 +247,23 @@ export function StoreProvider({ markets: packed, children }: { markets: PackedMa
     setOrders(read(KEYS.orders, []));
     setSaved(read(KEYS.saved, []));
     setAlerts(read(KEYS.alerts, []));
-    setMarketCode(read(KEYS.market, DEFAULT_MARKET));
+    const picked = read<string | null>(KEYS.market, null);
+    if (picked) setMarketCode(picked);
+    else {
+      // Nobody has chosen yet: start from the browser, then let the edge's answer settle it.
+      const guess = guessMarket(markets, Intl.DateTimeFormat().resolvedOptions().timeZone, navigator.languages);
+      if (guess) setMarketCode(guess);
+      fetch("/api/geo")
+        .then((res) => (res.ok ? (res.json() as Promise<{ country: string | null }>) : null))
+        .then((geo) => {
+          const known = geo?.country && markets.some((m) => m.code === geo.country);
+          if (known && !read<string | null>(KEYS.market, null)) setMarketCode(geo.country!);
+        })
+        .catch(() => {});
+    }
     setGlassState(read(KEYS.glass, 45));
     setReady(true);
-  }, []);
+  }, [markets]);
 
   useEffect(() => {
     // After the local copy is on screen, catch up with the account (if any).
@@ -353,10 +377,14 @@ export function StoreProvider({ markets: packed, children }: { markets: PackedMa
     [account],
   );
 
-  const setMarket = useCallback((code: string) => {
-    setMarketCode(code);
-    write(KEYS.market, code);
-  }, []);
+  const setMarket = useCallback(
+    (code: string) => {
+      setMarketCode(code);
+      write(KEYS.market, code);
+      if (account) void saveMarketAction(code);
+    },
+    [account],
+  );
 
   const market = useMemo(() => markets.find((m) => m.code === marketCode) ?? markets.find((m) => m.code === DEFAULT_MARKET) ?? markets[0], [markets, marketCode]);
 
@@ -367,6 +395,7 @@ export function StoreProvider({ markets: packed, children }: { markets: PackedMa
 
   const value = useMemo<Store>(
     () => ({
+      translation,
       ready,
       cart,
       cartCount: cart.reduce((n, l) => n + l.qty, 0),
@@ -395,6 +424,7 @@ export function StoreProvider({ markets: packed, children }: { markets: PackedMa
       setGlass,
     }),
     [
+      translation,
       ready,
       cart,
       addToCart,

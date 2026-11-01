@@ -8,6 +8,10 @@ export interface AccountRepository {
   findByWallet(address: string): Promise<Account | null>;
   save(account: Account): Promise<void>;
   setSuspension(id: string, at: Date | null, reason: string | null): Promise<void>;
+  /** Removes the sign-in details for good; the row stays so old orders still point somewhere. */
+  close(id: string, at: Date): Promise<void>;
+  marketOf(id: string): Promise<string | null>;
+  setMarket(id: string, code: string): Promise<void>;
 }
 
 export interface ChallengeRepository {

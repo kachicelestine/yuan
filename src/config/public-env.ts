@@ -20,4 +20,8 @@ export const publicEnv = {
   brandSeal,
   brandTagline: required("NEXT_PUBLIC_BRAND_TAGLINE", process.env.NEXT_PUBLIC_BRAND_TAGLINE),
   siteUrl,
+  // Who runs the site and how to reach them, for the policy and help pages. Optional.
+  legalName: process.env.NEXT_PUBLIC_LEGAL_NAME?.trim() || null,
+  jurisdiction: process.env.NEXT_PUBLIC_LEGAL_JURISDICTION?.trim() || null,
+  supportEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || null,
 } as const;

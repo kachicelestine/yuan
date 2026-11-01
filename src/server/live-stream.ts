@@ -8,6 +8,8 @@ import { services } from "./container";
 
 const HEARTBEAT_MS = 15_000;
 const VIEWERS_MS = 5_000;
+/** Serverless functions are cut off, so the stream ends first and the browser reconnects at once. */
+const SERVERLESS_STREAM_MS = 50_000;
 
 export async function liveStream(showId: string, signal: AbortSignal): Promise<Response> {
   const app = await services();
@@ -26,6 +28,7 @@ export async function liveStream(showId: string, signal: AbortSignal): Promise<R
           cleanup();
         }
       };
+      controller.enqueue(encoder.encode("retry: 1000\n\n"));
       send({ type: "snapshot", ...room });
       const unsubscribe = bus.subscribe(showId, send);
       const heartbeat = setInterval(() => {
@@ -55,6 +58,7 @@ export async function liveStream(showId: string, signal: AbortSignal): Promise<R
         }
       };
       signal.addEventListener("abort", () => cleanup(), { once: true });
+      if (process.env.VERCEL) setTimeout(() => cleanup(), SERVERLESS_STREAM_MS);
     },
     cancel() {
       cleanup();

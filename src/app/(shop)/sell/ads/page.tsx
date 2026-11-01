@@ -29,7 +29,8 @@ export default function SellAdsPage() {
 async function Body() {
   await connection();
   const shop = await currentShop();
-  if (!shop) redirect("/sell");
+  // Ads and promotions spend the shop's money, so they stay with its owner.
+  if (!shop || shop.role !== "owner") redirect("/sell");
   const app = await services();
   const [campaigns, listings, available, offers, drops, teams, sampleOffers, sampleRequests, depositOffers, boxSeries, vouchers, videos] = await Promise.all([
     app.ads.list(shop.sellerId),

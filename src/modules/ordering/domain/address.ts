@@ -1,4 +1,5 @@
 import { domainError, err, ok, type DomainError, type Result } from "@/shared/kernel";
+import { addressRules } from "./address-rules";
 
 /** Where a parcel goes, in the order's country. Seen by the buyer, and by a shop once paid. */
 export type ShippingAddress = Readonly<{
@@ -20,7 +21,7 @@ export type AddressError = DomainError<"invalid_address">;
 const tidy = (s: string | undefined) => (s ?? "").trim().replace(/\s+/g, " ");
 const bad = (message: string) => err(domainError("invalid_address", message));
 
-export function cleanAddress(input: AddressInput): Result<ShippingAddress, AddressError> {
+export function cleanAddress(input: AddressInput, country: string): Result<ShippingAddress, AddressError> {
   const a = { name: tidy(input.name), phone: tidy(input.phone), line1: tidy(input.line1), line2: tidy(input.line2), city: tidy(input.city), region: tidy(input.region), postcode: tidy(input.postcode) };
   if (a.name.length < 2 || a.name.length > 80) return bad("Add the full name for the delivery.");
   if (!/^\+?[\d\s()-]{6,24}$/.test(a.phone) || a.phone.replace(/\D/g, "").length < 6) return bad("Add a phone number the courier can call.");
@@ -28,5 +29,8 @@ export function cleanAddress(input: AddressInput): Result<ShippingAddress, Addre
   if (a.line2.length > 120) return bad("Keep the apartment or landmark under 120 characters.");
   if (a.city.length < 2 || a.city.length > 60) return bad("Add the city.");
   if (a.region.length > 60 || a.postcode.length > 20) return bad("The region or postcode is too long.");
+  const rules = addressRules(country);
+  if (rules.region.required && a.region.length < 2) return bad(`${rules.region.label} is needed for delivery.`);
+  if (rules.postcode.required && a.postcode.length < 3) return bad(`${rules.postcode.label} is needed for delivery.`);
   return ok(a);
 }

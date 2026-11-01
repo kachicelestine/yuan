@@ -244,7 +244,7 @@ export class DrizzleNoteRepository implements NoteRepository {
     const rows = await this.db
       .select()
       .from(notes)
-      .where(filter.category ? eq(notes.category, filter.category) : undefined)
+      .where(and(eq(notes.inReview, false), filter.category ? eq(notes.category, filter.category) : undefined))
       .orderBy(desc(notes.createdAt), asc(notes.id))
       .limit(filter.limit);
     return rows as Note[];
@@ -265,11 +265,19 @@ export class DrizzleNoteRepository implements NoteRepository {
   }
 
   async listByAuthor(authorId: string, limit: number) {
-    return (await this.db.select().from(notes).where(eq(notes.authorId, authorId)).orderBy(desc(notes.createdAt)).limit(limit)) as Note[];
+    return (await this.db.select().from(notes).where(and(eq(notes.authorId, authorId), eq(notes.inReview, false))).orderBy(desc(notes.createdAt)).limit(limit)) as Note[];
   }
 
   async listByTag(tag: string, limit: number) {
-    return (await this.db.select().from(notes).where(arrayContains(notes.tags, [tag])).orderBy(desc(notes.createdAt)).limit(limit)) as Note[];
+    return (await this.db.select().from(notes).where(and(arrayContains(notes.tags, [tag]), eq(notes.inReview, false))).orderBy(desc(notes.createdAt)).limit(limit)) as Note[];
+  }
+
+  async listInReview(limit: number) {
+    return (await this.db.select().from(notes).where(eq(notes.inReview, true)).orderBy(asc(notes.createdAt)).limit(limit)) as Note[];
+  }
+
+  async approve(id: string) {
+    return (await this.db.update(notes).set({ inReview: false }).where(eq(notes.id, id)).returning({ id: notes.id })).length > 0;
   }
 
   async remove(id: string) {

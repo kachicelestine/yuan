@@ -1,0 +1,1 @@
+ALTER TABLE "identity"."accounts" ADD COLUMN "market" text;

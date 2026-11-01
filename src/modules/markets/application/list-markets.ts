@@ -46,9 +46,9 @@ export function toMarketView(country: Country, fx: FxRates): MarketView {
 }
 
 /** Every country we deliver to, priced for display. */
-export function makeListMarkets(deps: { countries: CountryRepository; fx: FxRateRepository }) {
+export function makeListMarkets(deps: { countries: CountryRepository; fx: FxRateRepository; restricted?: ReadonlySet<string> }) {
   return async function listMarkets(): Promise<MarketView[]> {
     const [countries, fx] = await Promise.all([deps.countries.list(), deps.fx.latest()]);
-    return countries.map((c) => toMarketView(c, fx));
+    return countries.filter((c) => !deps.restricted?.has(c.code)).map((c) => toMarketView(c, fx));
   };
 }

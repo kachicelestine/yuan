@@ -39,6 +39,8 @@ export const LIMITS = {
   ask: [30, 60 * 60],
   /** Photo searches, per account (or IP when signed out). */
   snap: [20, 60 * 60],
+  /** Texts translated, per account (or IP when signed out). */
+  translate: [60, 60 * 60],
   /** Shop ads clicks, per IP. */
   "ads.click": [120, 60],
 } as const satisfies Record<string, readonly [number, number]>;

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { SellFrame, SellSkeleton } from "@/components/sell/sell-frame";
+import { AccountControls } from "@/components/me/account-controls";
 import { ProfileEditor } from "@/components/social/profile-editor";
 import { services } from "@/server/container";
 import { currentAccount } from "@/server/session";
@@ -26,6 +27,7 @@ async function EditBody() {
     <SellFrame title="Edit profile" subtitle="What everyone sees next to your posts and comments.">
       <div className="mx-auto max-w-[480px]">
         <ProfileEditor initial={{ handle: p.handle, name: p.name, bio: p.bio, avatar: p.avatar }} />
+        <AccountControls />
       </div>
     </SellFrame>
   );

@@ -8,6 +8,9 @@ import { outbox } from "./platform-schema";
 const toPayload = (event: DomainEvent) => JSON.parse(JSON.stringify(event)) as Record<string, unknown>;
 
 /** Writes events to the outbox. Give it the transaction the change is being saved in. */
+/** Called whenever an event is recorded, so hosts without a background process can deliver it promptly. */
+export const outboxSignal: { onRecorded: (() => void) | null } = { onRecorded: null };
+
 export class OutboxEventLog implements EventLog {
   constructor(
     private readonly db: Database,
@@ -17,6 +20,7 @@ export class OutboxEventLog implements EventLog {
   async record(aggregateId: string, event: DomainEvent) {
     const at = this.now();
     await this.db.insert(outbox).values({ id: newId(), topic: event.type, key: aggregateId, payload: toPayload(event), createdAt: at, availableAt: at });
+    outboxSignal.onRecorded?.();
   }
 }
 

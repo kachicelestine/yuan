@@ -45,7 +45,7 @@ Run `pnpm db:migrate` again whenever a new migration lands in `drizzle/`. If the
 
 ## Deploying
 
-One free Oracle Cloud server behind Cloudflare, step by step: [deploy/README.md](deploy/README.md).
+One free Oracle Cloud server behind Cloudflare, step by step: [deploy/README.md](deploy/README.md). On Vercel with Neon: [deploy/VERCEL.md](deploy/VERCEL.md).
 
 ## Performance
 

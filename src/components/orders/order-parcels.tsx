@@ -77,7 +77,7 @@ export function OrderParcels({ order, parcels, shops, reviewed }: Props) {
       {order.address && (
         <p className="mb-3 px-1 text-[13px] text-ink-2">
           To {order.address.name}, {order.address.line1}
-          {order.address.line2 && `, ${order.address.line2}`}, {order.address.city} · {order.address.phone}
+          {order.address.line2 && `, ${order.address.line2}`}, {[order.address.city, order.address.region, order.address.postcode].filter(Boolean).join(", ")} · {order.address.phone}
         </p>
       )}
       {error && (

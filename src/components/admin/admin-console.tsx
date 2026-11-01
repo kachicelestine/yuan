@@ -5,29 +5,31 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Icon } from "@/components/icon";
-import { REASON_LABELS, type ModerationItemView, type PendingVideoView } from "@/modules/content";
+import { REASON_LABELS, type ModerationItemView, type PendingPhotoView, type PendingVideoView } from "@/modules/content";
 import type { ApplicationView } from "@/modules/merchants";
 import type { DisputeView } from "@/modules/ordering";
 import type { DisbursementView } from "@/modules/payments";
 import { Disputes, SendMoney } from "./admin-money";
-import { approveVideoAction, resolveAction } from "@/server/actions/admin";
+import { approvePhotoAction, approveVideoAction, resolveAction } from "@/server/actions/admin";
 
-type Tab = "sellers" | "videos" | "reports" | "disputes" | "money";
+type Tab = "sellers" | "videos" | "photos" | "reports" | "disputes" | "money";
 
 /** Three queues: seller applications, uploads waiting for approval, and reports. */
 type Props = {
   applications: ApplicationView[];
   videos: PendingVideoView[];
+  photos: PendingPhotoView[];
   reports: ModerationItemView[];
   disputes: DisputeView[];
   transfers: DisbursementView[];
   explorer: string;
 };
 
-export function AdminConsole({ applications, videos, reports, disputes, transfers, explorer }: Props) {
+export function AdminConsole({ applications, videos, photos, reports, disputes, transfers, explorer }: Props) {
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: "sellers", label: "Sellers", count: applications.length },
     { id: "videos", label: "Videos", count: videos.length },
+    { id: "photos", label: "Photos", count: photos.length },
     { id: "reports", label: "Reports", count: reports.length },
     { id: "disputes", label: "Disputes", count: disputes.length },
     { id: "money", label: "Send", count: transfers.length },
@@ -46,6 +48,7 @@ export function AdminConsole({ applications, videos, reports, disputes, transfer
       </div>
       {tab === "sellers" && <Applications list={applications} />}
       {tab === "videos" && <PendingVideos list={videos} />}
+      {tab === "photos" && <PendingPhotos list={photos} />}
       {tab === "reports" && <Reports list={reports} />}
       {tab === "disputes" && <Disputes list={disputes} />}
       {tab === "money" && <SendMoney list={transfers} explorer={explorer} />}
@@ -79,6 +82,53 @@ function Applications({ list }: { list: ApplicationView[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+function PendingPhotos({ list }: { list: PendingPhotoView[] }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function decide(id: string, approve: boolean) {
+    setBusy(id);
+    setError(null);
+    const r = approve ? await approvePhotoAction(id) : await resolveAction("note", id, "remove");
+    setBusy(null);
+    if (!r.ok) return setError(r.message);
+    router.refresh();
+  }
+
+  if (!list.length) return <Empty>No photos waiting for review.</Empty>;
+  return (
+    <div className="flex flex-col gap-2">
+      {error && (
+        <p role="alert" className="text-sm text-like">
+          {error}
+        </p>
+      )}
+      <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+        {list.map((n) => (
+          <li key={n.id} className="glass overflow-hidden rounded-[22px]">
+            <div className="relative aspect-[4/5] bg-surface">
+              <Image src={n.image} alt="" fill sizes="200px" className="object-cover" />
+            </div>
+            <div className="flex flex-col gap-2 p-2.5">
+              <p className="line-clamp-3 text-xs">{n.caption}</p>
+              <p className="truncate text-[11px] text-ink-3">{n.authorName}</p>
+              <div className="flex gap-1.5">
+                <button type="button" disabled={busy === n.id} onClick={() => decide(n.id, true)} className="h-9 flex-1 rounded-full bg-positive/20 text-xs font-bold text-positive disabled:opacity-50">
+                  Approve
+                </button>
+                <button type="button" disabled={busy === n.id} onClick={() => decide(n.id, false)} className="h-9 flex-1 rounded-full bg-like/15 text-xs font-bold text-like disabled:opacity-50">
+                  Remove
+                </button>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

@@ -37,6 +37,8 @@ export type Note = Readonly<{
   likes: number;
   /** Hashtags, normalised like videos': lower case, no "#". */
   tags: readonly string[];
+  /** Waiting for a moderator; nobody else sees it until then. */
+  inReview: boolean;
   createdAt: Date;
 }>;
 
@@ -59,6 +61,7 @@ export function draftNote(props: {
   category: string;
   caption: string;
   tags: readonly string[];
+  inReview: boolean;
   at: Date;
 }): Result<Note, NoteError> {
   const title = props.caption.trim();
@@ -78,6 +81,7 @@ export function draftNote(props: {
     category: props.category,
     live: false,
     video: false,
+    inReview: props.inReview,
     likes: 0,
     tags,
     createdAt: props.at,

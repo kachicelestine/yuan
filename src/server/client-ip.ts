@@ -11,3 +11,13 @@ export function clientIpFrom(headers: Pick<Headers, "get">, trust: TrustProxy): 
   // IPv4 or IPv6 characters only; never let a header smuggle text into a rate-limit key.
   return /^[0-9a-fA-F:.]{2,45}$/.test(ip) ? ip : "unknown";
 }
+
+/**
+ * The visitor's country from the edge's own geolocation header. It only picks which market
+ * a new shopper starts in, so a spoofed value costs nothing. XX and T1 are Cloudflare's
+ * "unknown" and "Tor".
+ */
+export function clientCountryFrom(headers: Pick<Headers, "get">, trust: TrustProxy): string | null {
+  const code = (headers.get(trust === "cloudflare" ? "cf-ipcountry" : "x-vercel-ip-country") ?? "").trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(code) && code !== "XX" && code !== "T1" ? code : null;
+}

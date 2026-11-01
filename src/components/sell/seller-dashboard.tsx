@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Icon } from "@/components/icon";
+import { useStore } from "@/components/providers";
 import { useMoney } from "@/components/price";
 import type { ListingView, SellerView, StorefrontView } from "@/modules/catalog";
 import type { QuestionView } from "@/modules/content";
@@ -23,7 +24,8 @@ type Props = {
   listings: ListingView[];
   orders: SellerOrderView[];
   questions: (QuestionView & { at: string })[];
-  money: ShopMoney;
+  /** The shop's money, for its owner; staff get null and don't see the tab. */
+  money: ShopMoney | null;
   /** Open quote requests this shop hasn't answered. */
   newRequests?: number;
   /** Blind boxes in each order: which figure to send. */
@@ -46,26 +48,28 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
   const params = useSearchParams();
   const [tab, setTab] = useState<Tab>((params.get("tab") as Tab) || "listings");
   const money = useMoney();
+  const { markets } = useStore();
   const paid = orders.filter((o) => o.status === "paid" || o.status === "completed");
   const toShip = orders.filter((o) => o.shipment?.status === "awaiting_shipment" || o.shipment?.status === "disputed");
   const tabs: { id: Tab; label: string; badge?: number }[] = [
     { id: "listings", label: "Listings" },
     { id: "orders", label: "Orders", badge: toShip.length || undefined },
     { id: "questions", label: "Q&A", badge: questions.length || undefined },
-    { id: "money", label: "Money" },
+    ...(funds ? [{ id: "money" as const, label: "Money" }] : []),
     { id: "shop", label: "Shop" },
   ];
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="glass flex items-center gap-3 rounded-[24px] p-3">
+      <div className="glass flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[24px] p-3">
         <Image src={seller.avatar} alt="" width={48} height={48} sizes="48px" className="size-12 rounded-2xl object-cover" />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-[170px] flex-1">
           <p className="truncate font-semibold">{seller.name}</p>
           <p className="text-xs text-ink-2">
             {listings.filter((l) => l.status === "active").length} live · {paid.length} paid {paid.length === 1 ? "order" : "orders"} · {money(paid.reduce((n, o) => n + o.subtotal, 0))} sold
           </p>
         </div>
+        <div className="ml-auto flex items-center gap-2">
         <Link href="/sell/live" className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-live/90 px-3.5 text-[13px] font-bold">
           <Icon name="live" className="size-4" />
           Go live
@@ -83,9 +87,10 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
         <Link href={`/s/${seller.id}`} aria-label="View shop" className="glass-inset grid size-9 shrink-0 place-items-center rounded-full">
           <Icon name="store" className="size-4" />
         </Link>
+        </div>
       </div>
 
-      <div role="tablist" aria-label="Seller tools" className="glass grid grid-cols-5 rounded-full p-1">
+      <div role="tablist" aria-label="Seller tools" className="glass grid auto-cols-fr grid-flow-col rounded-full p-1">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -108,10 +113,12 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
               <Icon name="plus" className="size-5" />
               New listing
             </Link>
-            <Link href="/sell/ads" className="glass-inset flex h-12 items-center justify-center gap-2 rounded-full px-5 text-[15px] font-semibold">
-              <Icon name="bolt" className="size-5" />
-              Promote
-            </Link>
+            {funds && (
+              <Link href="/sell/ads" className="glass-inset flex h-12 items-center justify-center gap-2 rounded-full px-5 text-[15px] font-semibold">
+                <Icon name="bolt" className="size-5" />
+                Promote
+              </Link>
+            )}
           </div>
           {listings.length === 0 ? (
             <p className="glass-inset rounded-[22px] p-4 text-sm text-ink-2">No listings yet. Start with your best seller: good photos and an honest title sell more than anything else.</p>
@@ -204,7 +211,9 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
                     {o.address.line1}
                     {o.address.line2 && `, ${o.address.line2}`}
                     <br />
-                    {[o.address.city, o.address.region, o.address.postcode].filter(Boolean).join(", ")}, {o.country}
+                    {[o.address.city, o.address.region, o.address.postcode].filter(Boolean).join(", ")}
+                    <br />
+                    <b className="font-semibold">{markets.find((m) => m.code === o.country)?.name ?? o.country}</b>
                   </address>
                 )}
                 {o.shipment?.status === "awaiting_shipment" && o.status === "paid" && o.address && <ShipForm orderId={o.id} />}
@@ -223,7 +232,7 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
 
       {tab === "questions" && <QuestionInbox questions={questions} listings={listings} />}
 
-      {tab === "money" && <SellerMoney money={funds} />}
+      {tab === "money" && funds && <SellerMoney money={funds} />}
 
       {tab === "shop" && <StorefrontForm seller={seller} storefront={storefront} />}
     </div>

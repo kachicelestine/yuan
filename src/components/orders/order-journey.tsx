@@ -110,7 +110,7 @@ export function OrderJourney({
         </section>
       )}
 
-      {gift && <GiftPanel gift={gift} paid={paid} />}
+      {gift && <GiftPanel gift={gift} paid={paid} country={placed.country} />}
       {paid && parcels.length > 0 && <OrderParcels order={placed} parcels={parcels} shops={shops} reviewed={reviewed} />}
 
       {(!paid || parcels.length === 0) && (

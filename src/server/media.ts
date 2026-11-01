@@ -25,6 +25,8 @@ export async function receiveUpload(request: Request, into: "public" | "private"
   try {
     await storage.receive(ticket, request.body);
   } catch (error) {
+    // Serverless disks are read-only and don't last: uploads need STORAGE=r2 there.
+    if (process.env.VERCEL) return json(503, { error: "storage_not_set_up", message: "Uploads aren't set up on this server yet." });
     return json(400, { error: "upload_failed", message: error instanceof Error ? error.message : String(error) });
   }
   return new Response(null, { status: 200 });

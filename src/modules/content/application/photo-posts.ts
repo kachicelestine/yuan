@@ -10,6 +10,8 @@ export type PhotoPostDeps = {
   products: ProductDirectory;
   clock: Clock;
   newId: () => string;
+  /** Hold new posts for a moderator. */
+  premoderated: boolean;
 };
 
 const PHOTO_TYPES: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
@@ -18,7 +20,7 @@ const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
 export type PhotoPostError = NoteError | DomainError<"unsupported_type" | "too_large" | "not_found">;
 
 /** Photo posts: anyone posts a photo with a caption and hashtags, optionally tagging a product. */
-export function makePhotoPosts({ storage, notes, products, clock, newId }: PhotoPostDeps) {
+export function makePhotoPosts({ storage, notes, products, clock, newId, premoderated }: PhotoPostDeps) {
   return {
     /** A ticket to upload the photo straight to storage. */
     async startPhoto(actor: Actor, file: { contentType: string; bytes: number }): Promise<Result<{ url: string; method: "PUT"; headers: Readonly<Record<string, string>>; photo: string }, PhotoPostError>> {
@@ -31,7 +33,7 @@ export function makePhotoPosts({ storage, notes, products, clock, newId }: Photo
     },
 
     /** Posts it to Discover (and the person's profile and hashtag pages). */
-    async post(actor: Actor, input: { photo: string; caption: string; tags: readonly string[]; productSlug: string | null; ratio: Note["ratio"] }): Promise<Result<NoteView, PhotoPostError>> {
+    async post(actor: Actor, input: { photo: string; caption: string; tags: readonly string[]; productSlug: string | null; ratio: Note["ratio"] }): Promise<Result<NoteView & { inReview: boolean }, PhotoPostError>> {
       const product = input.productSlug ? await products.find(input.productSlug) : null;
       if (input.productSlug && !product) return err(domainError("not_found", "That product isn't for sale any more."));
       const drafted = draftNote({
@@ -43,12 +45,13 @@ export function makePhotoPosts({ storage, notes, products, clock, newId }: Photo
         category: product?.category ?? "lifestyle",
         caption: input.caption,
         tags: input.tags,
+        inReview: premoderated,
         at: clock.now(),
       });
       if (!drafted.ok) return drafted;
       if (!(await storage.head(input.photo.slice("/media/".length)))) return err(domainError("invalid_photo", "The photo didn't finish uploading. Try again."));
       await notes.add(drafted.value);
-      return ok(toNoteView(drafted.value));
+      return ok({ ...toNoteView(drafted.value), inReview: drafted.value.inReview });
     },
   };
 }

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { useMoney } from "@/components/price";
 import { useStore } from "@/components/providers";
-import { countdown, localParts } from "@/lib/drops";
+import { countdown, localParts, viewerTimeZone } from "@/lib/drops";
 import { compact } from "@/lib/format";
 import { useNow } from "@/lib/use-now";
 import type { DropKind, DropView } from "@/modules/engagement";
@@ -49,13 +49,14 @@ export function DropsCalendar({ drops, festival }: { drops: UpcomingDrop[]; fest
     );
   }
 
-  const list = drops.map((d) => ({ drop: d, at: new Date(d.startsAt).getTime(), local: localParts(new Date(d.startsAt).getTime(), market.timeZone) }));
-  const here = localParts(now, market.timeZone);
+  const timeZone = viewerTimeZone(market.timeZone);
+  const list = drops.map((d) => ({ drop: d, at: new Date(d.startsAt).getTime(), local: localParts(new Date(d.startsAt).getTime(), timeZone) }));
+  const here = localParts(now, timeZone);
   const today = here.key;
   // Step from local noon, so a daylight-saving change can't land two steps on the same date.
   const [h, m] = here.time.split(":").map(Number);
   const noon = now + (12 * 60 - (h * 60 + m)) * 60_000;
-  const days = Array.from({ length: 14 }, (_, i) => localParts(noon + i * 86_400_000, market.timeZone));
+  const days = Array.from({ length: 14 }, (_, i) => localParts(noon + i * 86_400_000, timeZone));
   const shown = day ? list.filter((d) => d.local.key === day) : list;
   const groups = [...new Set(shown.map((d) => d.local.key))];
 

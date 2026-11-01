@@ -1,0 +1,26 @@
+name: Background jobs
+
+# Vercel has no long-running process, so this runs the app's background work on a schedule.
+# GitHub runs it about every 5 minutes. For once a minute, point cron-job.org (free) at the
+# same URL with the same header; both can run together. See deploy/VERCEL.md.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Run one pass
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          INTERNAL_TOKEN: ${{ secrets.INTERNAL_TOKEN }}
+        run: |
+          if [ -z "$SITE_URL" ] || [ -z "$INTERNAL_TOKEN" ]; then
+            echo "Set the SITE_URL and INTERNAL_TOKEN repository secrets to turn this on."
+            exit 0
+          fi
+          curl --fail --silent --show-error --max-time 90 \
+            -H "Authorization: Bearer $INTERNAL_TOKEN" "$SITE_URL/api/internal/jobs"

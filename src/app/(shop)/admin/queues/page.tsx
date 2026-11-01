@@ -18,9 +18,10 @@ export default function QueuesPage() {
 
 async function Queues() {
   const { app } = await adminContext();
-  const [applications, videos, reports, disputes, transfers] = await Promise.all([
+  const [applications, videos, photos, reports, disputes, transfers] = await Promise.all([
     app.onboarding.queue(),
     app.moderation.pendingVideos(),
+    app.moderation.pendingPhotos(),
     app.moderation.queue(),
     app.fulfilment.disputes(),
     app.escrow.pending(),
@@ -28,7 +29,7 @@ async function Queues() {
   const explorer = serverEnv.PAYMENTS_BASE_CHAIN === "base" ? "https://basescan.org" : "https://sepolia.basescan.org";
   return (
     <AdminFrame title="Queues" subtitle="Sellers, uploads, reports, disputes and money to send, oldest first.">
-      <AdminConsole applications={applications} videos={videos} reports={reports} disputes={disputes} transfers={transfers} explorer={explorer} />
+      <AdminConsole applications={applications} videos={videos} photos={photos} reports={reports} disputes={disputes} transfers={transfers} explorer={explorer} />
     </AdminFrame>
   );
 }

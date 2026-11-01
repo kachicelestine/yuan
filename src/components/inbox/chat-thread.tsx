@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Icon, VerifiedBadge } from "@/components/icon";
 import { useMoney } from "@/components/price";
+import { TranslateText } from "@/components/translate-text";
 import type { MessageView, Side } from "@/modules/messaging";
 import { replyAsShopAction, sendToShopAction } from "@/server/actions/messages";
 
@@ -152,6 +153,11 @@ export function ChatThread({
                 </Link>
               )}
               {m.text && <p className={`rounded-[20px] px-3.5 py-2.5 text-[15px] leading-snug whitespace-pre-wrap ${mine ? "rounded-br-md bg-accent" : "glass-inset rounded-bl-md"}`}>{m.text}</p>}
+              {m.text && !mine && (
+                <span className="px-1">
+                  <TranslateText text={m.text} />
+                </span>
+              )}
               <span className="px-1 text-[11px] text-ink-3">{time(m.at)}</span>
             </li>
           );

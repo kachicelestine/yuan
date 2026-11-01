@@ -10,6 +10,7 @@ import { useMoney } from "@/components/price";
 import { ProductCard } from "@/components/product/product-card";
 import { useStore, type CartLine } from "@/components/providers";
 import { couponHeadline } from "@/components/rewards/coupon-wallet";
+import { addressRules } from "@/modules/ordering";
 import { DEFAULT_RAIL, RAILS, type RailId } from "@/modules/payments";
 import { useCoupons } from "@/components/rewards/use-coupons";
 import { bestCoupon } from "@/lib/account";
@@ -30,24 +31,30 @@ const shipping = [
 
 const HOLD_MS = 1200;
 
-type Address = { name: string; phone: string; line1: string; line2: string; city: string };
-const EMPTY_ADDRESS: Address = { name: "", phone: "", line1: "", line2: "", city: "" };
-const SHORT: Record<keyof Address, string> = { name: "name", phone: "phone number", line1: "street", line2: "apartment", city: "city" };
-/** [field, label, autocomplete, required] */
-const ADDRESS_FIELDS: [keyof Address, string, string, boolean][] = [
-  ["name", "Full name", "name", true],
-  ["phone", "Phone", "tel", true],
-  ["line1", "Street and number", "address-line1", true],
-  ["line2", "Apartment, floor or landmark", "address-line2", false],
-  ["city", "City", "address-level2", true],
-];
+type Address = { name: string; phone: string; line1: string; line2: string; city: string; region: string; postcode: string };
+const EMPTY_ADDRESS: Address = { name: "", phone: "", line1: "", line2: "", city: "", region: "", postcode: "" };
+const SHORT: Record<keyof Address, string> = { name: "name", phone: "phone number", line1: "street", line2: "apartment", city: "city", region: "state or region", postcode: "postcode" };
+
+/** [field, label, autocomplete, required], in the order each country's rules ask for. */
+function addressFields(country: string): [keyof Address, string, string, boolean][] {
+  const { postcode, region } = addressRules(country);
+  return [
+    ["name", "Full name", "name", true],
+    ["phone", "Phone", "tel", true],
+    ["line1", "Street and number", "address-line1", true],
+    ["line2", "Apartment, floor or landmark", "address-line2", false],
+    ["city", "City", "address-level2", true],
+    ["region", region.label, "address-level1", region.required],
+    ["postcode", postcode.label, "postal-code", postcode.required],
+  ];
+}
 
 /** Buyers pay in dollar stablecoins, so the amount to send is always shown in USD. */
 const usd = (amount: number) => formatMoney(amount, "USD");
 
 export function Checkout({ rails: available, signedIn }: { rails: string[]; signedIn: boolean }) {
   const router = useRouter();
-  const { ready, cart, setQty, addToCart, recordOrder, market, coupons: wallet } = useStore();
+  const { ready, cart, setQty, addToCart, recordOrder, market, setMarket, coupons: wallet } = useStore();
   const rails = RAILS.filter((r) => available.includes(r.id));
   const money = useMoney();
   const [ship, setShip] = useState<(typeof shipping)[number]["id"]>("standard");
@@ -61,7 +68,8 @@ export function Checkout({ rails: available, signedIn }: { rails: string[]; sign
   const [later, setLater] = useStored<CartLine[]>("app.later", []);
   // Remembered on this device, so the next order is one tap.
   const [address, setAddress] = useStored<Address>("app.address", EMPTY_ADDRESS);
-  const missing = ADDRESS_FIELDS.filter(([key, , , required]) => required && !address[key]?.trim()).map(([key]) => SHORT[key]);
+  const fields = addressFields(market.code);
+  const missing = fields.filter(([key, , , required]) => required && !address[key]?.trim()).map(([key]) => SHORT[key]);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -126,7 +134,7 @@ export function Checkout({ rails: available, signedIn }: { rails: string[]; sign
       const r = await checkoutAction({
         lines: cart.map((l) => ({ slug: l.slug, option: l.option ?? null, qty: l.qty })),
         country: market.code,
-        address: { name: address.name, phone: address.phone, line1: address.line1, line2: address.line2, city: address.city },
+        address: { name: address.name, phone: address.phone, line1: address.line1, line2: address.line2, city: address.city, region: address.region, postcode: address.postcode },
         shippingMethod: ship,
         combineParcels: combine,
         payDutiesNow: dutiesNow,
@@ -140,6 +148,8 @@ export function Checkout({ rails: available, signedIn }: { rails: string[]; sign
         return;
       }
       haptic([12, 40, 24]);
+      // Ordering confirms the country, so it's kept for next time and other devices.
+      setMarket(market.code);
       recordOrder({ id: r.orderNumber, total: r.total });
       // Deals and stale bags can change the price; tell the buyer if the server's total differs.
       router.push(`/pay/${r.invoiceId}${Math.abs(r.total - total) >= 0.01 ? "?updated=1" : ""}`);
@@ -218,9 +228,9 @@ export function Checkout({ rails: available, signedIn }: { rails: string[]; sign
 
         <section id="ship-to" aria-label="Ship to" className="glass scroll-mt-24 rounded-[26px] p-4">
           <h2 className="mb-3 text-[13px] font-semibold text-ink-2">Ship to</h2>
-          <ShipTo variant="row" className="mb-2 rounded-2xl" />
+          <ShipTo variant="country" className="mb-2 rounded-2xl" />
           <div className="grid gap-2 sm:grid-cols-2">
-            {ADDRESS_FIELDS.map(([key, label, autoComplete, required]) => (
+            {fields.map(([key, label, autoComplete, required]) => (
               <label key={key} className={`glass-inset flex flex-col rounded-2xl px-3.5 py-2 ${key === "line1" || key === "line2" ? "sm:col-span-2" : ""}`}>
                 <span className="text-[11px] font-semibold text-ink-2">
                   {label}
@@ -276,7 +286,17 @@ export function Checkout({ rails: available, signedIn }: { rails: string[]; sign
               </label>
             ))}
           </div>
-          <p className="mt-2.5 text-xs text-ink-3">Prices are in US dollars; you pay the same amount in a dollar stablecoin. Local currency is shown for reference.</p>
+          <p className="mt-2.5 text-xs text-ink-3">
+            Prices are in US dollars; you pay the same amount in a dollar stablecoin. Local currency is shown for reference. By paying you agree to the{" "}
+            <Link href="/terms" className="underline underline-offset-2">
+              Terms
+            </Link>{" "}
+            and{" "}
+            <Link href="/returns" className="underline underline-offset-2">
+              Returns policy
+            </Link>
+            .
+          </p>
         </fieldset>
 
         <section aria-label="Order summary" className="glass rounded-[26px] p-4 text-sm">

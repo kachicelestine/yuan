@@ -67,7 +67,7 @@ const NotePost = z.object({
 });
 
 /** Photo posts, step 2: post it to Discover, your profile and its hashtags. */
-export async function postNoteAction(input: z.input<typeof NotePost>): Promise<{ ok: true; id: string } | Failure> {
+export async function postNoteAction(input: z.input<typeof NotePost>): Promise<{ ok: true; id: string; inReview: boolean } | Failure> {
   const account = await currentAccount();
   if (!account) return fail("signed_out", "Sign in to post.");
   if (!(await allow("content.upload", account.id))) return RATE_LIMITED;
@@ -76,8 +76,9 @@ export async function postNoteAction(input: z.input<typeof NotePost>): Promise<{
   const app = await services();
   const r = await app.photoPosts.post(await actorFor(account), p.data);
   if (!r.ok) return fail(r.error.code, r.error.message);
-  // The poster sees it straight away on Discover and their profile.
+  // Unless a moderator has to see it first, the poster sees it straight away on Discover and their profile.
+  if (r.value.inReview) return { ok: true, id: r.value.id, inReview: true };
   updateTag("notes");
   updateTag(profileTag((await app.profiles.me(account.id)).handle));
-  return { ok: true, id: r.value.id };
+  return { ok: true, id: r.value.id, inReview: false };
 }

@@ -80,7 +80,7 @@ export function KitBuilder() {
         </div>
       </header>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_1.15fr] lg:items-start">
+      <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1.15fr] lg:items-start">
         <section aria-label="Your home" className="glass flex flex-col gap-5 rounded-[28px] p-4">
           <div>
             <label htmlFor="bill" className="text-[13px] font-semibold text-ink-2">

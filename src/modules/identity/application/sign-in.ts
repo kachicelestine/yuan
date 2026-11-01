@@ -123,6 +123,12 @@ export function makeIdentity(d: IdentityDeps) {
       return ok(true);
     },
 
+    /** The owner closes their account: its sign-in details go, and every device is signed out. */
+    async close(accountId: string) {
+      await d.accounts.close(accountId, d.clock.now());
+      await d.sessions.deleteForAccount(accountId);
+    },
+
     async signOut(token: string | undefined) {
       if (!token) return;
       const session = await d.sessions.findByTokenHash(d.secrets.hashToken(token));

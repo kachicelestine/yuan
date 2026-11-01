@@ -4,7 +4,7 @@ import type { CartItem, CartLineView } from "@/modules/ordering";
 import type { Services } from "./container";
 
 /** Everything a signed-in buyer keeps on their account, as the device mirrors it. */
-export type AccountState = EngagementSnapshot & { accountId: string; cart: CartLineView[] };
+export type AccountState = EngagementSnapshot & { accountId: string; cart: CartLineView[]; market: string | null };
 
 /** What a device sends: the parts the buyer edits freely. Coins never come from a device. */
 export type DeviceData = { cart: CartItem[]; saved: string[]; alerts: string[]; watches: WatchView[]; following: string[] };
@@ -13,10 +13,10 @@ export type DeviceData = { cart: CartItem[]; saved: string[]; alerts: string[]; 
 const union = (account: readonly string[], device: readonly string[]) => [...new Set([...account, ...device])];
 
 /** Reads and writes the account side of what used to live only in the browser. */
-export function accountData(app: Pick<Services, "cart" | "engagement">) {
+export function accountData(app: Pick<Services, "cart" | "engagement" | "accounts">) {
   async function load(accountId: string): Promise<AccountState> {
-    const [cart, engagement] = await Promise.all([app.cart.get(accountId), app.engagement.snapshot(accountId)]);
-    return { accountId, cart, ...engagement };
+    const [cart, engagement, market] = await Promise.all([app.cart.get(accountId), app.engagement.snapshot(accountId), app.accounts.marketOf(accountId)]);
+    return { accountId, cart, market, ...engagement };
   }
 
   return {

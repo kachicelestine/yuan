@@ -19,6 +19,7 @@ export type AdminAction =
   | "content.remove"
   | "content.keep"
   | "video.approve"
+  | "photo.approve"
   | "show.end"
   | "campaign.pause"
   | "coupon.issue"

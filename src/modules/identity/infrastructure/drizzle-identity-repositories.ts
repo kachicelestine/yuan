@@ -30,6 +30,22 @@ export class DrizzleAccountRepository implements AccountRepository {
     return r ? toAccount(r) : null;
   }
 
+  async close(id: string, at: Date) {
+    await this.db
+      .update(accounts)
+      .set({ email: `closed-${id}@closed.invalid`, wallet: null, market: null, suspendedAt: at, suspendReason: "Closed by its owner" })
+      .where(eq(accounts.id, id));
+  }
+
+  async marketOf(id: string) {
+    const [r] = await this.db.select({ market: accounts.market }).from(accounts).where(eq(accounts.id, id)).limit(1);
+    return r?.market ?? null;
+  }
+
+  async setMarket(id: string, code: string) {
+    await this.db.update(accounts).set({ market: code }).where(eq(accounts.id, id));
+  }
+
   async setSuspension(id: string, at: Date | null, reason: string | null) {
     await this.db.update(accounts).set({ suspendedAt: at, suspendReason: reason }).where(eq(accounts.id, id));
   }

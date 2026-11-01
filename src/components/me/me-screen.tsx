@@ -21,6 +21,7 @@ import { photo } from "@/lib/images";
 import { useStored } from "@/lib/use-stored";
 import type { AccountView } from "@/modules/identity";
 import type { OrderView, ShipmentView } from "@/modules/ordering";
+import { LegalLinks } from "@/components/legal/legal-page";
 import { signOutAction } from "@/server/actions/auth";
 
 const statusLabel: Record<OrderView["status"], string> = { awaiting_payment: "Waiting for payment", paid: "Paid · on its way", cancelled: "Cancelled", completed: "Delivered" };
@@ -275,6 +276,7 @@ export function MeScreen({
           </ul>
         )}
       </section>
+      <LegalLinks className="mt-8" />
     </div>
   );
 }

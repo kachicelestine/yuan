@@ -12,6 +12,8 @@ export const accounts = identitySchema.table(
     createdAt: timestamp({ withTimezone: true }).notNull(),
     suspendedAt: timestamp({ withTimezone: true }),
     suspendReason: text(),
+    /** The country they ship to, so it follows them to any device. */
+    market: text(),
   },
   (t) => [
     uniqueIndex("accounts_email_uq").on(t.email),

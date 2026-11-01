@@ -6,4 +6,7 @@ export const brand = {
   seal: publicEnv.brandSeal,
   tagline: publicEnv.brandTagline,
   url: publicEnv.siteUrl,
+  legalName: publicEnv.legalName ?? publicEnv.brandName,
+  jurisdiction: publicEnv.jurisdiction,
+  supportEmail: publicEnv.supportEmail,
 } as const;

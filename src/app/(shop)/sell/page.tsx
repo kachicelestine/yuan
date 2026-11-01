@@ -87,7 +87,7 @@ async function SellBody() {
   return (
     <SellFrame title="Your shop">
       <ShopInvites invites={invites.filter((i) => i.sellerId !== shop.sellerId)} />
-      <SellerDashboard seller={page.seller} storefront={page.storefront} listings={listings} orders={orders} questions={questions} money={money} newRequests={requests.filter((r) => r.status === "open" && !r.mine).length} boxes={boxes as Record<string, NonNullable<(typeof boxes)[string]>>} />
+      <SellerDashboard seller={page.seller} storefront={page.storefront} listings={listings} orders={orders} questions={questions} money={shop.role === "owner" ? money : null} newRequests={requests.filter((r) => r.status === "open" && !r.mine).length} boxes={boxes as Record<string, NonNullable<(typeof boxes)[string]>>} />
     </SellFrame>
   );
 }

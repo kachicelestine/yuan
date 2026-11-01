@@ -57,6 +57,9 @@ export interface NoteRepository {
   add(note: Note): Promise<void>;
   listByAuthor(authorId: string, limit: number): Promise<Note[]>;
   listByTag(tag: string, limit: number): Promise<Note[]>;
+  listInReview(limit: number): Promise<Note[]>;
+  /** Puts a note in public; false when there's no such note. */
+  approve(id: string): Promise<boolean>;
   /** Deletes a note (a takedown); returns it, or null if it was already gone. */
   remove(id: string): Promise<Note | null>;
   /** False when there's no such note. */

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { Icon } from "@/components/icon";
 import { useStore } from "@/components/providers";
-import { countdown, localParts } from "@/lib/drops";
+import { countdown, localParts, viewerTimeZone } from "@/lib/drops";
 import { useNow } from "@/lib/use-now";
 import { useStored } from "@/lib/use-stored";
 
@@ -16,13 +16,14 @@ export function LiveSchedule({ shows }: { shows: ScheduledShow[] }) {
   const now = useNow(60_000);
   const { market } = useStore();
   const [reminders, setReminders] = useStored<string[]>("app.reminders", []);
-  const today = now === null ? "" : localParts(now, market.timeZone).key;
+  const timeZone = viewerTimeZone(market.timeZone);
+  const today = now === null ? "" : localParts(now, timeZone).key;
 
   return (
     <ul className="glass flex flex-col divide-y divide-line rounded-[26px] px-3">
       {shows.map((s) => {
         const at = now === null ? null : new Date(s.at).getTime();
-        const local = at === null ? null : localParts(at, market.timeZone);
+        const local = at === null ? null : localParts(at, timeZone);
         const on = reminders.includes(s.id);
         return (
           <li key={s.id} className="flex items-center gap-3 py-3">

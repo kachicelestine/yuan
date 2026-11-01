@@ -3,23 +3,28 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Icon } from "@/components/icon";
-import type { GiftSummary } from "@/modules/ordering";
+import { addressRules, type GiftSummary } from "@/modules/ordering";
 import { senderGiftAddressAction } from "@/server/actions/gifts";
 
-const FIELDS = [
-  ["name", "Their full name"],
-  ["phone", "Their phone"],
-  ["line1", "Street and number"],
-  ["line2", "Apartment or landmark (optional)"],
-  ["city", "City"],
-] as const;
+const fieldsFor = (country: string) => {
+  const { postcode, region } = addressRules(country);
+  return [
+    ["name", "Their full name", true],
+    ["phone", "Their phone", true],
+    ["line1", "Street and number", true],
+    ["line2", "Apartment or landmark (optional)", false],
+    ["city", "City", true],
+    ["region", region.required ? region.label : `${region.label} (optional)`, region.required],
+    ["postcode", postcode.required ? postcode.label : `${postcode.label} (optional)`, postcode.required],
+  ] as const;
+};
 
 /** The sender's gift order: the private link to send, whether it's been opened, and a fallback to add the address. */
-export function GiftPanel({ gift, paid }: { gift: GiftSummary; paid: boolean }) {
+export function GiftPanel({ gift, paid, country }: { gift: GiftSummary; paid: boolean; country: string }) {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [address, setAddress] = useState({ name: gift.recipientName, phone: "", line1: "", line2: "", city: "" });
+  const [address, setAddress] = useState({ name: gift.recipientName, phone: "", line1: "", line2: "", city: "", region: "", postcode: "" });
   const [error, setError] = useState<string | null>(null);
   const [busy, start] = useTransition();
   const link = () => `${window.location.origin}/gift/${gift.token}`;
@@ -78,8 +83,8 @@ export function GiftPanel({ gift, paid }: { gift: GiftSummary; paid: boolean }) 
               }}
               className="mt-3 grid gap-2 sm:grid-cols-2"
             >
-              {FIELDS.map(([key, label]) => (
-                <input key={key} aria-label={label} placeholder={label} required={key !== "line2"} value={address[key]} onChange={(e) => setAddress({ ...address, [key]: e.target.value })} className="glass-inset h-11 rounded-2xl px-3.5 text-[15px] outline-none placeholder:text-ink-3" />
+              {fieldsFor(country).map(([key, label, required]) => (
+                <input key={key} aria-label={label} placeholder={label} required={required} value={address[key]} onChange={(e) => setAddress({ ...address, [key]: e.target.value })} className="glass-inset h-11 rounded-2xl px-3.5 text-[15px] outline-none placeholder:text-ink-3" />
               ))}
               {error && (
                 <p role="alert" className="text-[13px] text-like sm:col-span-2">

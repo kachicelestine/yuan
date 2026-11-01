@@ -15,7 +15,7 @@ const MAX_BYTES = 12 * 1024 * 1024;
 const MAX_CAPTION = 300;
 
 type Ratio = "tall" | "square" | "wide";
-type Stage = { kind: "editing" } | { kind: "posting" } | { kind: "posted" } | { kind: "failed"; message: string };
+type Stage = { kind: "editing" } | { kind: "posting" } | { kind: "posted"; inReview: boolean } | { kind: "failed"; message: string };
 
 /** The waterfall's height hint, from the photo's own shape. */
 const ratioOf = (w: number, h: number): Ratio => (w / h < 0.9 ? "tall" : w / h > 1.15 ? "wide" : "square");
@@ -59,7 +59,7 @@ export function PhotoComposer() {
       return setStage({ kind: "failed", message: e instanceof Error ? e.message : "The upload didn't finish." });
     }
     const r = await postNoteAction({ photo: ticket.photo, caption, tags: [], productSlug: product?.slug ?? null, ratio });
-    setStage(r.ok ? { kind: "posted" } : { kind: "failed", message: r.message });
+    setStage(r.ok ? { kind: "posted", inReview: r.inReview } : { kind: "failed", message: r.message });
   }
 
   if (stage.kind === "posted")
@@ -68,8 +68,8 @@ export function PhotoComposer() {
         <span className="grid size-14 place-items-center rounded-full bg-positive/15 text-positive">
           <Icon name="check" className="size-7" />
         </span>
-        <h2 className="font-display text-xl font-bold">Posted</h2>
-        <p className="max-w-xs text-sm text-ink-2">It&apos;s on Discover, your profile and every hashtag in the caption.</p>
+        <h2 className="font-display text-xl font-bold">{stage.inReview ? "Sent for review" : "Posted"}</h2>
+        <p className="max-w-xs text-sm text-ink-2">{stage.inReview ? "We check every new post. Once it's approved it goes on Discover, your profile and every hashtag in the caption." : "It's on Discover, your profile and every hashtag in the caption."}</p>
         <div className="mt-2 flex gap-2">
           <Link href="/discover" className="h-11 rounded-full bg-white px-5 text-[15px] leading-11 font-bold text-black">
             See it on Discover

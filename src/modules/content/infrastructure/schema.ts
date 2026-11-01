@@ -121,6 +121,8 @@ export const notes = contentSchema.table(
     video: boolean().notNull().default(false),
     likes: integer().notNull().default(0),
     tags: text().array().notNull().default(sql`'{}'`),
+    /** Waiting for a moderator; nobody else sees it until then. */
+    inReview: boolean().notNull().default(false),
     createdAt: timestamp({ withTimezone: true }).notNull(),
   },
   (t) => [index("notes_category_idx").on(t.category, t.createdAt), index("notes_author_idx").on(t.authorId, t.createdAt), index("notes_tags_idx").using("gin", t.tags)],

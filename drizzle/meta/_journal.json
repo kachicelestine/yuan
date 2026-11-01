@@ -281,6 +281,27 @@
       "when": 1793173997990,
       "tag": "0039_team",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793572123982,
+      "tag": "0040_account_market",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793572217101,
+      "tag": "0041_note_review",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1793572776282,
+      "tag": "0042_translations",
+      "breakpoints": true
     }
   ]
 }

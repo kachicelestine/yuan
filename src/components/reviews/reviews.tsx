@@ -6,6 +6,7 @@ import { Icon } from "@/components/icon";
 import { Flag } from "@/components/market/flag";
 import { Chip } from "@/components/search/filters-sheet";
 import { useStore } from "@/components/providers";
+import { TranslateText } from "@/components/translate-text";
 import type { Review, ReviewSummary } from "@/lib/catalog";
 import { compact } from "@/lib/format";
 import { reactAction } from "@/server/actions/content";
@@ -130,6 +131,11 @@ function ReviewCard({ review: r, productTitle }: { review: Review; productTitle?
       </header>
       {productTitle && <p className="mt-2 text-xs font-semibold text-ink-2">{productTitle}</p>}
       <p className="mt-2.5 text-[15px] leading-relaxed">{original && r.original ? r.original : r.text}</p>
+      {!r.translatedFrom && (
+        <div className="mt-1.5">
+          <TranslateText text={r.text} />
+        </div>
+      )}
       {r.translatedFrom && (
         <button type="button" onClick={() => setOriginal(!original)} className="mt-1.5 flex items-center gap-1 text-xs font-semibold text-agent">
           <Icon name="globe" className="size-3.5" />

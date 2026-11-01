@@ -82,7 +82,7 @@ export function makeGifts({ gifts, orders, uow, clock }: GiftsDeps) {
   };
 
   async function claim(g: Gift, o: Order, by: "recipient" | "sender", input: AddressInput, choice: string | null, choices: readonly string[]): Promise<Result<Gift, GiftError | AddressError>> {
-    const address = cleanAddress(input);
+    const address = cleanAddress(input, o.country);
     if (!address.ok) return address;
     const claimed = claimGift(g, { by, choice, choices, paid: o.status === "paid" || o.status === "completed", at: clock.now() });
     if (!claimed.ok) return claimed;

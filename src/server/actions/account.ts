@@ -3,10 +3,11 @@
 import { z } from "zod";
 import { MAX_LIST } from "@/modules/engagement";
 import { MAX_CART_LINES } from "@/modules/ordering";
+import { closeAccount, closureBlock } from "../account-closure";
 import { accountData, type AccountState } from "../account-data";
 import { services } from "../container";
 import { allow, RATE_LIMITED } from "../rate-limits";
-import { currentAccount } from "../session";
+import { currentAccount, endSession } from "../session";
 
 type Failure = { ok: false; code: string; message: string };
 const fail = (code: string, message: string): Failure => ({ ok: false, code, message });
@@ -44,6 +45,29 @@ export async function syncAccountAction(
   }
   await store.save(account.id, data.data);
   return { ok: true, state: null };
+}
+
+/** Remembers the country this account ships to, for its other devices. */
+export async function saveMarketAction(code: string): Promise<{ ok: true } | Failure> {
+  const account = await currentAccount();
+  if (!account) return signedOut();
+  if (!(await allow("account.write", account.id))) return RATE_LIMITED;
+  const parsed = z.string().regex(/^[A-Z]{2}$/).safeParse(code);
+  if (!parsed.success) return fail("invalid", "That country couldn't be read.");
+  await (await services()).accounts.setMarket(account.id, parsed.data);
+  return { ok: true };
+}
+
+/** Deletes the signed-in person's account, unless orders or a shop still depend on it. */
+export async function closeAccountAction(): Promise<{ ok: true } | Failure> {
+  const account = await currentAccount();
+  if (!account) return signedOut();
+  const app = await services();
+  const block = await closureBlock(app, account.id);
+  if (block) return fail("cannot_close", block);
+  await closeAccount(app, account.id);
+  await endSession();
+  return { ok: true };
 }
 
 /** Puts a free coupon in the wallet. */

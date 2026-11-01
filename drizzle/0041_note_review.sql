@@ -1,0 +1,1 @@
+ALTER TABLE "content"."notes" ADD COLUMN "in_review" boolean DEFAULT false NOT NULL;

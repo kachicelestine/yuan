@@ -10,7 +10,7 @@ import { useStore } from "@/components/providers";
 import { brand } from "@/config/brand";
 import { getTheme } from "@/lib/gifts";
 import { shiftDelivery } from "@/lib/landed";
-import { GIFT_THANKS, type GiftView } from "@/modules/ordering";
+import { addressRules, GIFT_THANKS, type GiftView } from "@/modules/ordering";
 import { claimGiftAction, thankGiftAction } from "@/server/actions/gifts";
 
 type Stage = "wrapped" | "opening" | "card" | "gift" | "sent";
@@ -24,7 +24,8 @@ export function GiftUnwrap({ initial, choices, delivery }: { initial: GiftView; 
   const theme = getTheme(gift.theme);
   const [stage, setStage] = useState<Stage>("wrapped");
   const [choice, setChoice] = useState<string | null>(null);
-  const [address, setAddress] = useState({ name: gift.recipientName, phone: "", line1: "", line2: "", city: market?.city ?? "" });
+  const [address, setAddress] = useState({ name: gift.recipientName, phone: "", line1: "", line2: "", city: market?.city ?? "", region: "", postcode: "" });
+  const rules = addressRules(gift.country);
   const [said, setSaid] = useState<string | null>(gift.thanks);
   const [error, setError] = useState<string | null>(null);
   const [busy, start] = useTransition();
@@ -145,6 +146,8 @@ export function GiftUnwrap({ initial, choices, delivery }: { initial: GiftView; 
                     ["line1", "Street and number", "address-line1"],
                     ["line2", "Apartment or landmark (optional)", "address-line2"],
                     ["city", "City", "address-level2"],
+                    ["region", rules.region.required ? rules.region.label : `${rules.region.label} (optional)`, "address-level1"],
+                    ["postcode", rules.postcode.required ? rules.postcode.label : `${rules.postcode.label} (optional)`, "postal-code"],
                   ] as const
                 ).map(([key, label, auto]) => (
                   <input
@@ -153,7 +156,7 @@ export function GiftUnwrap({ initial, choices, delivery }: { initial: GiftView; 
                     placeholder={label}
                     autoComplete={auto}
                     type={key === "phone" ? "tel" : "text"}
-                    required={key !== "line2"}
+                    required={key === "region" ? rules.region.required : key === "postcode" ? rules.postcode.required : key !== "line2"}
                     value={address[key]}
                     onChange={(e) => setAddress({ ...address, [key]: e.target.value })}
                     className="glass-inset h-12 rounded-2xl px-4 text-[15px] outline-none placeholder:text-ink-3 focus:ring-2 focus:ring-white/40"

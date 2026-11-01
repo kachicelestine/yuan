@@ -1,6 +1,11 @@
 // Time helpers for drops: instants shown in the shopper's own time zone.
 
 /** Day key, weekday, date and time of an instant in a time zone. */
+/** The viewer's own time zone; the market's is a stand-in for a server render, where there's no clock to ask. */
+export function viewerTimeZone(fallback: string) {
+  return typeof window === "undefined" ? fallback : (Intl.DateTimeFormat().resolvedOptions().timeZone ?? fallback);
+}
+
 export function localParts(at: number, timeZone: string) {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat("en-GB", { timeZone, year: "numeric", month: "short", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })

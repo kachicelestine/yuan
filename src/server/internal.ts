@@ -21,7 +21,9 @@ export async function revalidateTags(tags: readonly string[]) {
     log.warn("INTERNAL_TOKEN is not set; cached data will refresh on its own schedule", { tags });
     return;
   }
-  const base = serverEnv.INTERNAL_URL ?? `http://127.0.0.1:${process.env.PORT ?? 3000}`;
+  // Serverless functions have no local server to call, so they go through the public address.
+  const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
+  const base = serverEnv.INTERNAL_URL ?? (vercelHost ? `https://${vercelHost}` : `http://127.0.0.1:${process.env.PORT ?? 3000}`);
   const res = await fetch(new URL("/api/internal/revalidate", base), {
     method: "POST",
     headers: { authorization: `Bearer ${serverEnv.INTERNAL_TOKEN}`, "content-type": "application/json" },

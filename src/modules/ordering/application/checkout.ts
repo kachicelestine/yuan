@@ -65,7 +65,7 @@ export function makeCheckout(deps: CheckoutDeps) {
     // A gift's address comes later, from the recipient; everyone else gives one now.
     if (req.gift && req.address) return err(domainError("invalid_gift", "The recipient adds their own address."));
     if (!req.gift && !req.address) return err(domainError("invalid_address", "Add where it should be delivered."));
-    const address = req.address ? cleanAddress(req.address) : ok(null);
+    const address = req.address ? cleanAddress(req.address, req.country) : ok(null);
     if (!address.ok) return address;
 
     const destination = await deps.destinations.find(req.country);

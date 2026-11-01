@@ -7,6 +7,7 @@ import type { RfqView } from "@/modules/sourcing";
 import { openRfqAction } from "@/server/actions/sourcing";
 
 export const PORTS = ["Apapa, Lagos", "Tema, Ghana", "Mombasa, Kenya", "Durban, South Africa", "Abidjan, Côte d'Ivoire", "Santos, Brazil", "Nhava Sheva, India", "Rotterdam, Netherlands", "Los Angeles, USA", "Jebel Ali, Dubai"];
+const OTHER_PORT = "Somewhere else";
 export const TERMS = [
   { id: "FOB", label: "FOB", detail: "Price at the port in China; you arrange freight." },
   { id: "CIF", label: "CIF", detail: "Price includes freight and insurance to your port." },
@@ -16,7 +17,7 @@ export type Term = (typeof TERMS)[number]["id"];
 
 /** The request form, on the Business page or for one listing (`slug`) from its product page. */
 export function RfqForm({ signedIn, next, slug = null, item: fixedItem, onSent }: { signedIn: boolean; next: string; slug?: string | null; item?: string; onSent: (r: RfqView) => void }) {
-  const [form, setForm] = useState({ item: "", details: "", qty: slug ? "1" : "500", target: "", port: PORTS[0], incoterm: "DDP" as Term, samples: !slug });
+  const [form, setForm] = useState({ item: "", details: "", qty: slug ? "1" : "500", target: "", port: PORTS[0], otherPort: "", incoterm: "DDP" as Term, samples: !slug });
   const [error, setError] = useState<string | null>(null);
   const [busy, start] = useTransition();
   const item = fixedItem ?? form.item;
@@ -28,7 +29,7 @@ export function RfqForm({ signedIn, next, slug = null, item: fixedItem, onSent }
         if (!item.trim() || busy) return;
         setError(null);
         start(async () => {
-          const r = await openRfqAction({ item, details: form.details, slug, qty: Number(form.qty) || 0, target: form.target ? Number(form.target) || null : null, port: form.port, incoterm: form.incoterm, samples: form.samples });
+          const r = await openRfqAction({ item, details: form.details, slug, qty: Number(form.qty) || 0, target: form.target ? Number(form.target) || null : null, port: form.port === OTHER_PORT ? form.otherPort : form.port, incoterm: form.incoterm, samples: form.samples });
           if (!r.ok) return setError(r.message);
           onSent(r.rfq);
           setForm((f) => ({ ...f, item: "", details: "", target: "" }));
@@ -58,9 +59,16 @@ export function RfqForm({ signedIn, next, slug = null, item: fixedItem, onSent }
               {p}
             </option>
           ))}
+          <option className="bg-raised">{OTHER_PORT}</option>
         </select>
         <Icon name="down" className="absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-ink-2" />
       </label>
+      {form.port === OTHER_PORT && (
+        <label className="glass-inset flex flex-col rounded-2xl px-3.5 py-2 sm:col-span-2">
+          <span className="text-[11px] font-semibold text-ink-2">Port or city, and country</span>
+          <input value={form.otherPort} onChange={(e) => setForm({ ...form, otherPort: e.target.value })} maxLength={80} required placeholder="Yokohama, Japan" className="h-7 bg-transparent text-base outline-none placeholder:text-ink-3" />
+        </label>
+      )}
       <fieldset className="sm:col-span-2">
         <legend className="mb-2 text-[11px] font-semibold text-ink-2">What the price should include</legend>
         <div className="grid grid-cols-3 gap-2">

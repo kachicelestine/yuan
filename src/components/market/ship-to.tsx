@@ -10,7 +10,7 @@ import type { Region } from "@/lib/types";
 
 const regions: Region[] = ["Africa", "Europe", "Americas", "Asia-Pacific", "Middle East"];
 
-type Variant = "chip" | "row" | "link";
+type Variant = "chip" | "row" | "link" | "country";
 
 /** Where we ship to. Picking a country changes currency, taxes, delivery and payment options everywhere. */
 export function ShipTo({ variant = "chip", className = "" }: { variant?: Variant; className?: string }) {
@@ -41,6 +41,16 @@ export function ShipTo({ variant = "chip", className = "" }: { variant?: Variant
             </span>
           </span>
           <Icon name="forward" className="size-5 text-ink-2" />
+        </button>
+      )}
+      {variant === "country" && (
+        <button type="button" onClick={open} aria-label={`Country: ${market.name}. Change`} className={`glass-inset flex w-full items-center gap-3 p-3 text-left ${className}`}>
+          <Flag code={market.code} className="size-7" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[11px] font-semibold text-ink-2">Country</span>
+            <span className="block truncate text-[15px] font-semibold">{market.name}</span>
+          </span>
+          <span className="text-[13px] font-semibold text-ink underline decoration-white/30 underline-offset-2">Change</span>
         </button>
       )}
       {variant === "link" && (

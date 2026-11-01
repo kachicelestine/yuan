@@ -9,8 +9,39 @@ const sleep = (ms: number, signal: AbortSignal) =>
     signal.addEventListener("abort", () => (clearTimeout(t), resolve()), { once: true });
   });
 
+type JobStatus = { startedAt: Date | null; lastDispatchAt: Date | null; lastTickAt: Date | null; lastEncodeAt: Date | null };
+
+// On globalThis because instrumentation and route handlers are bundled apart: a module-level
+// object would give the health check its own copy that never changes.
+const globalForStatus = globalThis as typeof globalThis & { __lycheeJobStatus?: JobStatus };
+
 /** Last successful loop pass, for the health check. */
-export const jobStatus = { startedAt: null as Date | null, lastDispatchAt: null as Date | null, lastTickAt: null as Date | null, lastEncodeAt: null as Date | null };
+export const jobStatus = (globalForStatus.__lycheeJobStatus ??= { startedAt: null, lastDispatchAt: null, lastTickAt: null, lastEncodeAt: null });
+
+/**
+ * One pass of everything, for hosts with no long-running process (a serverless function
+ * called on a schedule): recurring jobs that are due, one video to encode, then events until
+ * none are left or `budgetMs` runs out. Leases make overlapping calls safe.
+ */
+export async function runJobsOnce(budgetMs: number) {
+  const { app, dispatcher, scheduler } = await buildJobs();
+  const deadline = Date.now() + budgetMs;
+  const ran = await scheduler.tick();
+  jobStatus.lastTickAt = new Date();
+  for (const run of ran) if (!run.ok) jobLog.error("job failed", run);
+  const encoded = await app.uploads.encodeNext();
+  if (encoded) jobLog.info("video encoded", encoded);
+  jobStatus.lastEncodeAt = new Date();
+  let delivered = 0;
+  while (Date.now() < deadline) {
+    const r = await dispatcher.dispatchOnce();
+    jobStatus.lastDispatchAt = new Date();
+    delivered += r.delivered;
+    if (r.retried || r.failed) jobLog.warn("outbox delivery problems", r);
+    if (r.claimed === 0 || r.claimed !== r.delivered) break;
+  }
+  return { jobs: ran, delivered };
+}
 
 /**
  * Three loops until `signal` aborts: deliver outbox events (every second, straight away

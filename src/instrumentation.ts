@@ -3,8 +3,13 @@ import type { Instrumentation } from "next";
 /** Runs once when a server process starts: background jobs live here on single-server deployments. */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
-  const { startInlineJobs } = await import("./server/jobs/start");
-  startInlineJobs();
+  // Anything thrown here fails every request, even ones that need nothing from it.
+  try {
+    const { startInlineJobs } = await import("./server/jobs/start");
+    startInlineJobs();
+  } catch (error) {
+    console.error("Background jobs didn't start:", error instanceof Error ? error.message : error);
+  }
 }
 
 /** Every server-side error, as one structured log line (the digest matches what the user sees). */

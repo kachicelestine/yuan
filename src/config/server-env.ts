@@ -10,10 +10,15 @@ const evmAddress = z.string().regex(/^0x[a-fA-F0-9]{40}$/, "must be a 0x… EVM 
 const solanaAddress = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/, "must be a base58 Solana address");
 const tronAddress = z.string().regex(/^T[1-9A-HJ-NP-Za-km-z]{33}$/, "must be a T… Tron address");
 
+/** Vercel sets this on its builds and functions. */
+const onVercel = Boolean(process.env.VERCEL);
+
 const schema = z
   .object({
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
     DATABASE_URL: optional(z.url().refine((u) => /^postgres(ql)?:\/\//.test(u), "must start with postgres://")),
+    /** A direct (unpooled) connection for live updates: LISTEN doesn't survive a transaction pooler. Derived for Neon. */
+    DATABASE_LISTEN_URL: optional(z.url().refine((u) => u.startsWith("postgres"), "must start with postgres://")),
     PAYMENTS_MODE: z.enum(["simulated", "onchain"]).default("simulated"),
     PAYMENTS_BASE_ADDRESS: optional(evmAddress),
     PAYMENTS_SOLANA_ADDRESS: optional(solanaAddress),
@@ -44,15 +49,16 @@ const schema = z
     EMAIL_FROM: optional(z.string().min(3)),
     /**
      * inline: the web server also runs background jobs (outbox delivery, invoice sweeps,
-     * rate refresh); right for a single server. off: run them in `pnpm worker` instead.
+     * rate refresh); right for a single server. off: run them in `pnpm worker`, or on
+     * serverless hosts by calling GET /api/internal/jobs on a schedule.
      */
-    JOBS: z.enum(["inline", "off"]).default("inline"),
+    JOBS: z.enum(["inline", "off"]).default(onVercel ? "off" : "inline"),
     /** Authorises internal calls (cache revalidation from jobs and deploys). 32+ random characters. */
     INTERNAL_TOKEN: optional(z.string().min(32, "must be at least 32 characters")),
     /** Where jobs reach this app for internal calls. Defaults to http://127.0.0.1:$PORT. */
     INTERNAL_URL: optional(z.url()),
     /** Which proxy's client-IP header to believe: Cloudflare's, a reverse proxy's X-Forwarded-For, or none. */
-    TRUST_PROXY: z.enum(["cloudflare", "proxy", "none"]).default("none"),
+    TRUST_PROXY: z.enum(["cloudflare", "proxy", "none"]).default(onVercel ? "proxy" : "none"),
     /** json for log shippers in production; pretty for people. */
     LOG_FORMAT: optional(z.enum(["json", "pretty"])),
     /** A public demo or staging site: allows simulated payments and on-screen sign-in codes in production. */
@@ -81,6 +87,8 @@ const schema = z
     LIVE_INGEST_URL: optional(z.url()),
     /** Where viewers fetch HLS, e.g. https://live.example.com (Cloudflare caches it). Defaults to LIVE_INGEST_URL. */
     LIVE_PLAYBACK_URL: optional(z.url()),
+    /** Comma-separated ISO country codes we won't ship to or take shops from. Unset: the list in markets/domain/restricted.ts. */
+    RESTRICTED_COUNTRIES: z.string().optional(),
     /** Share of each sale the platform keeps when Protect releases it, e.g. 0.06 for 6%. */
     PLATFORM_COMMISSION: z.coerce.number().min(0).max(0.5).default(0.06),
     /** Comma-separated emails of people who can open the admin console (they sign in with that email). */
@@ -90,8 +98,12 @@ const schema = z
       .transform((v) => v.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean)),
   })
   .superRefine((env, ctx) => {
+    // Docker images build without secrets, so those builds can't check them. Vercel builds
+    // see the same settings as the running site: a bad one should stop the deploy, not
+    // fail every request after it.
+    const checkable = process.env.NEXT_PHASE !== "phase-production-build" || onVercel;
     // A production server with a real database is a real deployment.
-    if (env.NODE_ENV === "production" && env.DATABASE_URL && process.env.NEXT_PHASE !== "phase-production-build") {
+    if (env.NODE_ENV === "production" && env.DATABASE_URL && checkable) {
       if (!env.AUTH_SECRET) ctx.addIssue({ code: "custom", path: ["AUTH_SECRET"], message: "required in production" });
       if (!env.INTERNAL_TOKEN) ctx.addIssue({ code: "custom", path: ["INTERNAL_TOKEN"], message: "required in production" });
       // Either would let anyone mark an order paid or sign in as anyone.
