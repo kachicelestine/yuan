@@ -25,7 +25,7 @@ export function TabBar() {
   const { navExpanded, setNavExpanded } = useChrome();
 
   // Live rooms, chats and gift unwrapping are immersive and carry their own bottom controls.
-  if (pathname.startsWith("/live/") || pathname === "/ask" || pathname.startsWith("/gift/") || /^\/inbox\/./.test(pathname)) return null;
+  if (pathname.startsWith("/live/") || pathname === "/ask" || pathname.startsWith("/gift/") || /^\/(sell\/)?inbox\/./.test(pathname)) return null;
 
   // On the feed the bar rests minimized to the current tab, leaving the middle of the row
   // to the product accessory (iOS 26/27 tab bar minimize + bottom accessory).

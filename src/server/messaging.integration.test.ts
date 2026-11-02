@@ -1,7 +1,12 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
+import { CopyEncoder } from "@/modules/content/infrastructure/copy-encoder";
 import { SimulatedNetwork } from "@/modules/payments/infrastructure/networks";
 import { openDatabase, type Database } from "@/shared/infrastructure/database";
 import { OutboxDispatcher } from "@/shared/infrastructure/outbox";
+import { LocalStorage } from "@/shared/infrastructure/storage/local-storage";
 import { newId } from "@/shared/kernel";
 import { wire } from "./container";
 import { eventHandlers } from "./jobs/jobs";
@@ -59,6 +64,37 @@ describe("messaging between shoppers and shops", () => {
     expect(await app().messaging.thread(c.id, { side: "buyer", accountId: newId(), name: "x" })).toBeNull();
     expect(await app().messaging.thread(c.id, { side: "shop", accountId: newId(), sellerId: "mei" })).toBeNull();
     expect((await app().messaging.reply(c.id, { side: "shop", accountId: newId(), sellerId: "mei" }, "hi")).ok).toBe(false);
+  });
+
+  it("sends photos privately, and only the sender's own uploads", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "lychee-chat-"));
+    try {
+      const files = new LocalStorage({ dir, baseUrl: "", secret: "test-secret-test-secret-test-secret" });
+      const app = () => wire(db, { clock: { now: () => now }, payments: { network: new SimulatedNetwork(db), simulator: null }, media: { storage: files, privateStorage: files, encoder: new CopyEncoder(files), premoderated: false } });
+      const someone = { accountId: newId(), name: "shopper-ph0t0s" };
+      expect((await app().messaging.startPhoto(someone.accountId, { contentType: "image/gif", bytes: 10 })).ok).toBe(false);
+      expect((await app().messaging.startPhoto(someone.accountId, { contentType: "image/jpeg", bytes: 9 * 1024 * 1024 })).ok).toBe(false);
+      const ticket = await app().messaging.startPhoto(someone.accountId, { contentType: "image/jpeg", bytes: 5 });
+      if (!ticket.ok) throw new Error(ticket.error.message);
+      const key = ticket.value.photo;
+      expect(key).toMatch(new RegExp(`^chat/${someone.accountId}/`));
+
+      // Not uploaded yet.
+      expect((await app().messaging.toShop(someone, "voltgrid", "", null, key)).ok).toBe(false);
+      await mkdir(dirname(files.path(key)), { recursive: true });
+      await writeFile(files.path(key), "hello");
+      const sent = await app().messaging.toShop(someone, "voltgrid", "", null, key);
+      if (!sent.ok) throw new Error(sent.error.message);
+      // Seen through a short-lived signed link, never the bare key.
+      expect(sent.value.message.photo).toMatch(/^\/api\/storage\/file\?key=chat%2F.+&exp=\d+&sig=/);
+      expect((await app().messaging.shopInbox("voltgrid")).find((c) => c.id === sent.value.conversationId)?.lastText).toBe("Sent a photo");
+      expect((await app().messaging.thread(sent.value.conversationId, shop))?.messages.at(-1)?.photo).toContain("key=chat%2F");
+
+      // Nobody can send someone else's upload as their own.
+      expect((await app().messaging.reply(sent.value.conversationId, shop, "", null, key)).ok).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it("notifies the other side, at most once an hour per conversation", async () => {

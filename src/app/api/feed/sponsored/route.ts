@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { sponsoredVideo } from "@/server/ads";
+import { adViewer, sponsoredVideo } from "@/server/ads";
 import { allow, clientIp } from "@/server/rate-limits";
 
 /**
@@ -9,5 +9,5 @@ import { allow, clientIp } from "@/server/rate-limits";
 export async function GET(request: NextRequest) {
   if (!(await allow("feed", await clientIp()))) return Response.json({ item: null }, { status: 429, headers: { "retry-after": "60" } });
   const skip = (request.nextUrl.searchParams.get("skip") ?? "").split(",").filter(Boolean).slice(0, 50);
-  return Response.json({ item: await sponsoredVideo(skip) }, { headers: { "cache-control": "private, no-store" } });
+  return Response.json({ item: await sponsoredVideo(skip, await adViewer()) }, { headers: { "cache-control": "private, no-store" } });
 }

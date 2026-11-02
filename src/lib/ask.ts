@@ -16,8 +16,8 @@ export type AskBlock =
 /** One line of the response stream (newline-delimited JSON). */
 export type AskEvent = { type: "step"; text: string } | { type: "blocks"; blocks: AskBlock[] } | { type: "error"; message: string } | { type: "done" };
 
-/** A turn kept for context: what the shopper asked and what the assistant said. */
-export type AskTurn = { role: "user" | "assistant"; text: string };
+/** A turn kept for context: what the shopper asked and what the assistant said. The latest question may carry a photo (JPEG, base64). */
+export type AskTurn = { role: "user" | "assistant"; text: string; photo?: string };
 
 export const askSuggestions = [
   "Power my 2-bedroom flat through blackouts",

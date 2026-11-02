@@ -47,6 +47,9 @@ const schema = z
     /** Resend (resend.com) API key and sender, for sign-in emails. */
     RESEND_API_KEY: optional(z.string().startsWith("re_", "must be a Resend key (re_…)")),
     EMAIL_FROM: optional(z.string().min(3)),
+    /** "Continue with Google": an OAuth client (Google Cloud console, Web application). Without the pair, the button hides. */
+    GOOGLE_CLIENT_ID: optional(z.string().endsWith(".apps.googleusercontent.com", "must be a Google OAuth client ID (….apps.googleusercontent.com)")),
+    GOOGLE_CLIENT_SECRET: optional(z.string().min(10)),
     /** Browser alerts: `pnpm exec web-push generate-vapid-keys` makes the pair. Without it, alerts stay off. */
     NEXT_PUBLIC_VAPID_PUBLIC_KEY: optional(z.string().min(20)),
     VAPID_PRIVATE_KEY: optional(z.string().min(20)),
@@ -101,6 +104,7 @@ const schema = z
       .transform((v) => v.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean)),
   })
   .superRefine((env, ctx) => {
+    if (!env.GOOGLE_CLIENT_ID !== !env.GOOGLE_CLIENT_SECRET) ctx.addIssue({ code: "custom", path: ["GOOGLE_CLIENT_SECRET"], message: "set both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, or neither" });
     if (!env.VAPID_PRIVATE_KEY !== !env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) ctx.addIssue({ code: "custom", path: ["VAPID_PRIVATE_KEY"], message: "set both VAPID_PRIVATE_KEY and NEXT_PUBLIC_VAPID_PUBLIC_KEY, or neither" });
     // Docker images build without secrets, so those builds can't check them. Vercel builds
     // see the same settings as the running site: a bad one should stop the deploy, not
@@ -124,6 +128,8 @@ const schema = z
       for (const key of ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET", "R2_PRIVATE_BUCKET", "MEDIA_PUBLIC_URL"] as const) {
         if (!env[key]) ctx.addIssue({ code: "custom", path: [key], message: "required when STORAGE=r2" });
       }
+      // The public bucket is served to anyone at MEDIA_PUBLIC_URL; identity documents and chat photos must never be in it.
+      if (env.R2_BUCKET && env.R2_BUCKET === env.R2_PRIVATE_BUCKET) ctx.addIssue({ code: "custom", path: ["R2_PRIVATE_BUCKET"], message: "must be a different bucket from R2_BUCKET: it holds identity documents and chat photos, and R2_BUCKET is public" });
     }
     // Each rail is offered when its treasury address is set.
     if (env.PAYMENTS_MODE === "onchain" && !env.PAYMENTS_BASE_ADDRESS && !env.PAYMENTS_SOLANA_ADDRESS && !env.PAYMENTS_TRON_ADDRESS) {

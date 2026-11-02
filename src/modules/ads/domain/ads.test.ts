@@ -1,9 +1,33 @@
 import { describe, expect, it } from "vitest";
 import { cents } from "@/shared/kernel/money";
-import { auction, createCampaign, editCampaign, quality, shouldServe, type Candidate } from "./ads";
+import { auction, createCampaign, editCampaign, matchesKeywords, quality, shouldServe, type Candidate } from "./ads";
 
 const at = new Date("2026-10-24T10:00:00Z");
 const c = (id: string, sellerId: string, bid: number, q = 1): Candidate => ({ campaignId: id, sellerId, slug: `${id}-p`, bid: cents(bid), quality: q });
+
+describe("keywords", () => {
+  const base = { id: "k", sellerId: "s", name: "Kit", slugs: ["p"], owned: ["p"], bid: cents(30), dailyBudget: cents(500), at };
+
+  it("tidies keywords and matches searches that use them as whole words", () => {
+    const made = createCampaign({ ...base, keywords: ["  Power  Cut ", "power cut", "CAMPING!"] });
+    expect(made.ok && made.value.keywords).toEqual(["power cut", "camping"]);
+    expect(matchesKeywords("Lamp for a power-cut", ["power cut"])).toBe(true);
+    expect(matchesKeywords("camping lantern", ["camping"])).toBe(true);
+    expect(matchesKeywords("campings", ["camping"])).toBe(false);
+    expect(matchesKeywords("", ["camping"])).toBe(false);
+    expect(matchesKeywords("lantern", [])).toBe(false);
+  });
+
+  it("refuses keywords that are too short, or too many", () => {
+    expect(createCampaign({ ...base, keywords: ["a"] }).ok).toBe(false);
+    expect(createCampaign({ ...base, keywords: Array.from({ length: 21 }, (_, i) => `word${i}`) }).ok).toBe(false);
+    const made = createCampaign(base);
+    if (!made.ok) throw new Error(made.error.message);
+    expect(made.value.keywords).toEqual([]);
+    const edited = editCampaign(made.value, { keywords: ["solar"] }, [], at);
+    expect(edited.ok && edited.value.keywords).toEqual(["solar"]);
+  });
+});
 
 describe("the ad auction", () => {
   it("ranks by bid times quality and charges just enough to keep the place", () => {

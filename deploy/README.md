@@ -26,7 +26,7 @@ visitors ─▶ Cloudflare (DNS, CDN, WAF, R2) ◀── tunnel (outbound) ─�
      ```json
      [{ "AllowedOrigins": ["https://<your domain>"], "AllowedMethods": ["PUT"], "AllowedHeaders": ["content-type"], "MaxAgeSeconds": 3600 }]
      ```
-   - On `lychee-private` → the same CORS policy (sellers upload documents straight to it), and **no** custom domain or public access.
+   - On `lychee-private` → the same CORS policy (seller documents and chat photos upload straight to it), and **no** custom domain or public access.
 3. **Speed and security:** SSL/TLS → Always Use HTTPS **on**; Speed → Brotli **on**; Security → Bot Fight Mode **on**.
 
 ### 3. The server

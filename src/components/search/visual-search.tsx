@@ -6,22 +6,10 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icon";
 import { ProductCard } from "@/components/product/product-card";
 import type { Product } from "@/lib/catalog";
+import { photoFromFile, shrinkPhoto } from "@/lib/photo";
 
 type Phase = "frame" | "analyzing" | "results";
 type Result = { found: false } | { found: true; name: string; query: string; products: Product[] };
-
-const MAX_SIDE = 1024;
-
-/** A photo as a JPEG no bigger than MAX_SIDE on its longest side, base64 (no data: prefix). */
-async function shrink(source: CanvasImageSource & { width?: number; height?: number }, width: number, height: number) {
-  const scale = Math.min(1, MAX_SIDE / Math.max(width, height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(width * scale);
-  canvas.height = Math.round(height * scale);
-  canvas.getContext("2d")?.drawImage(source, 0, 0, canvas.width, canvas.height);
-  const url = canvas.toDataURL("image/jpeg", 0.8);
-  return { url, data: url.slice(url.indexOf(",") + 1) };
-}
 
 /**
  * Snap to search: point the camera at something (or upload a photo) and find it in the
@@ -95,7 +83,7 @@ export function VisualSearch({ open, onClose }: { open: boolean; onClose: () => 
   async function capture() {
     const v = video.current;
     if (camera !== "on" || !v || !v.videoWidth) return;
-    const photo = await shrink(v, v.videoWidth, v.videoHeight);
+    const photo = shrinkPhoto(v, v.videoWidth, v.videoHeight);
     stopCamera();
     setCamera("off");
     await search(photo);
@@ -106,8 +94,7 @@ export function VisualSearch({ open, onClose }: { open: boolean; onClose: () => 
     stopCamera();
     setCamera("off");
     try {
-      const bitmap = await createImageBitmap(file);
-      await search(await shrink(bitmap, bitmap.width, bitmap.height));
+      await search(await photoFromFile(file));
     } catch {
       setError("That file isn't a photo we can read.");
     }

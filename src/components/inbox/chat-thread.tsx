@@ -7,8 +7,9 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Icon, VerifiedBadge } from "@/components/icon";
 import { useMoney } from "@/components/price";
 import { TranslateText } from "@/components/translate-text";
+import { photoBlob, photoFromFile, type ShrunkPhoto } from "@/lib/photo";
 import type { MessageView, Side } from "@/modules/messaging";
-import { replyAsShopAction, sendToShopAction } from "@/server/actions/messages";
+import { replyAsShopAction, sendToShopAction, startChatPhotoAction } from "@/server/actions/messages";
 
 export type ChatProduct = { slug: string; title: string; image: string; price: number | null };
 
@@ -25,7 +26,7 @@ const time = (iso: string) => {
 
 /**
  * A conversation between a shopper and a shop, from either side. New messages arrive by
- * polling while the thread is open; a product can ride along with a message as a card.
+ * polling while the thread is open; a product card or a photo can ride along with a message.
  */
 export function ChatThread({
   side,
@@ -63,6 +64,7 @@ export function ChatThread({
   const [known, setKnown] = useState(products);
   const [draft, setDraft] = useState("");
   const [attached, setAttached] = useState<ChatProduct | null>(about ?? null);
+  const [photo, setPhoto] = useState<ShrunkPhoto | null>(null);
   const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, start] = useTransition();
@@ -91,12 +93,24 @@ export function ChatThread({
 
   function send(text: string) {
     const t = text.trim();
-    if (!t && !attached) return;
+    if (!t && !attached && !photo) return;
     const product = attached;
+    const picture = photo;
     start(async () => {
-      const r = side === "buyer" ? await sendToShopAction(sellerId, t, product?.slug ?? null) : await replyAsShopAction(conversationId!, t, product?.slug ?? null);
+      const signIn = () => router.push(`/signin?next=${encodeURIComponent(window.location.pathname)}`);
+      // A photo goes up to private storage first; the message carries its key.
+      let key: string | null = null;
+      if (picture) {
+        const blob = photoBlob(picture);
+        const ticket = await startChatPhotoAction({ contentType: "image/jpeg", bytes: blob.size });
+        if (!ticket.ok) return ticket.code === "sign_in_required" ? signIn() : setError(ticket.message);
+        const put = await fetch(ticket.url, { method: ticket.method, headers: ticket.headers, body: blob }).catch(() => null);
+        if (!put?.ok) return setError("The photo didn't upload. Try again.");
+        key = ticket.photo;
+      }
+      const r = side === "buyer" ? await sendToShopAction(sellerId, t, product?.slug ?? null, key) : await replyAsShopAction(conversationId!, t, product?.slug ?? null, key);
       if (!r.ok) {
-        if (r.code === "sign_in_required") return router.push(`/signin?next=${encodeURIComponent(window.location.pathname)}`);
+        if (r.code === "sign_in_required") return signIn();
         return setError(r.message);
       }
       const started = (r as { conversationId?: string }).conversationId;
@@ -105,6 +119,7 @@ export function ChatThread({
       setMessages((m) => [...m, r.message]);
       setDraft("");
       setAttached(null);
+      setPhoto(null);
       setError(null);
     });
   }
@@ -151,6 +166,12 @@ export function ChatThread({
                     {product && <span className="block font-display text-base font-extrabold">{product.price !== null ? money(product.price) : "Quote"}</span>}
                   </span>
                 </Link>
+              )}
+              {m.photo && (
+                <a href={m.photo} target="_blank" rel="noopener noreferrer" aria-label={mine ? "Your photo, full size" : "Their photo, full size"} className="block overflow-hidden rounded-[20px]">
+                  {/* A private, short-lived link: shown as is, never through the image optimiser's cache. */}
+                  <Image src={m.photo} alt="" width={240} height={240} unoptimized className="h-auto max-h-[320px] w-[240px] object-cover" />
+                </a>
               )}
               {m.text && <p className={`rounded-[20px] px-3.5 py-2.5 text-[15px] leading-snug whitespace-pre-wrap ${mine ? "rounded-br-md bg-accent" : "glass-inset rounded-bl-md"}`}>{m.text}</p>}
               {m.text && !mine && (
@@ -199,6 +220,15 @@ export function ChatThread({
             </button>
           </div>
         )}
+        {photo && (
+          <div className="glass mb-2 flex items-center gap-2.5 rounded-[20px] p-2">
+            <Image src={photo.url} alt="" width={36} height={36} unoptimized className="size-9 rounded-lg object-cover" />
+            <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">Photo ready to send</span>
+            <button type="button" onClick={() => setPhoto(null)} aria-label="Remove the photo" className="grid size-8 place-items-center rounded-full">
+              <Icon name="close" className="size-4" />
+            </button>
+          </div>
+        )}
         <div className="no-scrollbar -mx-3.5 mb-2 flex gap-2 overflow-x-auto px-3.5">
           {QUICK[side].map((q) => (
             <button key={q} type="button" disabled={busy || (side === "shop" && !conversationId)} onClick={() => send(q)} className="glass h-9 shrink-0 rounded-full px-3.5 text-[13px] font-semibold">
@@ -218,11 +248,32 @@ export function ChatThread({
               <Icon name="plus" />
             </button>
           )}
+          <label className="glass grid size-12 shrink-0 cursor-pointer place-items-center rounded-full">
+            <span className="sr-only">Add a photo</span>
+            <Icon name="camera" className="size-5" />
+            <input
+              type="file"
+              accept="image/*"
+              disabled={busy}
+              className="sr-only"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (!file) return;
+                try {
+                  setPhoto(await photoFromFile(file, 1600));
+                  setError(null);
+                } catch {
+                  setError("That file isn't a photo we can read.");
+                }
+              }}
+            />
+          </label>
           <label className="glass flex h-12 min-w-0 flex-1 items-center rounded-full px-4">
             <span className="sr-only">Message {title}</span>
             <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={2000} placeholder="Write a message" enterKeyHint="send" className="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-ink-3" />
           </label>
-          <button type="submit" disabled={busy || (!draft.trim() && !attached)} aria-label="Send" className="grid size-12 shrink-0 place-items-center rounded-full bg-accent transition-opacity disabled:opacity-40">
+          <button type="submit" disabled={busy || (!draft.trim() && !attached && !photo)} aria-label="Send" className="grid size-12 shrink-0 place-items-center rounded-full bg-accent transition-opacity disabled:opacity-40">
             <Icon name="send" className="size-5" />
           </button>
         </form>

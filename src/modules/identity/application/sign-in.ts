@@ -70,6 +70,24 @@ export function makeIdentity(d: IdentityDeps) {
       });
     },
 
+    /**
+     * Signs in someone whose address a provider that runs it (Google, for Gmail and Workspace)
+     * has just vouched for, the same way a code sent to it would; creates the account on first use.
+     */
+    async signInWithVerifiedEmail(rawEmail: string): Promise<Result<SignedIn, DomainError<"invalid_email" | "suspended">>> {
+      const email = parseEmail(rawEmail);
+      if (!email.ok) return email;
+      return d.uow.run(async (scope) => {
+        let account = await scope.accounts.findByEmail(email.value);
+        if (!account) {
+          account = { id: d.newId(), email: email.value, wallet: null, createdAt: d.clock.now() };
+          await scope.accounts.save(account);
+        }
+        if (account.suspendedAt) return suspended();
+        return ok(await startSession(scope, account));
+      });
+    },
+
     /** The message a wallet must sign to sign in. */
     async startWalletSignIn(p: { address: string; domain: string; uri: string; chainId: number; appName: string }): Promise<Result<{ nonce: string; message: string }, WalletError>> {
       const address = parseAddress(p.address);

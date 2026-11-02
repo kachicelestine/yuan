@@ -76,6 +76,7 @@ import { WalletCoupons } from "./adapters/coupons";
 import { IdentityEmails, MerchantWallets, OrderingPurchases, OrderingReferrals, OrderingTotals } from "./adapters/fulfilment";
 import { makeAffiliates, makeSamples } from "@/modules/affiliates";
 import { makeMessaging } from "@/modules/messaging";
+import { makeAskHistory } from "./ask-history";
 import { makeSourcing } from "@/modules/sourcing";
 import { DrizzleQuoteRepository, DrizzleRfqRepository } from "@/modules/sourcing/infrastructure/drizzle-sourcing-repositories";
 import type { PriceHolds } from "@/modules/ordering";
@@ -498,6 +499,7 @@ export function wire(db: Database, options: WireOptions = {}) {
       conversations: new DrizzleConversationRepository(db),
       messages: new DrizzleMessageRepository(db),
       shops: { exists: async (sellerId: string) => (await sellers.findById(sellerId as SellerId)) !== null },
+      photos: privateStorage,
       // A message, the conversation's latest line and its event commit together.
       uow: unitOfWork(db, (tx) => ({ conversations: new DrizzleConversationRepository(tx), messages: new DrizzleMessageRepository(tx), events: new OutboxEventLog(tx, () => clock.now()) })),
       clock,
@@ -580,6 +582,7 @@ export function wire(db: Database, options: WireOptions = {}) {
     ledger: new DrizzleLedger(db),
     refreshRates: makeRefreshRates({ source: new OpenErApiRateSource(), fx: new DrizzleFxRateRepository(db), clock }),
     rateLimiter: new PostgresRateLimiter(db, () => clock.now()),
+    askHistory: makeAskHistory(db, clock),
     outbox: new OutboxDispatcher(db, {}, { now: () => clock.now() }),
     db,
     /** Development only: pretends the buyer paid an invoice. Null outside simulated mode. */

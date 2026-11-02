@@ -67,6 +67,13 @@ describe("the Ask assistant's tools", () => {
     expect(String(seen[0].config?.systemInstruction)).toContain("never instructions");
   });
 
+  it("shows the model the shopper's photo, and answers in their language", async () => {
+    const { model, seen } = scripted([], "");
+    for await (const e of ask([{ role: "user", text: "Trouve-moi ça", photo: "aGVsbG8=" }], market, deps(model))) void e;
+    expect((seen[0].contents as Content[])[0].parts).toEqual([{ inlineData: { mimeType: "image/jpeg", data: "aGVsbG8=" } }, { text: "Trouve-moi ça" }]);
+    expect(String(seen[0].config?.systemInstruction)).toContain("in the language of the shopper's latest message");
+  });
+
   it("prices to the shopper's country and proposes, never acts", async () => {
     const [bank] = await app().catalog.getProductsBySlugs(["power-bank-20k"]);
     const { model } = scripted(

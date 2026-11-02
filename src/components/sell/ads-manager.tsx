@@ -115,9 +115,12 @@ function CampaignCard({ campaign: c, images, owner }: { campaign: CampaignView; 
   const [editing, setEditing] = useState(false);
   const [bid, setBid] = useState(String(c.bid));
   const [budget, setBudget] = useState(String(c.dailyBudget));
+  const [keywords, setKeywords] = useState(c.keywords.join(", "));
   const [error, setError] = useState<string | null>(null);
   const [busy, start] = useTransition();
   const active = c.status === "active";
+  // Boosted videos show in the feed, not beside searches.
+  const searchAd = !c.videoId;
 
   const save = (patch: Parameters<typeof updateCampaignAction>[1]) =>
     start(async () => {
@@ -141,6 +144,7 @@ function CampaignCard({ campaign: c, images, owner }: { campaign: CampaignView; 
           <span className="block text-xs text-ink-2">
             {c.slugs.length} {c.slugs.length === 1 ? "listing" : "listings"} · up to {usd(c.bid)} a tap
           </span>
+          {c.keywords.length > 0 && <span className="block truncate text-xs text-ink-3">Also for: {c.keywords.join(", ")}</span>}
         </span>
         {owner && (
           <button
@@ -188,7 +192,7 @@ function CampaignCard({ campaign: c, images, owner }: { campaign: CampaignView; 
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              save({ bid: Number(bid), dailyBudget: Number(budget) });
+              save({ bid: Number(bid), dailyBudget: Number(budget), ...(searchAd && { keywords: splitKeywords(keywords) }) });
             }}
             className="flex flex-col gap-2"
           >
@@ -196,6 +200,7 @@ function CampaignCard({ campaign: c, images, owner }: { campaign: CampaignView; 
               <Money label="Bid per tap" value={bid} onChange={setBid} />
               <Money label="Daily budget" value={budget} onChange={setBudget} />
             </div>
+            {searchAd && <Keywords value={keywords} onChange={setKeywords} />}
             <div className="flex gap-2">
               <button type="submit" disabled={busy} className="h-10 flex-1 rounded-full bg-accent text-sm font-bold disabled:opacity-50">
                 Save
@@ -207,7 +212,7 @@ function CampaignCard({ campaign: c, images, owner }: { campaign: CampaignView; 
           </form>
         ) : (
           <button type="button" onClick={() => setEditing(true)} className="self-start text-xs font-semibold text-agent">
-            Change bid or budget
+            {searchAd ? "Change bid, budget or keywords" : "Change bid or budget"}
           </button>
         ))}
       {error && (
@@ -225,13 +230,14 @@ function NewCampaign({ listings, onCancel, onDone }: { listings: Listing[]; onCa
   const [picked, setPicked] = useState<string[]>([]);
   const [bid, setBid] = useState("0.30");
   const [budget, setBudget] = useState("10");
+  const [keywords, setKeywords] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, start] = useTransition();
 
   const toggle = (slug: string) => setPicked((p) => (p.includes(slug) ? p.filter((s) => s !== slug) : [...p, slug]));
   const submit = () =>
     start(async () => {
-      const r = await createCampaignAction({ name: name || "My listings", slugs: picked, bid: Number(bid), dailyBudget: Number(budget) });
+      const r = await createCampaignAction({ name: name || "My listings", slugs: picked, bid: Number(bid), dailyBudget: Number(budget), keywords: splitKeywords(keywords) });
       if (!r.ok) return setError(r.message);
       setError(null);
       onDone();
@@ -280,6 +286,7 @@ function NewCampaign({ listings, onCancel, onDone }: { listings: Listing[]; onCa
         <Money label="Bid per tap" value={bid} onChange={setBid} />
         <Money label="Daily budget" value={budget} onChange={setBudget} />
       </div>
+      <Keywords value={keywords} onChange={setKeywords} />
       <p className="text-xs text-ink-3">Most shops bid $0.20–$0.60. You often pay less than your bid: just enough to beat the next ad.</p>
       {error && (
         <p role="alert" className="text-xs font-semibold text-like">
@@ -297,6 +304,18 @@ function NewCampaign({ listings, onCancel, onDone }: { listings: Listing[]; onCa
         )}
       </div>
     </form>
+  );
+}
+
+const splitKeywords = (s: string) => s.split(",").map((k) => k.trim()).filter(Boolean);
+
+function Keywords({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="flex flex-col gap-1 text-xs font-semibold text-ink-2">
+      Keywords (optional)
+      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="e.g. camping, power cut, off grid" maxLength={600} className="glass-inset h-11 rounded-2xl px-4 text-[15px] font-normal text-ink outline-none" />
+      <span className="font-normal text-ink-3">Your ad also shows on searches that use these words. Separate them with commas.</span>
+    </label>
   );
 }
 

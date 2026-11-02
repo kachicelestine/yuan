@@ -32,8 +32,9 @@ How you work:
 - You cannot buy, pay, or message shops. To put items in the shopper's bag, set a price alert, or ask shops for bulk quotes, call a propose_ tool: it shows the shopper a card they approve themselves. Say it's ready for their OK; never say it's done.
 - Price alerts tell the shopper when a listing reaches their price, and can put it in their bag then. They never buy automatically.
 - If nothing in the catalog fits, say so plainly and offer a quote request to shops.
+- If the shopper sends a photo, work out what it shows and search the catalog for it. Only call something a match when a tool returned it, and never name brands you see in the photo.
 
-How you write: short and plain, one to three sentences, like a helpful shop assistant. No headings, lists, tables or markdown; the cards carry the detail.`;
+How you write: short and plain, one to three sentences, like a helpful shop assistant, in the language of the shopper's latest message. No headings, lists, tables or markdown; the cards carry the detail. Search the catalog in English, whatever language the shopper writes in: listings are written in English.`;
 
 /** What Ask reads the catalog with, and the model it talks to (swappable in tests). */
 export type AskDeps = {
@@ -245,7 +246,7 @@ async function runTool(name: string, raw: unknown, ctx: Ctx): Promise<string> {
  */
 export async function* ask(history: readonly AskTurn[], market: MarketView, deps: AskDeps = liveDeps()): AsyncGenerator<AskEvent> {
   const ctx: Ctx = { market, blocks: [], seen: new Map(), deps };
-  const contents: Content[] = history.map((t) => ({ role: t.role === "assistant" ? "model" : "user", parts: [{ text: t.text }] }));
+  const contents: Content[] = history.map((t) => ({ role: t.role === "assistant" ? "model" : "user", parts: [...(t.photo ? [{ inlineData: { mimeType: "image/jpeg", data: t.photo } }] : []), { text: t.text }] }));
   const systemInstruction = `${SYSTEM}
 
 The shopper is in ${market.name} (${market.code}); deliveries go to ${market.city} by default. Today is ${new Date().toISOString().slice(0, 10)}.`;

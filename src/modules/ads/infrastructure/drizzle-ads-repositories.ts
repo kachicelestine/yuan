@@ -1,9 +1,9 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import type { Database } from "@/shared/infrastructure/database";
 import { cents } from "@/shared/kernel/money";
 import type { Campaign } from "../domain/ads";
 import type { AdStatsRepository, CampaignRepository, DailyStats } from "../domain/repositories";
-import { campaigns, daily } from "./schema";
+import { campaigns, daily, viewers } from "./schema";
 
 const toCampaign = (r: typeof campaigns.$inferSelect): Campaign => ({
   id: r.id,
@@ -14,6 +14,7 @@ const toCampaign = (r: typeof campaigns.$inferSelect): Campaign => ({
   dailyBudget: cents(r.dailyBudgetCents),
   status: r.status,
   videoId: r.videoId,
+  keywords: r.keywords,
   createdAt: r.createdAt,
   updatedAt: r.updatedAt,
 });
@@ -36,6 +37,7 @@ export class DrizzleCampaignRepository implements CampaignRepository {
       dailyBudgetCents: c.dailyBudget,
       status: c.status,
       videoId: c.videoId,
+      keywords: [...c.keywords],
       createdAt: c.createdAt,
       updatedAt: c.updatedAt,
     };
@@ -54,13 +56,25 @@ export class DrizzleCampaignRepository implements CampaignRepository {
 export class DrizzleAdStatsRepository implements AdStatsRepository {
   constructor(private readonly db: Database) {}
 
-  async addImpressions(campaignIds: readonly string[], day: string) {
-    const ids = [...new Set(campaignIds)];
+  async addImpressions(campaignIds: readonly string[], day: string, viewer: string | null) {
+    let ids = [...new Set(campaignIds)];
+    if (ids.length && viewer) {
+      const fresh = await this.db
+        .insert(viewers)
+        .values(ids.map((campaignId) => ({ campaignId, day, viewer })))
+        .onConflictDoNothing()
+        .returning({ campaignId: viewers.campaignId });
+      ids = fresh.map((r) => r.campaignId);
+    }
     if (!ids.length) return;
     await this.db
       .insert(daily)
       .values(ids.map((campaignId) => ({ campaignId, day, impressions: 1 })))
       .onConflictDoUpdate({ target: [daily.campaignId, daily.day], set: { impressions: sql`${daily.impressions} + 1` } });
+  }
+
+  async pruneViewers(beforeDay: string) {
+    await this.db.delete(viewers).where(lt(viewers.day, beforeDay));
   }
 
   async addClick(campaignId: string, day: string, spend: number) {

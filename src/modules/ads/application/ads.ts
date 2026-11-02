@@ -46,12 +46,13 @@ export type CampaignView = {
   status: CampaignStatus;
   /** Set for a video boost. */
   videoId: string | null;
+  keywords: string[];
   today: { impressions: number; clicks: number; spend: number };
   total: { impressions: number; clicks: number; spend: number };
 };
 
 /** A product (or, for a boost, a video) that can fill a sponsored slot, and the campaign promoting it. */
-export type Eligible = { campaignId: string; sellerId: string; slug: string; videoId?: string };
+export type Eligible = { campaignId: string; sellerId: string; slug: string; videoId?: string; keywords?: readonly string[] };
 export type Served = { campaignId: string; slug: string; price: number; token: string; videoId?: string };
 
 const ZERO: DailyStats = { impressions: 0, clicks: 0, spend: 0 };
@@ -75,6 +76,7 @@ export function makeAds(deps: AdsDeps) {
     dailyBudget: dollars(c.dailyBudget),
     status: c.status,
     videoId: c.videoId,
+    keywords: [...c.keywords],
     today: statsView(today),
     total: statsView(total),
   });
@@ -123,7 +125,7 @@ export function makeAds(deps: AdsDeps) {
 
     /** Every listing being advertised right now (in search and category slots), with its campaign. */
     async promoted(): Promise<Eligible[]> {
-      return (await campaigns.active()).filter((c) => !c.videoId).flatMap((c) => c.slugs.map((slug) => ({ campaignId: c.id, sellerId: c.sellerId, slug })));
+      return (await campaigns.active()).filter((c) => !c.videoId).flatMap((c) => c.slugs.map((slug) => ({ campaignId: c.id, sellerId: c.sellerId, slug, keywords: c.keywords })));
     },
 
     /** Every boosted video running right now, for the feed's sponsored slides. */
@@ -135,8 +137,9 @@ export function makeAds(deps: AdsDeps) {
      * Fills up to `slots` sponsored slots from the eligible listings: drops campaigns that
      * have spent today's budget (or are ahead of pace) or whose shop can't pay a click,
      * runs the auction, counts the impressions and signs what each click will cost.
+     * `viewer` (an account, or a hash of where the request came from) counts once a day per ad.
      */
-    async serve(eligible: readonly Eligible[], slots: number): Promise<Served[]> {
+    async serve(eligible: readonly Eligible[], slots: number, viewer: string | null = null): Promise<Served[]> {
       if (!eligible.length || slots < 1) return [];
       const now = clock.now();
       const day = isoDay(now);
@@ -164,12 +167,18 @@ export function makeAds(deps: AdsDeps) {
       await stats.addImpressions(
         wins.map((w) => w.campaignId),
         day,
+        viewer,
       );
       return wins.map((w) => {
         const data = b64(JSON.stringify({ c: w.campaignId, s: w.slug, p: w.price, t: now.getTime(), n: newId() }));
         const videoId = byId.get(w.campaignId)?.videoId ?? undefined;
         return { campaignId: w.campaignId, slug: w.slug, price: dollars(w.price), token: `${data}.${signer.sign(data)}`, ...(videoId && { videoId }) };
       });
+    },
+
+    /** Forgets who saw which ads before yesterday (only today's are needed to count once). */
+    async pruneViewers() {
+      await stats.pruneViewers(isoDay(new Date(clock.now().getTime() - DAY)));
     },
 
     /** A sponsored listing was tapped: bill it once, if the token is genuine and fresh. */

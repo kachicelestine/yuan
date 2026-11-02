@@ -4,13 +4,15 @@ import { domainError, err, money, ok, type Cents, type DomainError, type Result 
 // click and a daily budget. Where a sponsored slot is shown, the eligible ads compete in a
 // second-price auction weighted by how often each one gets clicked, so a relevant ad can
 // beat a richer one; the winner pays just enough to keep its place. Money comes from the
-// shop's earnings balance, one click at a time.
+// shop's earnings balance, one click at a time. Keywords put a listing in front of searches
+// that use them, as well as the searches it already matches.
 
 export const MIN_BID = money.fromDollars(0.05);
 export const MAX_BID = money.fromDollars(5);
 export const MIN_BUDGET = money.fromDollars(1);
 export const MAX_BUDGET = money.fromDollars(1000);
 export const MAX_PRODUCTS = 20;
+export const MAX_KEYWORDS = 20;
 /** A click counts if it comes within this long of the ad being shown. */
 export const CLICK_WINDOW_MS = 30 * 60_000;
 
@@ -27,13 +29,27 @@ export type Campaign = Readonly<{
   status: CampaignStatus;
   /** A boost: this video is shown as a sponsored slide in the feed (its product is `slugs[0]`). */
   videoId: string | null;
+  /** Searches containing any of these (whole words) can show the ads too. Lower case. */
+  keywords: readonly string[];
   createdAt: Date;
   updatedAt: Date;
 }>;
 
-export type AdError = DomainError<"invalid_bid" | "invalid_budget" | "invalid_products" | "invalid_name" | "not_found">;
+export type AdError = DomainError<"invalid_bid" | "invalid_budget" | "invalid_products" | "invalid_name" | "invalid_keywords" | "not_found">;
 
-export type CampaignInput = { name: string; slugs: readonly string[]; bid: Cents; dailyBudget: Cents; videoId?: string | null };
+export type CampaignInput = { name: string; slugs: readonly string[]; bid: Cents; dailyBudget: Cents; videoId?: string | null; keywords?: readonly string[] };
+
+/** Lower case, letters and digits only, single spaces: how keywords and searches are compared. */
+const words = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+/** A shop's keywords, tidied: trimmed, lower case, no repeats or blanks. */
+export const normalizeKeywords = (list: readonly string[]) => [...new Set(list.map(words).filter(Boolean))];
+
+/** Whether a search uses one of the keywords, as whole words. */
+export function matchesKeywords(query: string, keywords: readonly string[]) {
+  const q = ` ${words(query)} `;
+  return q.trim() !== "" && keywords.some((k) => q.includes(` ${k} `));
+}
 
 function check(input: CampaignInput, owned: readonly string[]): AdError | null {
   if (input.name.trim().length < 2 || input.name.trim().length > 60) return domainError("invalid_name", "Give the campaign a short name.");
@@ -43,6 +59,8 @@ function check(input: CampaignInput, owned: readonly string[]): AdError | null {
   const slugs = [...new Set(input.slugs)];
   if (!slugs.length || slugs.length > MAX_PRODUCTS) return domainError("invalid_products", `Pick 1 to ${MAX_PRODUCTS} of your live listings.`);
   if (slugs.some((s) => !owned.includes(s))) return domainError("invalid_products", "You can only promote your own live listings.");
+  const keywords = normalizeKeywords(input.keywords ?? []);
+  if (keywords.length > MAX_KEYWORDS || keywords.some((k) => k.length < 2 || k.length > 40)) return domainError("invalid_keywords", `Use up to ${MAX_KEYWORDS} keywords, each 2 to 40 letters long.`);
   return null;
 }
 
@@ -58,17 +76,18 @@ export function createCampaign(props: CampaignInput & { id: string; sellerId: st
     dailyBudget: props.dailyBudget,
     status: "active",
     videoId: props.videoId ?? null,
+    keywords: normalizeKeywords(props.keywords ?? []),
     createdAt: props.at,
     updatedAt: props.at,
   });
 }
 
 export function editCampaign(c: Campaign, patch: Partial<CampaignInput> & { status?: CampaignStatus }, owned: readonly string[], at: Date): Result<Campaign, AdError> {
-  const next = { name: patch.name ?? c.name, slugs: patch.slugs ?? c.slugs, bid: patch.bid ?? c.bid, dailyBudget: patch.dailyBudget ?? c.dailyBudget };
+  const next = { name: patch.name ?? c.name, slugs: patch.slugs ?? c.slugs, bid: patch.bid ?? c.bid, dailyBudget: patch.dailyBudget ?? c.dailyBudget, keywords: patch.keywords ?? c.keywords };
   // Listings since taken down may stay in an untouched campaign; they just stop showing.
   const problem = check(next, patch.slugs ? owned : [...owned, ...c.slugs]);
   if (problem) return err(problem);
-  return ok({ ...c, ...next, name: next.name.trim(), slugs: [...new Set(next.slugs)], status: patch.status ?? c.status, updatedAt: at });
+  return ok({ ...c, ...next, name: next.name.trim(), slugs: [...new Set(next.slugs)], keywords: normalizeKeywords(next.keywords), status: patch.status ?? c.status, updatedAt: at });
 }
 
 /** How likely an ad is to be clicked, relative to a typical ad: smoothed so new ads start at 1. */

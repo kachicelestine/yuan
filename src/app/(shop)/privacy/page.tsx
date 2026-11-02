@@ -16,7 +16,7 @@ export default function PrivacyPage() {
       <ul>
         <li><b>Account:</b> your email or wallet address, and the profile you choose to fill in.</li>
         <li><b>Orders:</b> what you buy, your delivery name, phone and address, and your payment&apos;s transaction on the blockchain. Blockchains are public, so that transaction is visible to anyone.</li>
-        <li><b>What you do here:</b> your posts, comments, reviews, messages to shops, saved items, follows and what you watch, which tunes your feed.</li>
+        <li><b>What you do here:</b> your posts, comments, reviews, messages and photos you send shops, saved items, follows and what you watch, which tunes your feed. Ask keeps the words of your current conversation so it carries on from any device, until you start a new chat.</li>
         <li><b>Shops:</b> business details, a payout wallet, and identity and business documents. These are kept privately and only our review team can open them.</li>
         <li><b>Device:</b> your IP address and country, used to protect sign-in and to start you in the right currency, and your bag and settings, stored in your browser. If you turn on alerts, your browser&apos;s push address, which we forget when you turn them off or sign out.</li>
       </ul>
@@ -33,7 +33,7 @@ export default function PrivacyPage() {
       <ul>
         <li><b>Shops</b> see the delivery details for orders you place with them, once paid, and the messages you send them.</li>
         <li><b>Other people</b> see what you post publicly and your profile.</li>
-        <li><b>Service providers</b> process data for us: hosting and database (Vercel, Neon), file storage (Cloudflare), email (Resend), and AI features (Google) when you use Ask, photo search or translation. Couriers get what they need to deliver.</li>
+        <li><b>Service providers</b> process data for us: hosting and database (Vercel, Neon), file storage (Cloudflare), email (Resend), AI features (Google) when you use Ask, photo search or translation, and Google again if you sign in with it (it tells us your email address, nothing else). Couriers get what they need to deliver.</li>
         <li><b>Authorities</b> when the law requires it.</li>
       </ul>
 

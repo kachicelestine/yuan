@@ -62,6 +62,15 @@ describe("sponsored listings", () => {
     expect(view.today).toEqual({ impressions: 1, clicks: 1, spend: 0.31 });
   });
 
+  it("counts an ad once a day per shopper, however often they see it", async () => {
+    const [before] = (await app().ads.list("sunvolt")).filter((c) => c.name === "Panels");
+    const eligible = (await app().ads.promoted()).filter((e) => e.campaignId === before.id);
+    for (const viewer of ["shopper-1", "shopper-1", "shopper-2", null]) expect(await app().ads.serve(eligible, 1, viewer)).toHaveLength(1);
+    const [after] = (await app().ads.list("sunvolt")).filter((c) => c.name === "Panels");
+    // Two shoppers, plus one request nobody could be told apart in.
+    expect(after.today.impressions - before.today.impressions).toBe(3);
+  });
+
   it("rejects forged and stale tokens", async () => {
     const eligible = await app().ads.promoted();
     const [s] = await app().ads.serve(eligible, 1);

@@ -17,6 +17,8 @@ export const campaigns = adsSchema.table(
     status: campaignStatus().notNull(),
     /** Set for a video boost: the video shown as a sponsored slide. */
     videoId: text(),
+    /** Searches using any of these (whole words) can show the ads too. */
+    keywords: text().array().notNull().default(sql`'{}'::text[]`),
     createdAt: timestamp({ withTimezone: true }).notNull(),
     updatedAt: timestamp({ withTimezone: true }).notNull(),
   },
@@ -39,4 +41,16 @@ export const daily = adsSchema.table(
     spendCents: bigint({ mode: "number" }).notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.campaignId, t.day] })],
+);
+
+/** Who has seen each ad today, so an impression counts once per shopper. Pruned daily. */
+export const viewers = adsSchema.table(
+  "viewers",
+  {
+    campaignId: uuid().notNull(),
+    day: date({ mode: "string" }).notNull(),
+    /** An account id, or a hash of the request's address for people signed out. */
+    viewer: text().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.campaignId, t.day, t.viewer] })],
 );

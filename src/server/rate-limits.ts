@@ -11,6 +11,8 @@ export const LIMITS = {
   /** Code guesses, per IP (each code also allows only 5 tries). */
   "auth.verify": [30, 15 * 60],
   "auth.wallet": [30, 15 * 60],
+  /** Trips to Google and back, per IP. */
+  "auth.google": [30, 15 * 60],
   /** Orders placed, per account. */
   checkout: [20, 10 * 60],
   /** Coupon claims, check-ins, redemptions and bag syncs, per account. */

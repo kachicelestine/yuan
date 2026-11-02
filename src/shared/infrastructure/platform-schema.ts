@@ -66,6 +66,13 @@ export const rateLimits = platformSchema.table(
   (t) => [primaryKey({ columns: [t.key, t.windowStart] })],
 );
 
+/** Ask's current conversation per account, words only (see server/ask-history.ts). */
+export const askThreads = platformSchema.table("ask_threads", {
+  accountId: uuid().primaryKey(),
+  turns: jsonb().$type<{ role: "user" | "assistant"; text: string }[]>().notNull(),
+  updatedAt: timestamp({ withTimezone: true }).notNull(),
+});
+
 /** Text people wrote, translated once per language so the same words never cost twice. */
 export const translations = platformSchema.table("translations", {
   /** SHA-256 of the language and the text. */

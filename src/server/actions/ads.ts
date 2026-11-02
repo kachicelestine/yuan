@@ -16,6 +16,7 @@ const Campaign = z.object({
   slugs: z.array(z.string().regex(/^[a-z0-9-]{1,80}$/)).min(1).max(20),
   bid: dollars,
   dailyBudget: dollars,
+  keywords: z.array(z.string().max(60)).max(40).optional(),
 });
 const Patch = Campaign.partial().extend({ status: z.enum(["active", "paused"]).optional() });
 

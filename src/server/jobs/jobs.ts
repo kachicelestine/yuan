@@ -380,6 +380,7 @@ function recurringJobs(app: Services, dispatcher: OutboxDispatcher): ScheduledJo
       },
     },
     { name: "rate-limits.prune", everyMs: DAY / 24, run: async () => void (await app.rateLimiter.prune(new Date(Date.now() - DAY))) },
+    { name: "ads.viewers.prune", everyMs: DAY / 4, run: async () => void (await app.ads.pruneViewers()) },
   ];
 }
 

@@ -316,6 +316,27 @@
       "when": 1793602989038,
       "tag": "0044_push_devices",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1793619852268,
+      "tag": "0045_chat_photos",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1793620263297,
+      "tag": "0046_ad_keywords",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793620449167,
+      "tag": "0047_ask_threads",
+      "breakpoints": true
     }
   ]
 }

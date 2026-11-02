@@ -2,19 +2,20 @@ import "server-only";
 import { accountData } from "./account-data";
 import type { Services } from "./container";
 
-type App = Pick<Services, "accounts" | "cart" | "engagement" | "fulfilment" | "getOrder" | "identity" | "messaging" | "notifications" | "onboarding" | "profiles">;
+type App = Pick<Services, "accounts" | "askHistory" | "cart" | "engagement" | "fulfilment" | "getOrder" | "identity" | "messaging" | "notifications" | "onboarding" | "profiles">;
 
 /** Parcels still moving, or money still held: the account has to stay until they settle. */
 const OPEN_PARCELS = new Set(["awaiting_shipment", "shipped", "disputed"]);
 
 /** Everything we hold about someone that they can take away with them. */
 export async function exportAccount(app: App, accountId: string, identity: { email: string | null; wallet: string | null }) {
-  const [state, profile, orders, conversations, memberships] = await Promise.all([
+  const [state, profile, orders, conversations, memberships, ask] = await Promise.all([
     accountData(app).load(accountId),
     app.profiles.me(accountId),
     app.getOrder.list(accountId, 1000),
     app.messaging.buyerInbox(accountId, 500),
     app.onboarding.memberships(accountId),
+    app.askHistory.load(accountId),
   ]);
   const threads = await Promise.all(conversations.map((c) => app.messaging.thread(c.id, { side: "buyer", accountId, name: "" })));
   return {
@@ -30,6 +31,7 @@ export async function exportAccount(app: App, accountId: string, identity: { ema
     coupons: state.coupons,
     coins: state.coins,
     messages: threads.filter(Boolean),
+    ask,
     shops: memberships,
   };
 }
@@ -53,5 +55,6 @@ export async function closeAccount(app: App, accountId: string) {
   await accountData(app).save(accountId, { cart: [], saved: [], alerts: [], watches: [], following: [] });
   await app.profiles.close(accountId);
   await app.notifications.forgetDevices(accountId);
+  await app.askHistory.forget(accountId);
   await app.identity.close(accountId);
 }

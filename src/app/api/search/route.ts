@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { PRODUCT_SORTS, SELLER_KINDS } from "@/modules/catalog";
-import { sponsored } from "@/server/ads";
+import { adViewer, sponsored } from "@/server/ads";
 import { searchCatalog } from "@/server/catalog";
 import { allow, clientIp } from "@/server/rate-limits";
 import { money } from "@/shared/kernel";
@@ -48,6 +48,6 @@ export async function GET(request: NextRequest) {
   };
   // Sponsored slots only beside a best-match search for something (they must match it too).
   const withAds = p.sort === "best" && (p.q !== "" || (p.cat?.length ?? 0) > 0);
-  const [products, ads] = await Promise.all([searchCatalog({ ...filters, sort: p.sort, limit: p.limit }), withAds ? sponsored(filters, 2) : Promise.resolve([])]);
+  const [products, ads] = await Promise.all([searchCatalog({ ...filters, sort: p.sort, limit: p.limit }), withAds ? sponsored(filters, 2, await adViewer()) : Promise.resolve([])]);
   return Response.json({ products, sponsored: ads });
 }

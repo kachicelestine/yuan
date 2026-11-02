@@ -31,6 +31,8 @@ export const messages = messagingSchema.table(
     authorId: uuid().notNull(),
     text: text().notNull(),
     productSlug: text(),
+    /** Storage key of a photo, in private storage. */
+    photo: text(),
     at: timestamp({ withTimezone: true }).notNull(),
   },
   (t) => [index("messages_conversation_idx").on(t.conversationId, t.at)],

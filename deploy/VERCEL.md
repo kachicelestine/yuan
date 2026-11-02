@@ -38,7 +38,7 @@ Vercel → your project → Settings → Environment Variables, for Production. 
 
 ### Uploads
 
-`STORAGE=r2`, with `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PRIVATE_BUCKET` and `MEDIA_PUBLIC_URL`. Create one public bucket and one private bucket, and on the public bucket add a CORS rule allowing `PUT` from your site. Without this, the site runs and uploads show "Uploads aren't set up on this server yet."
+`STORAGE=r2`, with `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PRIVATE_BUCKET` and `MEDIA_PUBLIC_URL`. Create one public bucket and a second, separate private bucket (never the same one: the public bucket is served to anyone, and the deploy stops if the two names match), and on **both** add a CORS rule allowing `PUT` from your site: browsers upload photos and videos to the public one, and seller documents and chat photos to the private one. Without this, the site runs and uploads show "Uploads aren't set up on this server yet."
 
 ### Optional
 
@@ -46,6 +46,7 @@ Vercel → your project → Settings → Environment Variables, for Production. 
 | --- | --- |
 | `GEMINI_API_KEY` | Turns on Ask, photo search and translation. From aistudio.google.com, on a project with **billing on**: the free tier may not serve people in the EEA, Switzerland or the UK, and Google's reviewers may read what's sent |
 | `ASK_MODEL` | The Gemini model behind them; leave it unset for `gemini-3.8-flash`. Delete any old `claude-…` value: the deploy stops on it |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Shows **Continue with Google** on the sign-in screen. Set both or neither; see [Google sign-in](#google-sign-in) below |
 | `NEXT_PUBLIC_LEGAL_NAME` | The company named in the Terms and Privacy Policy |
 | `NEXT_PUBLIC_LEGAL_JURISDICTION` | Whose laws govern the Terms, e.g. `England and Wales` |
 | `NEXT_PUBLIC_SUPPORT_EMAIL` | Where Help sends people |
@@ -55,6 +56,17 @@ Vercel → your project → Settings → Environment Variables, for Production. 
 Don't set `DEMO_DEPLOYMENT` on a public site. It allows on-screen sign-in codes and simulated payments, so anyone could sign in as anyone and mark orders as paid.
 
 `JOBS` and `TRUST_PROXY` set themselves on Vercel.
+
+### Google sign-in
+
+1. [console.cloud.google.com](https://console.cloud.google.com): pick a project (the Gemini one is fine).
+2. **Google Auth Platform → Branding**: the app's name, a support email and, if you like, its logo.
+3. **Audience**: *External*, then **Publish app**. Until it's published, only the test users you list can sign in.
+4. **Data access**: nothing to add. The site asks only for `openid` and `email`, which need no review from Google.
+5. **Clients → Create client → Web application**. Under *Authorised redirect URIs* add your site's address followed by `/api/auth/google/callback`, e.g. `https://yuan-mu.vercel.app/api/auth/google/callback`, exactly matching `NEXT_PUBLIC_SITE_URL`. If you move to your own domain, add that one too.
+6. Put the client ID and secret in Vercel as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, then redeploy.
+
+Google signs in Gmail and Google Workspace addresses, which Google runs and can vouch for. Anyone else is asked to use the email code: Google only checked their address once, and admins are recognised by their sign-in email.
 
 ## 2. Background jobs
 

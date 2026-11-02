@@ -10,8 +10,10 @@ export interface CampaignRepository {
 }
 
 export interface AdStatsRepository {
-  /** One more impression for each campaign, today. */
-  addImpressions(campaignIds: readonly string[], day: string): Promise<void>;
+  /** One more impression for each campaign, today; with a viewer, only the first time that viewer sees it today. */
+  addImpressions(campaignIds: readonly string[], day: string, viewer: string | null): Promise<void>;
+  /** Forgets who saw what before `day`. */
+  pruneViewers(beforeDay: string): Promise<void>;
   addClick(campaignId: string, day: string, spend: number): Promise<void>;
   /** Per campaign for one day. */
   day(campaignIds: readonly string[], day: string): Promise<Map<string, DailyStats>>;

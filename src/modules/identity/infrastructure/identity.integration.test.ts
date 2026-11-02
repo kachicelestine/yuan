@@ -31,6 +31,24 @@ describe("identity on Postgres", () => {
     db = await openDatabase({ kind: "memory" });
   });
 
+  it("signs in by an email Google vouched for, onto the same account as a code would", async () => {
+    const id = identity(true);
+    const r = await id.requestEmailCode("grace@gmail.com");
+    if (!r.ok) throw new Error(r.error.message);
+    const byCode = await id.verifyEmailCode(r.value.challengeId, r.value.devCode!);
+    const byGoogle = await id.signInWithVerifiedEmail("Grace@Gmail.com");
+    if (!byCode.ok || !byGoogle.ok) throw new Error("sign-in failed");
+    expect(byGoogle.value.account.id).toBe(byCode.value.account.id);
+    expect((await id.currentAccount(byGoogle.value.token))?.account.email).toBe("grace@gmail.com");
+
+    const fresh = await id.signInWithVerifiedEmail("new.person@gmail.com");
+    expect(fresh.ok && fresh.value.account.email).toBe("new.person@gmail.com");
+    expect((await id.signInWithVerifiedEmail("not an email")).ok).toBe(false);
+
+    await id.setSuspended(byCode.value.account.id, "Selling fakes, again");
+    expect(await id.signInWithVerifiedEmail("grace@gmail.com")).toMatchObject({ ok: false, error: { code: "suspended" } });
+  });
+
   it("emails a code, signs in with it, and keeps the session", async () => {
     const id = identity();
     const r = await id.requestEmailCode("Ada@Example.com");
