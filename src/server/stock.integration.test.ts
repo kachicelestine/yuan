@@ -24,7 +24,7 @@ describe("stock levels", () => {
   }
 
   const checkout = (slug: string, qty: number, option: string | null = null) =>
-    app().checkout({ buyerId: newId(), lines: [{ slug, option, qty }], country: "NG", shippingMethod: "standard", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base", address: TEST_ADDRESS });
+    app().checkout({ buyerId: newId(), lines: [{ slug, option, qty }], country: "NG", delivery: "cheapest", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base", address: TEST_ADDRESS });
 
   async function pay(invoiceId: string) {
     const invoice = await new DrizzleInvoiceRepository(db).findById(invoiceId);

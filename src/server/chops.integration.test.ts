@@ -59,7 +59,7 @@ describe("price chops", () => {
 
     // Checkout honours the chopped price for one item.
     expect(await app().chops.bestHold(owner.accountId, "earbuds-anc")).toEqual({ price: money.fromDollars(offer.target), qty: 1 });
-    const r = await app().checkout({ buyerId: owner.accountId, lines: [{ slug: "earbuds-anc", option: null, qty: 1 }], country: "NG", shippingMethod: "standard", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base", address: TEST_ADDRESS });
+    const r = await app().checkout({ buyerId: owner.accountId, lines: [{ slug: "earbuds-anc", option: null, qty: 1 }], country: "NG", delivery: "cheapest", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base", address: TEST_ADDRESS });
     if (!r.ok) throw new Error(r.error.message);
     expect(r.value.pricing.subtotal).toBe(money.fromDollars(offer.target));
     const invoice = await new DrizzleInvoiceRepository(db).findById(r.value.invoiceId);

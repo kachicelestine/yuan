@@ -14,6 +14,9 @@ export type CatalogLine = Readonly<{
   minOrder: number;
   dutyRate: number;
   shipsFrom: string;
+  /** Packed weight of one unit. */
+  grams: number;
+  category: string;
 }>;
 
 export type CatalogLineError = DomainError<"unknown_product" | "quote_only" | "unknown_option" | "out_of_stock">;
@@ -37,6 +40,23 @@ export const holdCovers = (h: PriceHold, qty: number) => qty <= h.qty && qty >= 
 
 export interface Destinations {
   find(country: string): Promise<Destination | null>;
+}
+
+/** A company that can carry the order's parcels there, at a price for all of them. */
+export type DeliveryChoice = Readonly<{
+  id: string;
+  company: string;
+  service: string;
+  deliveredBy: string;
+  days: readonly [number, number];
+  price: Cents;
+  estimate: boolean;
+  kind: string;
+}>;
+
+/** Who can deliver parcels of these weights to a destination, cheapest first (the delivery module). */
+export interface DeliveryQuotes {
+  options(destination: Destination, parcels: readonly number[], valueCents: Cents, category: string): Promise<readonly DeliveryChoice[]>;
 }
 
 export type PaymentRequest = Readonly<{ orderId: string; amount: Cents; rail: string }>;

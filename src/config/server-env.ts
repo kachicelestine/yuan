@@ -47,6 +47,17 @@ const schema = z
     /** Resend (resend.com) API key and sender, for sign-in emails. */
     RESEND_API_KEY: optional(z.string().startsWith("re_", "must be a Resend key (re_…)")),
     EMAIL_FROM: optional(z.string().min(3)),
+    /**
+     * Countries where the platform receives consolidated air cargo and local couriers take
+     * over, as "NG:Lagos,GH:Accra". Unset: shoppers choose among carriers that deliver from China.
+     */
+    DELIVERY_HUBS: z
+      .string()
+      .default("")
+      .transform((v) => v.split(",").map((h) => h.trim()).filter(Boolean).map((h) => ({ country: h.slice(0, 2).toUpperCase(), city: h.slice(3).trim() })))
+      .refine((hubs) => hubs.every((h) => /^[A-Z]{2}$/.test(h.country) && h.city.length > 0), "write hubs as COUNTRY:City, comma-separated, e.g. NG:Lagos,GH:Accra"),
+    /** Easyship API token (scope public.rate:read): live express prices at checkout instead of rate-card estimates. */
+    EASYSHIP_API_KEY: optional(z.string().min(20)),
     /** "Continue with Google": an OAuth client (Google Cloud console, Web application). Without the pair, the button hides. */
     GOOGLE_CLIENT_ID: optional(z.string().endsWith(".apps.googleusercontent.com", "must be a Google OAuth client ID (….apps.googleusercontent.com)")),
     GOOGLE_CLIENT_SECRET: optional(z.string().min(10)),

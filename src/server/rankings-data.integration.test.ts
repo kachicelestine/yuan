@@ -26,7 +26,7 @@ describe("rankings data", () => {
   it("counts units sold in paid orders per window, and adds them to the listing once", async () => {
     const before = (await app().catalog.getProduct("power-bank-20k"))!.sold ?? 0;
     const buyer = newId();
-    const r = await app().checkout({ buyerId: buyer, lines: [{ slug: "power-bank-20k", option: null, qty: 3 }], country: "NG", shippingMethod: "standard", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base", address: TEST_ADDRESS });
+    const r = await app().checkout({ buyerId: buyer, lines: [{ slug: "power-bank-20k", option: null, qty: 3 }], country: "NG", delivery: "cheapest", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base", address: TEST_ADDRESS });
     if (!r.ok) throw new Error(r.error.message);
     await network.send((await new DrizzleInvoiceRepository(db).findById(r.value.invoiceId))!, now);
     await app().checkInvoice(r.value.invoiceId);

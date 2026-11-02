@@ -1,4 +1,14 @@
+import { quoteDelivery, shippingGrams } from "@/modules/delivery";
 import type { Market } from "./types";
+
+/**
+ * The cheapest delivery company for `qty` of a product to the market, in USD, and how many
+ * companies can take it; null when none can (too heavy for parcel carriers).
+ */
+export function deliveryEstimate(product: { category: string; specs: readonly (readonly [string, string])[] }, qty: number, market: Pick<Market, "code" | "region" | "extraDays">) {
+  const options = quoteDelivery({ country: market.code, region: market.region, extraDays: market.extraDays, parcels: [shippingGrams(product) * Math.max(1, qty)] });
+  return options[0] ? { price: options[0].price / 100, companies: options.length, days: options[0].days } : null;
+}
 
 export type Landed = { item: number; shipping: number; duty: number; vat: number; total: number };
 

@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { REFERRAL_COOKIE, readReferral } from "../referrals";
-import { MAX_LINES, MAX_QTY, SHIPPING_METHODS } from "@/modules/ordering";
+import { MAX_LINES, MAX_QTY } from "@/modules/ordering";
 import { services } from "../container";
 import { allow, RATE_LIMITED } from "../rate-limits";
 import { currentAccount } from "../session";
@@ -29,7 +29,7 @@ const Input = z.object({
     region: z.string().max(120).optional(),
     postcode: z.string().max(40).optional(),
   }),
-  shippingMethod: z.enum(SHIPPING_METHODS),
+  delivery: z.string().min(1).max(60),
   combineParcels: z.boolean(),
   payDutiesNow: z.boolean(),
   couponId: z.string().max(40).nullable(),

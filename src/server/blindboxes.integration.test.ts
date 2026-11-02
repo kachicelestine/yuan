@@ -17,7 +17,7 @@ describe("blind boxes", () => {
   let now = new Date("2026-10-25T10:00:00Z");
   const app = () => wire(db, { clock: { now: () => now }, payments: { network, simulator: network } });
   const buy = async (buyerId: string, qty: number) => {
-    const r = await app().checkout({ buyerId, lines: [{ slug: "art-toy-blind-box", option: null, qty }], country: "NG", address: TEST_ADDRESS, shippingMethod: "standard", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base" });
+    const r = await app().checkout({ buyerId, lines: [{ slug: "art-toy-blind-box", option: null, qty }], country: "NG", address: TEST_ADDRESS, delivery: "cheapest", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base" });
     if (!r.ok) throw new Error(r.error.message);
     await network.send((await new DrizzleInvoiceRepository(db).findById(r.value.invoiceId))!, now);
     await app().checkInvoice(r.value.invoiceId);

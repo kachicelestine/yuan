@@ -8,6 +8,7 @@ import { Icon } from "@/components/icon";
 import { useMoney } from "@/components/price";
 import { Sheet, type Detent } from "@/components/sheet";
 import { brand } from "@/config/brand";
+import { trackingLink } from "@/modules/delivery";
 import type { OrderView, ShipmentView } from "@/modules/ordering";
 import { confirmReceivedAction, openDisputeAction, postReviewAction } from "@/server/actions/orders";
 
@@ -107,7 +108,9 @@ export function OrderParcels({ order, parcels, shops, reviewed }: Props) {
                   <span>
                     {p.carrier} · shipped {p.shippedAt && day(p.shippedAt)}
                   </span>
-                  <span className="font-mono text-ink">{p.tracking}</span>
+                  <a href={trackingLink(p.carrier ?? "", p.tracking)} target="_blank" rel="noopener noreferrer" className="font-mono text-ink underline decoration-white/30 underline-offset-2">
+                    {p.tracking}
+                  </a>
                 </p>
               )}
               {p.status === "awaiting_shipment" && <p className="mt-2 text-xs text-ink-2">The shop is packing it. You&apos;ll get the tracking number here.</p>}

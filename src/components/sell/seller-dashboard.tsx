@@ -216,7 +216,7 @@ export function SellerDashboard({ seller, storefront, listings, orders, question
                     <b className="font-semibold">{markets.find((m) => m.code === o.country)?.name ?? o.country}</b>
                   </address>
                 )}
-                {o.shipment?.status === "awaiting_shipment" && o.status === "paid" && o.address && <ShipForm orderId={o.id} />}
+                {o.shipment?.status === "awaiting_shipment" && o.status === "paid" && o.address && <ShipForm orderId={o.id} delivery={o.delivery} />}
                 {o.shipment?.tracking && (
                   <p className="mt-2 text-xs text-ink-2">
                     {o.shipment.carrier} · <span className="font-mono">{o.shipment.tracking}</span>
@@ -289,10 +289,14 @@ function QuestionInbox({ questions, listings }: { questions: Props["questions"];
   );
 }
 
+/** The carrier in the list that matches the company the buyer chose, if any. */
+const carrierFor = (company: string | undefined) => (company && CARRIERS.find((c) => c !== "Other" && company.toLowerCase().startsWith(c.toLowerCase()))) || null;
+
 /** Carrier and tracking number: the buyer sees them at once and Protect starts its clock. */
-function ShipForm({ orderId }: { orderId: string }) {
+function ShipForm({ orderId, delivery }: { orderId: string; delivery: { id: string; company: string; service: string } | null }) {
   const router = useRouter();
-  const [carrier, setCarrier] = useState<string>(CARRIERS[0]);
+  const chosen = carrierFor(delivery?.company);
+  const [carrier, setCarrier] = useState<string>(chosen ?? (delivery?.id.startsWith("hub:") ? "Other" : CARRIERS[0]));
   const [tracking, setTracking] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -308,6 +312,12 @@ function ShipForm({ orderId }: { orderId: string }) {
 
   return (
     <div className="mt-3 flex flex-col gap-2">
+      {delivery && (
+        <p className="rounded-2xl bg-agent/10 p-3 text-xs text-ink-2">
+          The buyer chose <b className="text-ink">{delivery.company}</b> · {delivery.service}.{" "}
+          {delivery.id.startsWith("hub:") ? "Send it with our air-cargo forwarder to the hub; the courier takes it from there." : `Ship it with ${delivery.company}.`}
+        </p>
+      )}
       <div className="flex gap-2">
         <select aria-label="Carrier" value={carrier} onChange={(e) => setCarrier(e.target.value)} className="glass-inset h-11 w-32 shrink-0 rounded-2xl px-3 text-sm outline-none">
           {CARRIERS.map((c) => (

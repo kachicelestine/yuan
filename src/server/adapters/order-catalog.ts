@@ -1,4 +1,5 @@
 import { available, unitPrice, type OptionValue, type ProductRepository } from "@/modules/catalog";
+import { shippingGrams } from "@/modules/delivery";
 import type { CatalogLine, CatalogLineError, OrderCatalog } from "@/modules/ordering";
 import { domainError, err, money, ok, type Result } from "@/shared/kernel";
 
@@ -38,6 +39,8 @@ export class CatalogPricing implements OrderCatalog {
       minOrder: p.minOrder,
       dutyRate: p.dutyRate,
       shipsFrom: p.shipsFrom,
+      grams: shippingGrams({ category: p.categoryId, specs: p.specs }),
+      category: p.categoryId,
     });
   }
 }

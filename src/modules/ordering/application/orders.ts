@@ -1,5 +1,5 @@
 import { domainError, err, ok, type Clock, type EventLog, type Result } from "@/shared/kernel";
-import { cancelUnpaid, markPaid, type Order, type OrderError, type OrderStatus } from "../domain/order";
+import { cancelUnpaid, markPaid, type Order, type OrderDelivery, type OrderError, type OrderStatus } from "../domain/order";
 import type { ShippingAddress } from "../domain/address";
 import type { GiftRepository, OrderRepository, ShipmentRepository } from "../domain/repositories";
 import { AUTO_CONFIRM_DAYS, openShipments, type Shipment } from "../domain/shipment";
@@ -14,11 +14,16 @@ export type OrderView = {
   country: string;
   address: ShippingAddress | null;
   shippingMethod: string;
+  /** The company the shopper picked; price in dollars. */
+  delivery: DeliveryView | null;
   placedAt: string;
   paidAt: string | null;
   lines: { slug: string; title: string; image: string; option: string | null; unitPrice: number; qty: number; sellerId: string }[];
   totals: ReturnType<typeof pricingInDollars>;
 };
+
+export type DeliveryView = Omit<OrderDelivery, "price" | "days"> & { price: number; days: [number, number] };
+const deliveryView = (d: OrderDelivery | null): DeliveryView | null => (d ? { ...d, price: d.price / 100, days: [d.days[0], d.days[1]] } : null);
 
 export const toOrderView = (o: Order): OrderView => ({
   id: o.id,
@@ -29,6 +34,7 @@ export const toOrderView = (o: Order): OrderView => ({
   country: o.country,
   address: o.address,
   shippingMethod: o.shippingMethod,
+  delivery: deliveryView(o.delivery),
   placedAt: o.placedAt.toISOString(),
   paidAt: o.paidAt?.toISOString() ?? null,
   lines: o.lines.map((l) => ({ slug: l.slug, title: l.title, image: l.image, option: l.option, unitPrice: l.unitPrice / 100, qty: l.qty, sellerId: l.sellerId })),
@@ -104,6 +110,8 @@ export type SellerOrderView = {
   /** Where to send the parcel: only once the order is paid. */
   address: ShippingAddress | null;
   shippingMethod: string;
+  /** The company the shopper picked: the shop ships with it. */
+  delivery: DeliveryView | null;
   placedAt: string;
   paidAt: string | null;
   lines: OrderView["lines"];
@@ -162,6 +170,7 @@ export function makeSellerOrders(deps: { orders: OrderRepository; shipments: Shi
           country: o.country,
           address: o.status === "paid" || o.status === "completed" ? o.address : null,
           shippingMethod: o.shippingMethod,
+          delivery: deliveryView(o.delivery),
           placedAt: o.placedAt.toISOString(),
           paidAt: o.paidAt?.toISOString() ?? null,
           lines: lines.map((l) => ({ slug: l.slug, title: l.title, image: l.image, option: l.option, unitPrice: l.unitPrice / 100, qty: l.qty, sellerId: l.sellerId })),

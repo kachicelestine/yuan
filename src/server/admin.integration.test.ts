@@ -34,7 +34,7 @@ describe("admin panel", () => {
 
   async function paidOrder(slug: string) {
     const buyerId = newId();
-    const r = await app().checkout({ buyerId, lines: [{ slug, option: null, qty: 1 }], country: "NG", shippingMethod: "standard", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base", address: TEST_ADDRESS });
+    const r = await app().checkout({ buyerId, lines: [{ slug, option: null, qty: 1 }], country: "NG", delivery: "cheapest", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base", address: TEST_ADDRESS });
     if (!r.ok) throw new Error(r.error.message);
     const invoice = await new DrizzleInvoiceRepository(db).findById(r.value.invoiceId);
     await network.send(invoice!, now);

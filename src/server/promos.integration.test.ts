@@ -21,7 +21,7 @@ describe("drops and team buys", () => {
     for (let i = 0; i < 10; i++) if ((await d.dispatchOnce()).claimed === 0) break;
   };
   const pay = async (buyerId: string, slug: string) => {
-    const r = await app().checkout({ buyerId, lines: [{ slug, option: null, qty: 1 }], country: "NG", shippingMethod: "standard", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base", address: TEST_ADDRESS });
+    const r = await app().checkout({ buyerId, lines: [{ slug, option: null, qty: 1 }], country: "NG", delivery: "cheapest", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base", address: TEST_ADDRESS });
     if (!r.ok) throw new Error(r.error.message);
     await network.send((await new DrizzleInvoiceRepository(db).findById(r.value.invoiceId))!, now);
     await app().checkInvoice(r.value.invoiceId);

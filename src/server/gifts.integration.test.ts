@@ -25,7 +25,7 @@ describe("gifts", () => {
     country: "NG",
     address: null,
     gift: card,
-    shippingMethod: "standard",
+    delivery: "cheapest",
     combineParcels: true,
     payDutiesNow: true,
     couponId: null,

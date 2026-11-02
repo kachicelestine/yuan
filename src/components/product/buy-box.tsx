@@ -14,7 +14,7 @@ import { SellerCouponChip } from "@/components/rewards/coupon-wallet";
 import { Sheet, type Detent } from "@/components/sheet";
 import { brand } from "@/config/brand";
 import { unitPrice, type Product } from "@/lib/catalog";
-import { landedCost, shiftDelivery } from "@/lib/landed";
+import { deliveryEstimate, landedCost, shiftDelivery } from "@/lib/landed";
 
 type Props = {
   product: Product;
@@ -64,7 +64,9 @@ export function BuyBox({ product, variant = "page" }: Props) {
   const delta = options.reduce((sum, option, i) => sum + (option.values[choices[i]]?.delta ?? 0), 0);
   const unit = unitPrice(product, qty, delta);
   const listUnit = unitPrice(product, 1, delta);
-  const landed = landedCost(unit * qty, product.dutyRate, market);
+  // Shipping at its cheapest company (free above the threshold); checkout offers all of them.
+  const delivery = deliveryEstimate(product, qty, market);
+  const landed = landedCost(unit * qty, product.dutyRate, market, delivery ? (unit * qty >= market.freeShippingOver ? 0 : delivery.price) : undefined);
   const taxes = landed.duty + landed.vat;
   const total = landed.item + landed.shipping + (dutiesNow ? taxes : 0);
   const taxName = market.vat ? `duties and ${market.vatLabel}` : "duties";
@@ -272,7 +274,7 @@ export function BuyBox({ product, variant = "page" }: Props) {
                 <dd className="text-ink">{money(landed.item)}</dd>
               </div>
               <div className="flex justify-between">
-                <dt>Shipping</dt>
+                <dt>Shipping{delivery && delivery.companies > 1 ? ` · cheapest of ${delivery.companies} companies` : ""}</dt>
                 <dd className="text-ink">{landed.shipping ? money(landed.shipping) : `Free over ${money(market.freeShippingOver)}`}</dd>
               </div>
               <div className="flex justify-between">

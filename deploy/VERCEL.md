@@ -47,6 +47,8 @@ Vercel → your project → Settings → Environment Variables, for Production. 
 | `GEMINI_API_KEY` | Turns on Ask, photo search and translation. From aistudio.google.com, on a project with **billing on**: the free tier may not serve people in the EEA, Switzerland or the UK, and Google's reviewers may read what's sent |
 | `ASK_MODEL` | The Gemini model behind them; leave it unset for `gemini-3.8-flash`. Delete any old `claude-…` value: the deploy stops on it |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Shows **Continue with Google** on the sign-in screen. Set both or neither; see [Google sign-in](#google-sign-in) below |
+| `EASYSHIP_API_KEY` | Live DHL, FedEx, UPS, Aramex and SF prices at checkout instead of rate-card estimates. See [docs/DELIVERY.md](../docs/DELIVERY.md) |
+| `DELIVERY_HUBS` | Countries where you receive consolidated air cargo, as `NG:Lagos,KE:Nairobi`: local couriers there (GIG, Kwik, G4S…) become choices. Only once a receiving agent exists |
 | `NEXT_PUBLIC_LEGAL_NAME` | The company named in the Terms and Privacy Policy |
 | `NEXT_PUBLIC_LEGAL_JURISDICTION` | Whose laws govern the Terms, e.g. `England and Wales` |
 | `NEXT_PUBLIC_SUPPORT_EMAIL` | Where Help sends people |

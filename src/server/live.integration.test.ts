@@ -96,11 +96,11 @@ describe("live shopping", () => {
     const onAir = room!.show.items.find((i) => i.status === "on-air")!;
     const held = await app().live.holdPrice(buyer, "glowlab", onAir.slug);
     expect(held.ok && held.value.price).toBe(onAir.livePrice);
-    const order = await app().checkout({ buyerId: buyer, lines: [{ slug: onAir.slug, option: null, qty: 1 }], country: "GH", shippingMethod: "standard", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base", address: TEST_ADDRESS });
+    const order = await app().checkout({ buyerId: buyer, lines: [{ slug: onAir.slug, option: null, qty: 1 }], country: "GH", delivery: "cheapest", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base", address: TEST_ADDRESS });
     if (!order.ok) throw new Error(order.error.message);
     expect(order.value.pricing.subtotal).toBe(money.fromDollars(onAir.livePrice!));
     // Someone without the hold pays the catalog price.
-    const other = await app().checkout({ buyerId: newId(), lines: [{ slug: onAir.slug, option: null, qty: 1 }], country: "GH", shippingMethod: "standard", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base", address: TEST_ADDRESS });
+    const other = await app().checkout({ buyerId: newId(), lines: [{ slug: onAir.slug, option: null, qty: 1 }], country: "GH", delivery: "cheapest", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base", address: TEST_ADDRESS });
     expect(other.ok && other.value.pricing.subtotal).toBeGreaterThan(money.fromDollars(onAir.livePrice!));
 
     const invoice = await new DrizzleInvoiceRepository(db).findById(order.value.invoiceId);

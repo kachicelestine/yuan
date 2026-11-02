@@ -38,6 +38,7 @@ export function makeDepositCheckout(deps: { catalog: OrderCatalog; destinations:
       country: destination.country,
       address: null,
       shippingMethod: "standard",
+      delivery: null,
       lines: [{ productId: c.productId, slug: c.slug, title: `Deposit: ${c.title}`, image: c.image, sellerId: c.sellerId, option: null, unitPrice: req.amount, qty: 1 }],
       pricing,
       at: deps.clock.now(),

@@ -30,7 +30,7 @@ describe("checkout and payment, end to end", () => {
       { slug: "earbuds-anc", option: null, qty: 1 },
     ],
     country: "NG",
-    shippingMethod: "standard",
+    delivery: "cheapest",
     combineParcels: true,
     payDutiesNow: true,
     couponId: "welcome5",
@@ -62,6 +62,37 @@ describe("checkout and payment, end to end", () => {
     expect(order?.status).toBe("awaiting_payment");
     expect(order?.lines.map((l) => l.slug)).toEqual(["hoodie-heavyweight", "earbuds-anc"]);
     expect(order?.totals.total).toBe(r.value.pricing.total / 100);
+  });
+
+  it("charges the delivery company the buyer picked, and records it on the order", async () => {
+    const buyer = await newBuyer([]);
+    const lines = [{ slug: "earbuds-anc", option: null, qty: 1 }];
+    const cheapest = await app().checkout(request(buyer, { lines, couponId: null }));
+    const dhl = await app().checkout(request(buyer, { lines, couponId: null, delivery: "dhl-express-worldwide" }));
+    if (!cheapest.ok || !dhl.ok) throw new Error("checkout failed");
+    // Under the free-shipping threshold each company costs its own price; DHL is dearer.
+    expect(dhl.value.pricing.shipping).toBeGreaterThan(cheapest.value.pricing.shipping);
+    const order = await app().getOrder.byNumber(dhl.value.orderNumber, buyer);
+    expect(order?.delivery).toMatchObject({ id: "dhl-express-worldwide", company: "DHL Express", deliveredBy: "DHL Express", price: dhl.value.pricing.shipping / 100 });
+    expect(order?.shippingMethod).toBe("express");
+
+    // Over it, the cheapest company is free and DHL costs only the difference.
+    const big = [{ slug: "hoodie-heavyweight", option: null, qty: 3 }];
+    const free = await app().checkout(request(buyer, { lines: big, couponId: null }));
+    const upgrade = await app().checkout(request(buyer, { lines: big, couponId: null, delivery: "dhl-express-worldwide" }));
+    if (!free.ok || !upgrade.ok) throw new Error("checkout failed");
+    expect(free.value.pricing.shipping).toBe(0);
+    const freeOrder = await app().getOrder.byNumber(free.value.orderNumber, buyer);
+    const upgradeOrder = await app().getOrder.byNumber(upgrade.value.orderNumber, buyer);
+    expect(upgrade.value.pricing.shipping / 100).toBeCloseTo(upgradeOrder!.delivery!.price - freeOrder!.delivery!.price);
+  });
+
+  it("refuses a delivery company that can't take the order", async () => {
+    const buyer = await newBuyer([]);
+    // YunExpress doesn't deliver in Nigeria, and nothing is called "made-up".
+    for (const delivery of ["yunexpress-direct", "made-up"]) {
+      expect(await app().checkout(request(buyer, { couponId: null, delivery }))).toMatchObject({ ok: false, error: { code: "delivery_unavailable" } });
+    }
   });
 
   it("settles a paid invoice: invoice paid, order paid, funds in escrow", async () => {

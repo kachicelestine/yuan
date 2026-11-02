@@ -34,12 +34,27 @@ export type Order = Readonly<{
   /** Where it's delivered, in `country`. */
   address: ShippingAddress | null;
   shippingMethod: ShippingMethod;
+  /** Null on deposits, and on orders placed before shoppers picked a company. */
+  delivery: OrderDelivery | null;
   lines: readonly OrderLine[];
   pricing: Pricing;
   placedAt: Date;
   paidAt: Date | null;
   /** The creator code the buyer arrived through, if any (affiliates decides what it earns). */
   referral: string | null;
+}>;
+
+/** The delivery company the shopper picked, as it was offered (the shop ships with it). */
+export type OrderDelivery = Readonly<{
+  /** The option's id: a service, or `hub:<courier>` for a local courier from a hub. */
+  id: string;
+  company: string;
+  service: string;
+  deliveredBy: string;
+  days: readonly [number, number];
+  price: Cents;
+  /** Priced from published rates rather than a live quote. */
+  estimate: boolean;
 }>;
 
 export type OrderPlaced = Readonly<{ type: "OrderPlaced"; orderId: string; total: Cents; at: Date }>;
@@ -67,6 +82,7 @@ export function placeOrder(props: {
   country: string;
   address: ShippingAddress | null;
   shippingMethod: ShippingMethod;
+  delivery?: OrderDelivery | null;
   lines: readonly OrderLine[];
   pricing: Pricing;
   at: Date;
@@ -77,8 +93,8 @@ export function placeOrder(props: {
   if (props.lines.some((l) => !Number.isInteger(l.qty) || l.qty < 1 || l.qty > MAX_QTY)) {
     return err(domainError("invalid_quantity", `Quantities must be whole numbers from 1 to ${MAX_QTY}.`));
   }
-  const { referral = null, kind = "goods", ...rest } = props;
-  const order: Order = { ...rest, referral, kind, status: "awaiting_payment", placedAt: props.at, paidAt: null };
+  const { referral = null, kind = "goods", delivery = null, at, ...rest } = props;
+  const order: Order = { ...rest, referral, kind, delivery, status: "awaiting_payment", placedAt: at, paidAt: null };
   return ok({ order, event: { type: "OrderPlaced", orderId: order.id, total: order.pricing.total, at: props.at } });
 }
 

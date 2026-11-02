@@ -1,15 +1,16 @@
 import { money, type Cents } from "@/shared/kernel";
 
+/** Express when the chosen company is an express carrier; standard otherwise. */
 export const SHIPPING_METHODS = ["standard", "express"] as const;
 export type ShippingMethod = (typeof SHIPPING_METHODS)[number];
-
-/** Surcharge per parcel on top of the country's standard rate. */
-export const SHIPPING_SURCHARGE: Record<ShippingMethod, Cents> = { standard: money.cents(0), express: money.cents(1800) };
 
 /** The import rules of the country an order ships to. */
 export type Destination = Readonly<{
   country: string;
-  shipping: Cents;
+  /** The country's region, which sets the shipping zone from China. */
+  region: string;
+  /** Extra days beyond the main city. */
+  extraDays: number;
   freeShippingOver: Cents;
   /** VAT/GST fraction, or null when unknown (then it isn't collected). */
   vatRate: number | null;
@@ -23,6 +24,8 @@ export type PricedLine = Readonly<{
   sellerId: string;
   /** City the parcel leaves from; each origin is a parcel unless combined. */
   shipsFrom: string;
+  /** Packed weight of one unit, which carriers charge by. */
+  grams: number;
 }>;
 
 export type CouponRule = Readonly<{
@@ -38,7 +41,8 @@ export type CouponRule = Readonly<{
 export type PricingInput = Readonly<{
   lines: readonly PricedLine[];
   destination: Destination;
-  shippingMethod: ShippingMethod;
+  /** The chosen company's price for all the parcels, and the cheapest company's: free shipping covers that much. */
+  delivery: Readonly<{ price: Cents; cheapest: Cents }>;
   /** Repack every origin's parcel into one box at the hub. */
   combineParcels: boolean;
   /** Collect duties and VAT now (true) or leave them for the courier at the door. */
@@ -71,8 +75,18 @@ export function couponDiscount(coupon: CouponRule, lines: readonly PricedLine[],
   return money.cents(Math.min(coupon.value, base));
 }
 
+/** The parcels an order makes, by weight: one per place it ships from, or one box when combined. */
+export function parcelWeights(lines: readonly Pick<PricedLine, "shipsFrom" | "grams" | "qty">[], combine: boolean): number[] {
+  if (!lines.length) return [];
+  if (combine) return [lines.reduce((g, l) => g + l.grams * l.qty, 0)];
+  const byOrigin = new Map<string, number>();
+  for (const l of lines) byOrigin.set(l.shipsFrom, (byOrigin.get(l.shipsFrom) ?? 0) + l.grams * l.qty);
+  return [...byOrigin.values()];
+}
+
 /**
- * Prices an order: items, shipping per parcel (free above the country's threshold),
+ * Prices an order: items, the chosen delivery (above the country's threshold the cheapest
+ * company is free, and a dearer one costs the difference),
  * the coupon, import duty on items, then VAT on items + shipping + duty.
  */
 export function priceOrder(input: PricingInput): Pricing {
@@ -80,8 +94,8 @@ export function priceOrder(input: PricingInput): Pricing {
   const subtotal = money.add(...lines.map((l) => money.times(l.unitPrice, l.qty)));
   const origins = new Set(lines.map((l) => l.shipsFrom)).size;
   const parcels = input.combineParcels ? 1 : Math.max(origins, 1);
-  const base = subtotal >= d.freeShippingOver ? money.ZERO : d.shipping;
-  const shipping = money.times(money.add(base, SHIPPING_SURCHARGE[input.shippingMethod]), parcels);
+  const { price, cheapest } = input.delivery;
+  const shipping = subtotal >= d.freeShippingOver ? money.max(money.ZERO, money.subtract(price, cheapest)) : price;
   const discount = input.coupon ? couponDiscount(input.coupon, lines, shipping) : money.ZERO;
   const duty = money.add(...lines.map((l) => money.percentOf(money.times(l.unitPrice, l.qty), l.dutyRate)));
   const vat = d.vatRate === null ? money.ZERO : money.percentOf(money.add(subtotal, shipping, duty), d.vatRate);

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Icon } from "@/components/icon";
 import type { CategoryView, ListingView } from "@/modules/catalog";
+import { parseWeight } from "@/modules/delivery";
 import { uploadFile } from "@/lib/upload";
 import { saveListingAction, setListingStatusAction, startPhotoAction } from "@/server/actions/shop";
 
@@ -23,10 +24,14 @@ type Draft = {
   options: OptionDraft[];
   highlights: string;
   specs: [string, string][];
+  /** Packed weight of one unit in kg (kept as the "Weight" specification). */
+  weight: string;
   shipsFrom: string;
   leadMin: string;
   leadMax: string;
 };
+
+const isWeight = (key: string) => key.trim().toLowerCase() === "weight";
 
 const fromListing = (l: ListingView | null): Draft => ({
   title: l?.title ?? "",
@@ -39,7 +44,11 @@ const fromListing = (l: ListingView | null): Draft => ({
   tiers: l?.tiers?.map((t) => ({ min: String(t.min), price: String(t.price) })) ?? [],
   options: l?.options?.map((o) => ({ name: o.name, values: o.values.map((v) => v.label).join(", "), soldOut: o.values.filter((v) => v.soldOut).map((v) => v.label) })) ?? [],
   highlights: l?.highlights.join("\n") ?? "",
-  specs: l?.specs ?? [],
+  specs: (l?.specs ?? []).filter(([k]) => !isWeight(k)),
+  weight: (() => {
+    const grams = parseWeight(l?.specs.find(([k]) => isWeight(k))?.[1] ?? "");
+    return grams ? String(grams / 1000) : "";
+  })(),
   shipsFrom: l?.shipsFrom ?? "",
   leadMin: String(l?.leadTime.minDays ?? 3),
   leadMax: String(l?.leadTime.maxDays ?? 7),
@@ -107,7 +116,8 @@ export function ListingEditor({ listing, categories }: { listing: ListingView | 
             };
           }),
         highlights: d.highlights.split("\n").map((h) => h.trim()).filter(Boolean),
-        specs: d.specs.filter(([k, v]) => k.trim() && v.trim()),
+        // Carriers charge by weight, so it rides along as the listing's "Weight" specification.
+        specs: [...d.specs.filter(([k, v]) => k.trim() && v.trim() && !isWeight(k)), ...(num(d.weight) ? [["Weight", `${num(d.weight)} kg`] as [string, string]] : [])],
         shipsFrom: d.shipsFrom,
         leadMinDays: num(d.leadMin) ?? 1,
         leadMaxDays: num(d.leadMax) ?? num(d.leadMin) ?? 1,
@@ -296,6 +306,9 @@ export function ListingEditor({ listing, categories }: { listing: ListingView | 
 
       <section className="glass flex flex-col gap-3.5 rounded-[26px] p-4">
         <h2 className="text-[17px] font-bold">Shipping</h2>
+        <Field label="Weight of one, packed (kg)" hint="Delivery companies price by weight. Without it, buyers see a typical weight for this kind of item.">
+          <input className={input} value={d.weight} onChange={(e) => set("weight", e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="0.4" maxLength={8} />
+        </Field>
         <Field label="Ships from (city)">
           <input className={input} value={d.shipsFrom} onChange={(e) => set("shipsFrom", e.target.value)} maxLength={80} />
         </Field>

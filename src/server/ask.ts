@@ -3,7 +3,8 @@ import { ApiError, type Content, type FunctionDeclaration, type Part } from "@go
 import { z } from "zod";
 import { serverEnv } from "@/config/server-env";
 import type { AskBlock, AskEvent, AskTurn } from "@/lib/ask";
-import { landedCost, shiftDelivery } from "@/lib/landed";
+import { deliveryEstimate, landedCost, shiftDelivery } from "@/lib/landed";
+import { quoteDelivery, shippingGrams } from "@/modules/delivery";
 import type { MarketView } from "@/modules/markets";
 import type { ProductView } from "@/modules/catalog";
 import { money } from "@/shared/kernel";
@@ -77,6 +78,11 @@ const TOOLS: FunctionDeclaration[] = [
     parametersJsonSchema: { type: "object", properties: { slug: { type: "string" }, qty: { type: "integer", description: "Units, 1 to 10000" } }, required: ["slug", "qty"], additionalProperties: false },
   },
   {
+    name: "delivery_options",
+    description: "Every delivery company that can carry `qty` units of a listing from China to the shopper's country: company, service, price (USD), working days, whether it comes to the door or a pickup point, and who delivers locally. Cheapest first. The shopper picks one at checkout.",
+    parametersJsonSchema: { type: "object", properties: { slug: { type: "string" }, qty: { type: "integer", description: "Units, 1 to 10000" } }, required: ["slug", "qty"], additionalProperties: false },
+  },
+  {
     name: "price_history",
     description: "The listing's recorded daily prices (USD) over up to 90 days, oldest first. Empty or short when we only recently started recording.",
     parametersJsonSchema: { type: "object", properties: { slug: { type: "string" } }, required: ["slug"], additionalProperties: false },
@@ -124,6 +130,8 @@ function stepFor(name: string, input: Record<string, unknown>) {
       return "Working out shipping, duty and tax";
     case "price_history":
       return "Checking recorded prices";
+    case "delivery_options":
+      return "Finding who can deliver it";
     case "compare_products":
       return "Lining them up";
     case "propose_add_to_bag":
@@ -179,9 +187,22 @@ async function runTool(name: string, raw: unknown, ctx: Ctx): Promise<string> {
       if (p.price === undefined) return JSON.stringify({ error: "This listing is sold by quote; there's no list price to estimate from." });
       const tier = [...(p.tiers ?? [])].reverse().find((t) => q.qty >= t.min);
       const unit = tier?.price ?? p.price;
-      const l = landedCost(unit * q.qty, p.dutyRate, ctx.market);
+      const delivery = deliveryEstimate(p, q.qty, ctx.market);
+      const l = landedCost(unit * q.qty, p.dutyRate, ctx.market, delivery ? (unit * q.qty >= ctx.market.freeShippingOver ? 0 : delivery.price) : undefined);
       ctx.blocks.push({ kind: "landed", title: p.title, qty: q.qty, country: ctx.market.name, item: l.item, shipping: l.shipping, duty: l.duty, vat: l.vat, total: l.total });
       return JSON.stringify({ unit_price: usd(unit), items: usd(l.item), shipping: usd(l.shipping), duty: usd(l.duty), vat: usd(l.vat), total: usd(l.total), country: ctx.market.name, minimum_order: p.moq ?? 1, note: "Estimate; shown to the shopper as a card." });
+    }
+    case "delivery_options": {
+      const q = z.object({ slug: Slug, qty: z.number().int().min(1).max(10_000) }).parse(input);
+      const [p] = await products(ctx, [q.slug]);
+      if (!p) return JSON.stringify({ error: "No live listing with that slug." });
+      const options = quoteDelivery({ country: ctx.market.code, region: ctx.market.region, extraDays: ctx.market.extraDays, parcels: [shippingGrams(p) * q.qty] });
+      if (!options.length) return JSON.stringify({ companies: [], note: "Too heavy for parcel carriers; the shop can quote freight." });
+      return JSON.stringify({
+        country: ctx.market.name,
+        companies: options.map((o) => ({ company: o.company, service: o.service, price: usd(o.price / 100), days: `${o.days[0]}-${o.days[1]} working days`, to: o.handover === "door" ? "door" : "pickup point", delivered_by: o.deliveredBy })),
+        note: "Estimates from published rates; above the country's free-shipping threshold the cheapest company is free.",
+      });
     }
     case "price_history": {
       const slug = Slug.parse(input.slug);

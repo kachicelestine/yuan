@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { boolean, char, check, index, integer, jsonb, pgSchema, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { ShippingAddress } from "../domain/address";
-import { ORDER_KINDS, ORDER_STATUSES } from "../domain/order";
+import { ORDER_KINDS, ORDER_STATUSES, type OrderDelivery } from "../domain/order";
 import { GIFT_THEMES } from "../domain/gift";
 import { DISPUTE_REASONS, SHIPMENT_STATUSES } from "../domain/shipment";
 import { SHIPPING_METHODS } from "../domain/pricing";
@@ -24,6 +24,8 @@ export const orders = orderingSchema.table(
     /** Delivery address; null on orders placed before addresses were taken. */
     address: jsonb().$type<ShippingAddress>(),
     shippingMethod: shippingMethod().notNull(),
+    /** The delivery company the shopper picked, as offered. */
+    delivery: jsonb().$type<OrderDelivery>(),
     subtotalCents: integer().notNull(),
     discountCents: integer().notNull(),
     shippingCents: integer().notNull(),

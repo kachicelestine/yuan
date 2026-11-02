@@ -2,9 +2,9 @@ import { domainError, err, ok, type Cents, type Clock, type DomainError, type Re
 import { cleanAddress, type AddressError, type AddressInput } from "../domain/address";
 import { createGift, type GiftError, type GiftInput } from "../domain/gift";
 import { MAX_QTY, placeOrder, type OrderError, type OrderLine } from "../domain/order";
-import { priceOrder, type PricedLine, type Pricing, type ShippingMethod } from "../domain/pricing";
+import { parcelWeights, priceOrder, type PricedLine, type Pricing } from "../domain/pricing";
 import type { CouponCatalog } from "../domain/repositories";
-import { holdCovers, type CatalogLineError, type CheckoutScope, type Destinations, type OrderCatalog, type PriceHolds, type UnitOfWork } from "./ports";
+import { holdCovers, type CatalogLineError, type CheckoutScope, type DeliveryQuotes, type Destinations, type OrderCatalog, type PriceHolds, type UnitOfWork } from "./ports";
 
 export type CheckoutRequest = Readonly<{
   /** The signed-in buyer, from the session (never from the request body). */
@@ -15,7 +15,8 @@ export type CheckoutRequest = Readonly<{
   address: AddressInput | null;
   /** Makes the order a gift: the recipient gets a link to add their address. */
   gift?: GiftInput;
-  shippingMethod: ShippingMethod;
+  /** The delivery option the shopper picked (from the same quote), or "cheapest". */
+  delivery: string;
   combineParcels: boolean;
   payDutiesNow: boolean;
   couponId: string | null;
@@ -31,7 +32,7 @@ export type CheckoutError =
   | OrderError
   | AddressError
   | GiftError
-  | DomainError<"too_many_lines" | "unknown_country" | "below_min_order" | "rail_unavailable" | "invalid_amount" | "coupon_unavailable">;
+  | DomainError<"too_many_lines" | "unknown_country" | "below_min_order" | "rail_unavailable" | "invalid_amount" | "coupon_unavailable" | "delivery_unavailable">;
 
 export const MAX_LINES = 50;
 
@@ -40,6 +41,7 @@ export type CheckoutDeps = {
   /** Live prices and auction wins this buyer holds; checkout honours them. */
   holds?: PriceHolds;
   destinations: Destinations;
+  delivery: DeliveryQuotes;
   coupons: CouponCatalog;
   uow: UnitOfWork<CheckoutScope>;
   clock: Clock;
@@ -72,6 +74,7 @@ export function makeCheckout(deps: CheckoutDeps) {
     if (!destination) return err(domainError("unknown_country", `We can't deliver to "${req.country}" yet.`));
 
     const priced: { line: OrderLine; pricing: PricedLine }[] = [];
+    const categories: string[] = [];
     for (const l of req.lines) {
       const r = await deps.catalog.priceLine(l.slug, l.option, l.qty);
       if (!r.ok) return r;
@@ -85,8 +88,18 @@ export function makeCheckout(deps: CheckoutDeps) {
       if (!held && l.qty < c.minOrder) return err(domainError("below_min_order", `${c.title} has a minimum order of ${c.minOrder}.`));
       priced.push({
         line: { productId: c.productId, slug: c.slug, title: c.title, image: c.image, sellerId: c.sellerId, option: l.option, unitPrice, qty: l.qty },
-        pricing: { unitPrice, qty: l.qty, dutyRate: c.dutyRate, sellerId: c.sellerId, shipsFrom: c.shipsFrom },
+        pricing: { unitPrice, qty: l.qty, dutyRate: c.dutyRate, sellerId: c.sellerId, shipsFrom: c.shipsFrom, grams: c.grams },
       });
+      categories.push(c.category);
+    }
+
+    // The companies that can carry these parcels, priced the same way the shopper saw them.
+    const parcels = parcelWeights(priced.map((p) => p.pricing), req.combineParcels);
+    const value = priced.reduce((n, p) => n + p.pricing.unitPrice * p.pricing.qty, 0) as Cents;
+    const choices = await deps.delivery.options(destination, parcels, value, categories[0] ?? "");
+    const chosen = req.delivery === "cheapest" ? choices[0] : choices.find((o) => o.id === req.delivery);
+    if (!chosen) {
+      return err(domainError("delivery_unavailable", choices.length ? "That delivery company can't take this order any more. Pick another." : "This order is too heavy to send as parcels. Ask the shop for a freight quote."));
     }
 
     const coupon = req.couponId ? await deps.coupons.findUsable(req.buyerId, req.couponId) : null;
@@ -95,7 +108,7 @@ export function makeCheckout(deps: CheckoutDeps) {
     const pricing = priceOrder({
       lines: priced.map((p) => p.pricing),
       destination,
-      shippingMethod: req.shippingMethod,
+      delivery: { price: chosen.price, cheapest: choices[0].price },
       combineParcels: req.combineParcels,
       payDutiesNow: req.payDutiesNow,
       coupon,
@@ -107,7 +120,8 @@ export function makeCheckout(deps: CheckoutDeps) {
       buyerId: req.buyerId,
       country: destination.country,
       address: address.value,
-      shippingMethod: req.shippingMethod,
+      shippingMethod: chosen.kind === "express" ? "express" : "standard",
+      delivery: { id: chosen.id, company: chosen.company, service: chosen.service, deliveredBy: chosen.deliveredBy, days: chosen.days, price: chosen.price, estimate: chosen.estimate },
       lines: priced.map((p) => p.line),
       pricing,
       at: deps.clock.now(),

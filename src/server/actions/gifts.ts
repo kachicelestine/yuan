@@ -65,7 +65,7 @@ export async function sendGiftAction(input: z.input<typeof Send>): Promise<{ ok:
     country: p.data.country,
     address: null,
     gift: { fromName: p.data.fromName, recipientName: p.data.recipientName, theme: p.data.theme, message: p.data.message, hidePrice: p.data.hidePrice, chooseOption: p.data.chooseOption },
-    shippingMethod: "standard",
+    delivery: "cheapest",
     combineParcels: true,
     payDutiesNow: true,
     couponId: null,

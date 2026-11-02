@@ -41,7 +41,7 @@ describe("deposits", () => {
     if (paid) await pay(order.value.invoiceId);
     return { ok: true as const, ...order.value };
   };
-  const buy = (buyerId: string, qty = 1): CheckoutRequest => ({ buyerId, lines: [{ slug, option: null, qty }], country: "NG", address: TEST_ADDRESS, shippingMethod: "standard", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base" });
+  const buy = (buyerId: string, qty = 1): CheckoutRequest => ({ buyerId, lines: [{ slug, option: null, qty }], country: "NG", address: TEST_ADDRESS, delivery: "cheapest", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base" });
   const presale = () =>
     app().deposits.createOffer(shop, {
       slug,

@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { cents } from "@/shared/kernel/money";
 import { orderNumber, placeOrder, markPaid } from "./order";
-import { priceOrder, type PricingInput } from "./pricing";
+import { parcelWeights, priceOrder, type PricingInput } from "./pricing";
 
 const input = (patch: Partial<PricingInput> = {}): PricingInput => ({
   lines: [
-    { unitPrice: cents(3400), qty: 2, dutyRate: 0.12, sellerId: "streetlab", shipsFrom: "Guangzhou" },
-    { unitPrice: cents(1500), qty: 1, dutyRate: 0.04, sellerId: "pals", shipsFrom: "Dongguan" },
+    { unitPrice: cents(3400), qty: 2, dutyRate: 0.12, sellerId: "streetlab", shipsFrom: "Guangzhou", grams: 500 },
+    { unitPrice: cents(1500), qty: 1, dutyRate: 0.04, sellerId: "pals", shipsFrom: "Dongguan", grams: 300 },
   ],
-  destination: { country: "NG", shipping: cents(700), freeShippingOver: cents(6000), vatRate: 0.075 },
-  shippingMethod: "standard",
+  destination: { country: "NG", region: "Africa", extraDays: 3, freeShippingOver: cents(6000), vatRate: 0.075 },
+  delivery: { price: cents(900), cheapest: cents(900) },
   combineParcels: true,
   payDutiesNow: true,
   coupon: null,
@@ -27,17 +27,31 @@ describe("priceOrder", () => {
     expect(p.dueAtDoor).toBe(0);
   });
 
-  it("charges each origin as a parcel unless combined, plus the express surcharge", () => {
-    const small = { lines: [{ unitPrice: cents(1000), qty: 1, dutyRate: 0, sellerId: "a", shipsFrom: "X" }, { unitPrice: cents(1000), qty: 1, dutyRate: 0, sellerId: "b", shipsFrom: "Y" }] };
-    expect(priceOrder(input({ ...small, combineParcels: false })).shipping).toBe(1400);
-    expect(priceOrder(input({ ...small, combineParcels: true, shippingMethod: "express" })).shipping).toBe(700 + 1800);
+  it("charges the chosen company, and over the threshold only what it costs above the cheapest", () => {
+    const small = { lines: [{ unitPrice: cents(1000), qty: 1, dutyRate: 0, sellerId: "a", shipsFrom: "X", grams: 400 }, { unitPrice: cents(1000), qty: 2, dutyRate: 0, sellerId: "b", shipsFrom: "Y", grams: 300 }] };
+    const dhl = { price: cents(3200), cheapest: cents(1400) };
+    expect(priceOrder(input({ ...small, combineParcels: false, delivery: dhl }))).toMatchObject({ shipping: 3200, parcels: 2 });
+    // Big enough for free shipping: the cheapest company is free, DHL costs the difference.
+    expect(priceOrder(input({ delivery: dhl })).shipping).toBe(1800);
+    expect(priceOrder(input({ delivery: { price: cents(900), cheapest: cents(900) } })).shipping).toBe(0);
+  });
+
+  it("makes one parcel per origin unless combined, weighed for the carrier", () => {
+    const lines = [
+      { shipsFrom: "Guangzhou", grams: 500, qty: 2 },
+      { shipsFrom: "Yiwu", grams: 300, qty: 1 },
+      { shipsFrom: "Guangzhou", grams: 200, qty: 1 },
+    ];
+    expect(parcelWeights(lines, false)).toEqual([1200, 300]);
+    expect(parcelWeights(lines, true)).toEqual([1500]);
+    expect(parcelWeights([], true)).toEqual([]);
   });
 
   it("leaves duties for the door when asked, and doesn't collect unknown VAT", () => {
     const p = priceOrder(input({ payDutiesNow: false }));
     expect(p.total).toBe(8300);
     expect(p.dueAtDoor).toBe(876 + 688);
-    expect(priceOrder(input({ destination: { country: "CD", shipping: cents(700), freeShippingOver: cents(6000), vatRate: null } })).vat).toBe(0);
+    expect(priceOrder(input({ destination: { country: "CD", region: "Africa", extraDays: 3, freeShippingOver: cents(6000), vatRate: null } })).vat).toBe(0);
   });
 
   it("applies coupons only when the qualifying spend is met", () => {

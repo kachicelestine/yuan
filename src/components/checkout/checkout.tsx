@@ -23,11 +23,22 @@ import { checkoutAction } from "@/server/actions/checkout";
 import { useStored } from "@/lib/use-stored";
 import { BagSection, type BagGroup } from "./bag-section";
 
-const shipping = [
-  { id: "standard", label: "Standard", detail: "Sea-air, tracked door to door", eta: "7–12 days", extra: 0 },
-  { id: "express", label: "Express", detail: "Air courier, signature on delivery", eta: "3–5 days", extra: 18 },
-] as const;
+/** A company that can take the order, as /api/delivery/options prices it (dollars). */
+type DeliveryChoice = {
+  id: string;
+  company: string;
+  service: string;
+  blurb: string;
+  kind: string;
+  handover: "door" | "pickup";
+  price: number;
+  days: [number, number];
+  deliveredBy: string;
+  estimate: boolean;
+};
 
+/** The cheapest few are shown; the rest are a tap away. */
+const SHOWN = 4;
 
 const HOLD_MS = 1200;
 
@@ -57,7 +68,9 @@ export function Checkout({ rails: available, signedIn }: { rails: string[]; sign
   const { ready, cart, setQty, addToCart, recordOrder, market, setMarket, coupons: wallet } = useStore();
   const rails = RAILS.filter((r) => available.includes(r.id));
   const money = useMoney();
-  const [ship, setShip] = useState<(typeof shipping)[number]["id"]>("standard");
+  const [deliveryId, setDeliveryId] = useState<string | null>(null);
+  const [choices, setChoices] = useState<DeliveryChoice[] | null>(null);
+  const [allChoices, setAllChoices] = useState(false);
   const [dutiesNow, setDutiesNow] = useState(true);
   const [picked, setPay] = useState<RailId>(DEFAULT_RAIL);
   const pay = rails.some((r) => r.id === picked) ? picked : (rails[0]?.id ?? DEFAULT_RAIL);
@@ -90,12 +103,33 @@ export function Checkout({ rails: available, signedIn }: { rails: string[]; sign
     } else list.push({ origin, sellers: seller ? [seller] : [], lines: [line] });
     return list;
   }, []);
-  const parcels = combine ? 1 : Math.max(groups.length, 1);
-  const baseShipping = subtotal >= market.freeShippingOver ? 0 : market.shipping;
-  const perParcel = (id: (typeof shipping)[number]["id"]) => baseShipping + (shipping.find((s) => s.id === id)?.extra ?? 0);
-  const shipPrice = (id: (typeof shipping)[number]["id"]) => perParcel(id) * parcels;
-  const shipCost = shipPrice(ship);
-  const combineSaving = perParcel(ship) * (groups.length - 1);
+  // Who can carry these parcels there, priced for their weight (the server charges the same).
+  const bagKey = cart.map((l) => `${l.slug}×${l.qty}`).join(",");
+  useEffect(() => {
+    if (!ready || !cart.length) return;
+    const controller = new AbortController();
+    fetch("/api/delivery/options", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ country: market.code, lines: cart.map((l) => ({ slug: l.slug, qty: l.qty })), combine }),
+      signal: controller.signal,
+    })
+      .then((r) => (r.ok ? (r.json() as Promise<{ options: DeliveryChoice[] }>) : null))
+      .then((r) => r && setChoices(r.options))
+      .catch(() => {});
+    return () => controller.abort();
+    // The bag's contents are in bagKey; the cart array changes identity on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, bagKey, market.code, combine]);
+  const options = choices ?? [];
+  const chosen = options.find((o) => o.id === deliveryId) ?? options[0] ?? null;
+  // Over the free-shipping threshold the cheapest company is free; a dearer one costs the difference.
+  const free = subtotal >= market.freeShippingOver;
+  const shipPrice = (o: DeliveryChoice) => (free ? Math.max(0, o.price - (options[0]?.price ?? 0)) : o.price);
+  const shipCost = chosen ? shipPrice(chosen) : 0;
+  const fastest = options.reduce<DeliveryChoice | null>((best, o) => (!best || o.days[1] < best.days[1] ? o : best), null);
+  const visible = allChoices ? options : options.filter((o, i) => i < SHOWN || o.id === chosen?.id);
+  const combineSaving = 0;
   const walletCoupons = useCoupons({ ids: wallet }) ?? [];
   const coupon = bestCoupon(
     walletCoupons,
@@ -123,6 +157,10 @@ export function Checkout({ rails: available, signedIn }: { rails: string[]; sign
     if (submitting) return;
     setHolding(false);
     setFailure(null);
+    if (!chosen) {
+      setFailure(choices?.length === 0 ? "No carrier takes parcels this heavy. Ask the shop for a freight quote." : "Delivery prices are still loading. Try again in a moment.");
+      return;
+    }
     if (missing.length) {
       setFailure(`Add the ${missing.length > 1 ? `${missing.slice(0, -1).join(", ")} and ${missing.at(-1)}` : missing[0]} for the delivery.`);
       document.getElementById("ship-to")?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -135,7 +173,7 @@ export function Checkout({ rails: available, signedIn }: { rails: string[]; sign
         lines: cart.map((l) => ({ slug: l.slug, option: l.option ?? null, qty: l.qty })),
         country: market.code,
         address: { name: address.name, phone: address.phone, line1: address.line1, line2: address.line2, city: address.city, region: address.region, postcode: address.postcode },
-        shippingMethod: ship,
+        delivery: chosen.id,
         combineParcels: combine,
         payDutiesNow: dutiesNow,
         couponId: coupon?.coupon.id ?? null,
@@ -202,28 +240,58 @@ export function Checkout({ rails: available, signedIn }: { rails: string[]; sign
           pairs={pairs}
         />
 
-        <fieldset className="glass rounded-[26px] p-4">
-          <legend className="sr-only">Delivery</legend>
-          <h2 aria-hidden="true" className="mb-3 text-[13px] font-semibold text-ink-2">
-            Delivery
+        {/* min-w-0: a fieldset otherwise grows to its longest line instead of wrapping it. */}
+        <fieldset className="glass min-w-0 rounded-[26px] p-4">
+          <legend className="sr-only">Delivery company</legend>
+          <h2 aria-hidden="true" className="text-[13px] font-semibold text-ink-2">
+            Delivery to {market.name}
           </h2>
-          <div className="flex flex-col gap-2">
-            {shipping.map((option) => (
-              <label
-                key={option.id}
-                className={`flex min-h-14 cursor-pointer items-center gap-3 rounded-[18px] px-3 py-2 transition-[background,box-shadow] ${ship === option.id ? "bg-white/15 shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.85)]" : "glass-inset"}`}
-              >
-                <input type="radio" name="ship" value={option.id} checked={ship === option.id} onChange={() => setShip(option.id)} className="size-5 accent-white" />
-                <span className="flex-1">
-                  <b className="block text-sm font-semibold">
-                    {option.label}, {option.eta}
-                  </b>
-                  <span className="text-xs text-ink-2">{option.detail}</span>
-                </span>
-                <span className="text-sm font-bold">{shipPrice(option.id) ? money(shipPrice(option.id)) : "Free"}</span>
-              </label>
-            ))}
-          </div>
+          {choices === null ? (
+            <div aria-label="Loading delivery companies" className="mt-3 flex flex-col gap-2">
+              {[0, 1, 2].map((i) => (
+                <span key={i} className="skeleton block h-16 rounded-[18px]" />
+              ))}
+            </div>
+          ) : options.length === 0 ? (
+            <p className="mt-2 text-sm text-ink-2">No parcel carrier takes a parcel this heavy. Ask the shop for a freight quote, or split the order.</p>
+          ) : (
+            <>
+              <p className="mt-0.5 mb-3 text-xs text-ink-3">
+                {options.length === 1 ? "One company can" : `${options.length} companies can`} take this order. Pick one and the shop ships with it.
+              </p>
+              <div className="flex flex-col gap-2">
+                {visible.map((o) => (
+                  <label
+                    key={o.id}
+                    className={`flex min-h-16 cursor-pointer items-center gap-3 rounded-[18px] px-3 py-2.5 transition-[background,box-shadow] ${chosen?.id === o.id ? "bg-white/15 shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.85)]" : "glass-inset"}`}
+                  >
+                    <input type="radio" name="delivery" value={o.id} checked={chosen?.id === o.id} onChange={() => setDeliveryId(o.id)} className="size-5 shrink-0 accent-white" />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                        <b className="text-sm font-semibold">{o.company}</b>
+                        <span className="text-xs text-ink-2">{o.service}</span>
+                        {o.id === options[0].id && <span className="rounded-full bg-positive/15 px-1.5 py-px text-[10px] font-bold text-positive">Cheapest</span>}
+                        {o.id === fastest?.id && o.id !== options[0].id && <span className="rounded-full bg-agent/15 px-1.5 py-px text-[10px] font-bold text-agent">Fastest</span>}
+                      </span>
+                      <span className="block text-xs text-ink-2">
+                        {o.days[0]}–{o.days[1]} days · {o.handover === "pickup" ? "collect near you" : "to your door"}
+                      </span>
+                      {o.deliveredBy !== o.company && <span className="block text-[11px] leading-snug text-ink-3">Delivered in {market.name} by {o.deliveredBy}</span>}
+                    </span>
+                    <span className="shrink-0 text-sm font-bold">{shipPrice(o) ? money(shipPrice(o)) : "Free"}</span>
+                  </label>
+                ))}
+              </div>
+              {options.length > SHOWN && (
+                <button type="button" onClick={() => setAllChoices((v) => !v)} className="mt-2.5 text-[13px] font-semibold text-agent">
+                  {allChoices ? "Show fewer" : `Show all ${options.length} companies`}
+                </button>
+              )}
+              <p className="mt-2 text-[11px] leading-snug text-ink-3">
+                {options.some((o) => o.estimate) ? "Prices come from each company's published rates for these parcels' weights, and they're what you pay. " : ""}Days are working days once the shop ships; customs can add a few.
+              </p>
+            </>
+          )}
         </fieldset>
 
         <section id="ship-to" aria-label="Ship to" className="glass scroll-mt-24 rounded-[26px] p-4">

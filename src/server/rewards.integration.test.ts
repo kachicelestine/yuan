@@ -29,7 +29,7 @@ describe("rewards: missions, badges and levels from real activity", () => {
   });
 
   it("pays a finished mission once and counts it toward the level", async () => {
-    const r = await app().checkout({ buyerId: buyer, lines: [{ slug: "solar-panel-450w-bifacial", option: null, qty: 1 }], country: "NG", shippingMethod: "standard", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base", address: TEST_ADDRESS });
+    const r = await app().checkout({ buyerId: buyer, lines: [{ slug: "solar-panel-450w-bifacial", option: null, qty: 1 }], country: "NG", delivery: "cheapest", combineParcels: true, payDutiesNow: true, couponId: null, rail: "usdc-base", address: TEST_ADDRESS });
     if (!r.ok) throw new Error(r.error.message);
     await network.send((await new DrizzleInvoiceRepository(db).findById(r.value.invoiceId))!, now);
     await app().checkInvoice(r.value.invoiceId);

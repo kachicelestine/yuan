@@ -9,6 +9,7 @@ import { useProducts } from "@/components/product/use-products";
 import { useStore } from "@/components/providers";
 import { brand } from "@/config/brand";
 import { shiftDelivery } from "@/lib/landed";
+import { trackingLink } from "@/modules/delivery";
 import { AUTO_CONFIRM_DAYS, type GiftSummary, type OrderView, type ShipmentView } from "@/modules/ordering";
 import { GiftPanel } from "./gift-panel";
 import { OrderParcels } from "./order-parcels";
@@ -79,7 +80,7 @@ export function OrderJourney({
         </p>
       )}
 
-      {paid && parcels.length > 0 && <ParcelProgress parcels={parcels} eta={eta} from={first?.shipsFrom || "China"} to={market.name} toCode={market.code} />}
+      {paid && parcels.length > 0 && <ParcelProgress parcels={parcels} eta={eta} from={first?.shipsFrom || "China"} to={market.name} toCode={market.code} delivery={placed.delivery} />}
 
       {paid && (
         <section aria-labelledby="protect-h" className="glass mt-5 rounded-[26px] p-4">
@@ -147,7 +148,7 @@ export function OrderJourney({
 const STAGES = ["Paid", "Shipped", "Delivered"] as const;
 
 /** A paid order's progress, from its parcels: packing, on the way, delivered. */
-function ParcelProgress({ parcels, eta, from, to, toCode }: { parcels: ShipmentView[]; eta: string | null; from: string; to: string; toCode: string }) {
+function ParcelProgress({ parcels, eta, from, to, toCode, delivery }: { parcels: ShipmentView[]; eta: string | null; from: string; to: string; toCode: string; delivery: OrderView["delivery"] }) {
   const settled = parcels.every((p) => p.status === "delivered" || p.status === "refunded");
   const moving = parcels.some((p) => p.status === "shipped" || p.status === "delivered");
   const stage = settled ? 2 : moving ? 1 : 0;
@@ -164,6 +165,12 @@ function ParcelProgress({ parcels, eta, from, to, toCode }: { parcels: ShipmentV
         <span className={`size-2.5 rounded-full ${disputed ? "bg-save" : "bg-positive"}`} />
         <b className="font-semibold">{status}</b>
       </p>
+      {delivery && (
+        <p className="mt-1 text-xs text-ink-2">
+          {delivery.company} · {delivery.service}, {delivery.days[0]}–{delivery.days[1]} working days
+          {delivery.deliveredBy !== delivery.company ? ` · delivered by ${delivery.deliveredBy}` : ""}
+        </p>
+      )}
       <div className="mt-6">
         <div className="flex justify-between text-xs font-semibold">
           <span className="flex items-center gap-1.5">
@@ -188,7 +195,9 @@ function ParcelProgress({ parcels, eta, from, to, toCode }: { parcels: ShipmentV
         {sent && (
           <p className="mt-3 flex items-center justify-between text-xs text-ink-2">
             <span>{sent.carrier}</span>
-            <span className="font-mono">{sent.tracking}</span>
+            <a href={trackingLink(sent.carrier ?? "", sent.tracking ?? "")} target="_blank" rel="noopener noreferrer" className="font-mono underline decoration-white/30 underline-offset-2">
+              {sent.tracking}
+            </a>
           </p>
         )}
       </div>

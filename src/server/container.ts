@@ -91,6 +91,9 @@ import { CatalogForLive } from "./adapters/live";
 import { CatalogShops } from "./adapters/shops";
 import { MarketDestinations } from "./adapters/destinations";
 import { CatalogPricing } from "./adapters/order-catalog";
+import { DeliveryOptions } from "./adapters/delivery";
+import { makeDelivery } from "@/modules/delivery";
+import { EasyshipRates } from "@/modules/delivery/infrastructure/easyship-rates";
 import { getDb } from "./db";
 
 /** A random invoice tag, 1–9,999 token base units (under one cent). */
@@ -168,6 +171,9 @@ if (process.env.VERCEL) outboxSignal.onRecorded = deliverEventsSoon;
 export type WireOptions = { clock?: Clock; newTag?: () => number; payments?: Payments; media?: Media; bus?: LiveBus; push?: PushSender };
 
 /** Browser alerts, when this site has a key pair. */
+/** Live express prices when an Easyship token is set; rate-card estimates otherwise. */
+const liveRates = () => (serverEnv.EASYSHIP_API_KEY ? new EasyshipRates({ token: serverEnv.EASYSHIP_API_KEY }) : null);
+
 function pushSender(): PushSender | null {
   const { VAPID_PRIVATE_KEY: privateKey, NEXT_PUBLIC_VAPID_PUBLIC_KEY: publicKey } = serverEnv;
   if (!privateKey || !publicKey) return null;
@@ -187,6 +193,7 @@ export function wire(db: Database, options: WireOptions = {}) {
   const products = new DrizzleProductRepository(db);
   const productSearch = new DrizzleProductSearch(db);
   const pricing = new CatalogPricing(products);
+  const delivery = makeDelivery({ live: liveRates(), hubs: serverEnv.DELIVERY_HUBS });
   const { network, simulator } = options.payments ?? paymentNetwork(db);
 
   const identityRepos = (tx: Database) => ({
@@ -535,6 +542,7 @@ export function wire(db: Database, options: WireOptions = {}) {
       catalog: pricing,
       holds,
       destinations: new MarketDestinations(countries, restricted),
+      delivery: new DeliveryOptions(delivery),
       coupons: new WalletCoupons(engagement),
       uow: checkoutUow,
       clock,
@@ -543,6 +551,7 @@ export function wire(db: Database, options: WireOptions = {}) {
       newToken: () => randomBytes(18).toString("base64url"),
     }),
     deposits,
+    delivery,
     depositCheckout: makeDepositCheckout({ catalog: pricing, destinations: new MarketDestinations(countries, restricted), uow: checkoutUow, clock, newId: () => newId(), newOrderNumber: () => orderNumber("LY", random) }),
     closeDeposit: makeCloseDeposit({ orders: new DrizzleOrderRepository(db) }),
     getOrder: makeGetOrder({ orders: new DrizzleOrderRepository(db) }),

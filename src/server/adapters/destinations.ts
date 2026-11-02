@@ -12,6 +12,6 @@ export class MarketDestinations implements Destinations {
     const code = parseCountryCode(country);
     if (!code.ok || this.restricted.has(code.value)) return null;
     const c = await this.countries.findByCode(code.value);
-    return c && { country: c.code, shipping: c.shipping, freeShippingOver: c.freeShippingOver, vatRate: c.vatRate };
+    return c && { country: c.code, region: c.region, extraDays: c.extraDays, freeShippingOver: c.freeShippingOver, vatRate: c.vatRate };
   }
 }

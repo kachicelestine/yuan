@@ -50,7 +50,7 @@ describe("shop vouchers", () => {
         { slug: "earbuds-anc", option: null, qty: 1 },
       ],
       country: "NG",
-      shippingMethod: "standard",
+      delivery: "cheapest",
       combineParcels: true,
       payDutiesNow: true,
       couponId,

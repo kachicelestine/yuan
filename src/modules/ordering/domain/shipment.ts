@@ -11,7 +11,8 @@ export type ShipmentStatus = (typeof SHIPMENT_STATUSES)[number];
 export const DISPUTE_REASONS = ["not_arrived", "damaged", "not_as_described", "wrong_item", "other"] as const;
 export type DisputeReason = (typeof DISPUTE_REASONS)[number];
 
-export const CARRIERS = ["DHL", "FedEx", "UPS", "EMS", "China Post", "SF Express", "YunExpress", "Cainiao", "Aramex", "Other"] as const;
+/** Carriers a shop can pick when it ships; the shopper's chosen company comes first in the form. */
+export const CARRIERS = ["DHL", "FedEx", "UPS", "Aramex", "SF International", "EMS", "China Post", "YunExpress", "4PX", "Cainiao", "J&T Express", "Speedaf", "Other"] as const;
 
 /** Shipped parcels confirm themselves this long after shipping if the buyer says nothing. */
 export const AUTO_CONFIRM_DAYS = 21;
