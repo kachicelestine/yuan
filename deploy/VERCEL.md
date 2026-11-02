@@ -59,7 +59,7 @@ Don't set `DEMO_DEPLOYMENT` on a public site. It allows on-screen sign-in codes 
 
 These confirm payments, send emails and reminders, release escrow, and refresh exchange rates.
 
-1. GitHub → the repository → Settings → Secrets and variables → Actions: add `SITE_URL` (no trailing slash) and `INTERNAL_TOKEN`, the same value as on Vercel. The **Background jobs** workflow then runs about every 5 minutes.
+1. GitHub → the repository → Settings → Secrets and variables → Actions → the **Secrets** tab → **New repository secret** (not Variables, and not Environment secrets): add `SITE_URL` (no trailing slash) and `INTERNAL_TOKEN`, the same value as on Vercel. The **Background jobs** workflow then runs about every 5 minutes.
 2. For every minute, which is better while taking payments, add a free job at [cron-job.org](https://cron-job.org): `GET https://your-site/api/internal/jobs` with the header `Authorization: Bearer <INTERNAL_TOKEN>`. Both can run together.
 
 Vercel's own cron can't do this on the Hobby plan, which allows one run a day.
