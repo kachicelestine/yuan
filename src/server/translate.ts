@@ -1,11 +1,12 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import Anthropic from "@anthropic-ai/sdk";
+import { FinishReason, ThinkingLevel } from "@google/genai";
 import { eq } from "drizzle-orm";
 import { serverEnv } from "@/config/server-env";
 import { log } from "@/shared/infrastructure/log";
 import { translations } from "@/shared/infrastructure/platform-schema";
 import { services } from "./container";
+import { answerText, gemini, type GeminiModel } from "./gemini";
 
 // On-demand translation of what people write to each other: messages and reviews. Each text
 // is translated once per language, then served from the database.
@@ -19,16 +20,14 @@ const SYSTEM = [
 ].join(" ");
 
 export type TranslateDeps = {
-  model: { messages: { create(params: Anthropic.MessageCreateParamsNonStreaming): Promise<Anthropic.Message> } };
+  model: GeminiModel;
   modelId: string;
   cached(key: string): Promise<string | null>;
   remember(key: string, text: string): Promise<void>;
 };
 
-let client: Anthropic | null = null;
-
 const liveDeps = (): TranslateDeps => ({
-  model: (client ??= new Anthropic({ apiKey: serverEnv.ANTHROPIC_API_KEY })),
+  model: gemini(),
   modelId: serverEnv.ASK_MODEL,
   async cached(key) {
     const { db } = await services();
@@ -48,16 +47,15 @@ export async function translateText(text: string, language: string, deps: Transl
   const key = translationKey(text, language);
   const known = await deps.cached(key);
   if (known) return known;
-  const response = await deps.model.messages.create({
+  const response = await deps.model.generateContent({
     model: deps.modelId,
-    max_tokens: 4096,
-    output_config: { effort: "low" },
-    system: SYSTEM,
-    messages: [{ role: "user", content: `<language>${language}</language>\n<text>${text}</text>` }],
+    contents: [{ role: "user", parts: [{ text: `<language>${language}</language>\n<text>${text}</text>` }] }],
+    config: { systemInstruction: SYSTEM, maxOutputTokens: 8192, thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } },
   });
-  const translated = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("").trim();
-  if (response.stop_reason !== "end_turn" || !translated) {
-    log.warn("translation not finished", { stop: response.stop_reason });
+  const translated = answerText(response).trim();
+  const finish = response.candidates?.[0]?.finishReason;
+  if (finish !== FinishReason.STOP || !translated) {
+    log.warn("translation not finished", { stop: finish ?? response.promptFeedback?.blockReason });
     return null;
   }
   await deps.remember(key, translated);

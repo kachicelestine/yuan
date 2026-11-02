@@ -48,7 +48,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" data-glass="regular" className={`${inter.variable} ${interTight.variable} antialiased`}>
       <body className="min-h-dvh">
-        <StoreProvider markets={markets} translation={!!serverEnv.ANTHROPIC_API_KEY}>
+        <StoreProvider markets={markets} translation={!!serverEnv.GEMINI_API_KEY}>
           {children}
           <FlyToBag />
           <AppShellExtras />

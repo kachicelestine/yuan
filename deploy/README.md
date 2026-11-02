@@ -79,7 +79,7 @@ MediaMTX checks every publish and every viewer with the app (`/api/live/auth`): 
 
 ### 6. Ask, the shopping assistant (optional)
 
-Ask runs on Claude. Create an API key at console.anthropic.com (set a monthly spend limit there), put it in `.env` as `ANTHROPIC_API_KEY=sk-ant-…`, and run `deploy/scripts/deploy.sh`. Without a key, Ask says it isn't switched on. Only signed-in shoppers can ask, 30 questions an hour each. `ASK_MODEL` picks the model (default `claude-sonnet-5-5`; `claude-opus-5-5` answers best and costs most, `claude-haiku-5-5` costs least).
+Ask, photo search and translation run on Gemini. Create an API key at aistudio.google.com on a Google Cloud project with billing on (the free tier may not serve people in the EEA, Switzerland or the UK, and Google's reviewers may read what's sent; set a budget alert in the Cloud console), put it in `.env` as `GEMINI_API_KEY=…`, and run `deploy/scripts/deploy.sh`. Without a key, Ask says it isn't switched on. Only signed-in shoppers can ask, 30 questions an hour each. `ASK_MODEL` picks the model (default `gemini-3.8-flash`; `gemini-4-argon` reasons best and costs most, `gemini-3.5-flash-lite` costs least).
 
 ## Day to day
 

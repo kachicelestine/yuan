@@ -1,5 +1,5 @@
 import "server-only";
-import Anthropic from "@anthropic-ai/sdk";
+import { ApiError, type Content, type FunctionDeclaration, type Part } from "@google/genai";
 import { z } from "zod";
 import { serverEnv } from "@/config/server-env";
 import type { AskBlock, AskEvent, AskTurn } from "@/lib/ask";
@@ -10,17 +10,15 @@ import { money } from "@/shared/kernel";
 import { log } from "@/shared/infrastructure/log";
 import type { SearchCriteria } from "@/modules/catalog";
 import { getPriceHistory, getProductsBySlugs, searchCatalog } from "./catalog";
+import { answerText, gemini, geminiEnabled, type GeminiModel } from "./gemini";
 
-// Ask: Claude with tools over the live catalog. It looks things up and shows them; it can
+// Ask: Gemini with tools over the live catalog. It looks things up and shows them; it can
 // propose putting things in the bag, a price alert or a quote request, but each proposal
 // is a card the shopper approves on their own device. It never buys or messages anyone.
 
 const askLog = log.child({ scope: "ask" });
 
-export const askEnabled = () => !!serverEnv.ANTHROPIC_API_KEY;
-
-let client: Anthropic | null = null;
-const anthropic = () => (client ??= new Anthropic({ apiKey: serverEnv.ANTHROPIC_API_KEY }));
+export const askEnabled = geminiEnabled;
 
 const MAX_TURNS = 8;
 
@@ -39,25 +37,24 @@ How you write: short and plain, one to three sentences, like a helpful shop assi
 
 /** What Ask reads the catalog with, and the model it talks to (swappable in tests). */
 export type AskDeps = {
-  model: { messages: { create(params: Anthropic.MessageCreateParamsNonStreaming): Promise<Anthropic.Message> } };
+  model: GeminiModel;
   modelId: string;
   search(criteria: SearchCriteria): Promise<ProductView[]>;
   productsBySlugs(slugs: readonly string[]): Promise<ProductView[]>;
   priceHistory(slug: string): Promise<{ date: string; price: number }[]>;
 };
 
-const liveDeps = (): AskDeps => ({ model: anthropic(), modelId: serverEnv.ASK_MODEL, search: searchCatalog, productsBySlugs: getProductsBySlugs, priceHistory: getPriceHistory });
+const liveDeps = (): AskDeps => ({ model: gemini(), modelId: serverEnv.ASK_MODEL, search: searchCatalog, productsBySlugs: getProductsBySlugs, priceHistory: getPriceHistory });
 
 type Ctx = { market: MarketView; blocks: AskBlock[]; seen: Map<string, ProductView>; deps: AskDeps };
 
 const nullable = <T extends object>(schema: T) => ({ anyOf: [schema, { type: "null" }] });
 
-const TOOLS: Anthropic.Tool[] = [
+const TOOLS: FunctionDeclaration[] = [
   {
     name: "search_products",
     description: "Search the live catalog. Returns up to `limit` listings with slug, title, price (USD, null when sold by quote), bulk tiers, minimum order, rating, review count, shop and delivery window.",
-    strict: true,
-    input_schema: {
+    parametersJsonSchema: {
       type: "object",
       properties: {
         query: { type: "string", description: "What to look for, in plain words, e.g. 'solar panel 450w'" },
@@ -71,38 +68,32 @@ const TOOLS: Anthropic.Tool[] = [
   {
     name: "get_product",
     description: "Full details of one listing by slug: price, bulk tiers, options, highlights, specs, what buyers say, delivery window, ships from, duty rate and the shop.",
-    strict: true,
-    input_schema: { type: "object", properties: { slug: { type: "string" } }, required: ["slug"], additionalProperties: false },
+    parametersJsonSchema: { type: "object", properties: { slug: { type: "string" } }, required: ["slug"], additionalProperties: false },
   },
   {
     name: "landed_cost",
     description: "Estimated total to the shopper's country for `qty` units of a listing: item price (with bulk tiers), shipping, duty and VAT/GST. Also shows the shopper the breakdown as a card.",
-    strict: true,
-    input_schema: { type: "object", properties: { slug: { type: "string" }, qty: { type: "integer", description: "Units, 1 to 10000" } }, required: ["slug", "qty"], additionalProperties: false },
+    parametersJsonSchema: { type: "object", properties: { slug: { type: "string" }, qty: { type: "integer", description: "Units, 1 to 10000" } }, required: ["slug", "qty"], additionalProperties: false },
   },
   {
     name: "price_history",
     description: "The listing's recorded daily prices (USD) over up to 90 days, oldest first. Empty or short when we only recently started recording.",
-    strict: true,
-    input_schema: { type: "object", properties: { slug: { type: "string" } }, required: ["slug"], additionalProperties: false },
+    parametersJsonSchema: { type: "object", properties: { slug: { type: "string" } }, required: ["slug"], additionalProperties: false },
   },
   {
     name: "show_products",
     description: "Show the shopper product cards for these listings (1 to 4 slugs from earlier results).",
-    strict: true,
-    input_schema: { type: "object", properties: { slugs: { type: "array", items: { type: "string" } } }, required: ["slugs"], additionalProperties: false },
+    parametersJsonSchema: { type: "object", properties: { slugs: { type: "array", items: { type: "string" } } }, required: ["slugs"], additionalProperties: false },
   },
   {
     name: "compare_products",
     description: "Show the shopper a side-by-side comparison (price, rating, delivery, top highlight) of 2 or 3 listings.",
-    strict: true,
-    input_schema: { type: "object", properties: { slugs: { type: "array", items: { type: "string" } } }, required: ["slugs"], additionalProperties: false },
+    parametersJsonSchema: { type: "object", properties: { slugs: { type: "array", items: { type: "string" } } }, required: ["slugs"], additionalProperties: false },
   },
   {
     name: "propose_add_to_bag",
     description: "Prepare a card that adds these listings to the shopper's bag if they approve it.",
-    strict: true,
-    input_schema: {
+    parametersJsonSchema: {
       type: "object",
       properties: { lines: { type: "array", items: { type: "object", properties: { slug: { type: "string" }, qty: { type: "integer", description: "Units, 1 to 10000" } }, required: ["slug", "qty"], additionalProperties: false } } },
       required: ["lines"],
@@ -112,14 +103,12 @@ const TOOLS: Anthropic.Tool[] = [
   {
     name: "propose_price_alert",
     description: "Prepare a card that sets a price alert on a listing at a target price (USD) if the shopper approves; optionally it puts the item in their bag when the price gets there.",
-    strict: true,
-    input_schema: { type: "object", properties: { slug: { type: "string" }, target_usd: { type: "number" }, into_bag: { type: "boolean" } }, required: ["slug", "target_usd", "into_bag"], additionalProperties: false },
+    parametersJsonSchema: { type: "object", properties: { slug: { type: "string" }, target_usd: { type: "number" }, into_bag: { type: "boolean" } }, required: ["slug", "target_usd", "into_bag"], additionalProperties: false },
   },
   {
     name: "propose_quote_request",
     description: "Prepare a card that, if approved, asks up to 8 matching shops for a bulk quote.",
-    strict: true,
-    input_schema: { type: "object", properties: { item: { type: "string" }, qty: { type: "integer" }, details: { type: "string" } }, required: ["item", "qty", "details"], additionalProperties: false },
+    parametersJsonSchema: { type: "object", properties: { item: { type: "string" }, qty: { type: "integer" }, details: { type: "string" } }, required: ["item", "qty", "details"], additionalProperties: false },
   },
 ];
 
@@ -256,38 +245,36 @@ async function runTool(name: string, raw: unknown, ctx: Ctx): Promise<string> {
  */
 export async function* ask(history: readonly AskTurn[], market: MarketView, deps: AskDeps = liveDeps()): AsyncGenerator<AskEvent> {
   const ctx: Ctx = { market, blocks: [], seen: new Map(), deps };
-  const messages: Anthropic.MessageParam[] = history.map((t) => ({ role: t.role, content: t.text }));
-  const system: Anthropic.TextBlockParam[] = [
-    { type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } },
-    { type: "text", text: `The shopper is in ${market.name} (${market.code}); deliveries go to ${market.city} by default. Today is ${new Date().toISOString().slice(0, 10)}.` },
-  ];
+  const contents: Content[] = history.map((t) => ({ role: t.role === "assistant" ? "model" : "user", parts: [{ text: t.text }] }));
+  const systemInstruction = `${SYSTEM}
+
+The shopper is in ${market.name} (${market.code}); deliveries go to ${market.city} by default. Today is ${new Date().toISOString().slice(0, 10)}.`;
   let text = "";
   try {
     for (let turn = 0; turn < MAX_TURNS; turn++) {
-      const response = await deps.model.messages.create({ model: deps.modelId, max_tokens: 4096, system, tools: TOOLS, messages });
-      text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n").trim() || text;
-      if (response.stop_reason === "pause_turn") {
-        messages.push({ role: "assistant", content: response.content });
-        continue;
-      }
-      const uses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
-      if (response.stop_reason !== "tool_use" || !uses.length) break;
-      messages.push({ role: "assistant", content: response.content });
-      const results: Anthropic.ToolResultBlockParam[] = [];
-      for (const use of uses) {
-        yield { type: "step", text: stepFor(use.name, (use.input ?? {}) as Record<string, unknown>) };
+      const response = await deps.model.generateContent({ model: deps.modelId, contents, config: { systemInstruction, tools: [{ functionDeclarations: TOOLS }], maxOutputTokens: 8192 } });
+      text = answerText(response).trim() || text;
+      const content = response.candidates?.[0]?.content;
+      const calls = (content?.parts ?? []).flatMap((p) => (p.functionCall ? [p.functionCall] : []));
+      if (!content || !calls.length) break;
+      // Sent back exactly as it came: the parts carry the thought signatures Gemini needs.
+      contents.push(content);
+      const results: Part[] = [];
+      for (const call of calls) {
+        const name = call.name ?? "";
+        yield { type: "step", text: stepFor(name, call.args ?? {}) };
         try {
-          results.push({ type: "tool_result", tool_use_id: use.id, content: await runTool(use.name, use.input, ctx) });
+          results.push({ functionResponse: { id: call.id, name, response: { output: await runTool(name, call.args, ctx) } } });
         } catch (e) {
           // A malformed input or a failed lookup: tell the model, let it recover.
-          results.push({ type: "tool_result", tool_use_id: use.id, is_error: true, content: e instanceof z.ZodError ? "Invalid input." : "That lookup failed." });
+          results.push({ functionResponse: { id: call.id, name, response: { error: e instanceof z.ZodError ? "Invalid input." : "That lookup failed." } } });
         }
       }
-      messages.push({ role: "user", content: results });
+      contents.push({ role: "user", parts: results });
     }
   } catch (e) {
-    askLog.error("ask failed", { message: e instanceof Error ? e.message : String(e), status: e instanceof Anthropic.APIError ? e.status : undefined });
-    yield { type: "error", message: e instanceof Anthropic.RateLimitError ? "Lots of people are asking right now. Try again in a minute." : "Something went wrong on our side. Try asking again." };
+    askLog.error("ask failed", { message: e instanceof Error ? e.message : String(e), status: e instanceof ApiError ? e.status : undefined });
+    yield { type: "error", message: e instanceof ApiError && e.status === 429 ? "Lots of people are asking right now. Try again in a minute." : "Something went wrong on our side. Try asking again." };
     return;
   }
   const blocks: AskBlock[] = [...(text ? [{ kind: "text" as const, text }] : []), ...ctx.blocks.filter((b) => b.kind !== "action"), ...ctx.blocks.filter((b) => b.kind === "action")];

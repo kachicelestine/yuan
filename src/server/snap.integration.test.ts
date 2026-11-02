@@ -1,4 +1,4 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { Content, GenerateContentParameters, GenerateContentResponse } from "@google/genai";
 import { beforeAll, describe, expect, it } from "vitest";
 import { SimulatedNetwork } from "@/modules/payments/infrastructure/networks";
 import { openDatabase, type Database } from "@/shared/infrastructure/database";
@@ -7,7 +7,7 @@ import { seedAll } from "./seed";
 import { snap, type SnapDeps } from "./snap";
 
 // Photo search: the model's reading of the photo becomes a real catalog search. The
-// model is scripted here; this checks the plumbing, not what Claude sees.
+// model is scripted here; this checks the plumbing, not what Gemini sees.
 describe("snap to search", () => {
   let db: Database;
   const now = new Date("2026-10-25T10:00:00Z");
@@ -15,16 +15,14 @@ describe("snap to search", () => {
   const image = { data: "aGVsbG8=", mediaType: "image/jpeg" as const };
 
   function reads(text: string) {
-    const calls: Anthropic.MessageCreateParamsNonStreaming[] = [];
+    const calls: GenerateContentParameters[] = [];
     const deps: SnapDeps = {
       modelId: "test",
       search: (c) => app().searchProducts(c),
       model: {
-        messages: {
-          async create(params) {
-            calls.push(params);
-            return { content: [{ type: "text", text, citations: null }], stop_reason: "end_turn" } as unknown as Anthropic.Message;
-          },
+        async generateContent(params) {
+          calls.push(params);
+          return { candidates: [{ content: { role: "model", parts: [{ text }] }, finishReason: "STOP" }] } as unknown as GenerateContentResponse;
         },
       },
     };
@@ -42,9 +40,9 @@ describe("snap to search", () => {
     expect(r.found && r.name).toBe("Portable power bank");
     expect(r.found && r.products.some((p) => p.slug === "power-bank-20k")).toBe(true);
     // The photo went to the model as an image, with a structured-output schema.
-    const content = calls[0].messages[0].content as Anthropic.ContentBlockParam[];
-    expect(content[0]).toMatchObject({ type: "image", source: { type: "base64", media_type: "image/jpeg" } });
-    expect(calls[0].output_config?.format?.type).toBe("json_schema");
+    const [turn] = calls[0].contents as Content[];
+    expect(turn.parts![0]).toEqual({ inlineData: { mimeType: "image/jpeg", data: image.data } });
+    expect(calls[0].config).toMatchObject({ responseMimeType: "application/json", responseJsonSchema: { required: ["product", "name", "query"] } });
   });
 
   it("says so when there's no product, or the answer is unreadable", async () => {

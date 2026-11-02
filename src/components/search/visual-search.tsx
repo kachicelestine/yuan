@@ -25,7 +25,7 @@ async function shrink(source: CanvasImageSource & { width?: number; height?: num
 
 /**
  * Snap to search: point the camera at something (or upload a photo) and find it in the
- * catalog. Claude names what's in the photo; the catalog search finds the listings.
+ * catalog. Gemini names what's in the photo; the catalog search finds the listings.
  */
 export function VisualSearch({ open, onClose }: { open: boolean; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);

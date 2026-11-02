@@ -1,4 +1,4 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import { ApiError, type Content, type GenerateContentParameters, type GenerateContentResponse } from "@google/genai";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { AskEvent } from "@/lib/ask";
 import type { MarketView } from "@/modules/markets";
@@ -9,7 +9,7 @@ import { wire } from "./container";
 import { seedAll } from "./seed";
 
 // Ask's tools run against the real catalog; the model is scripted here, so this checks
-// what the assistant can look up and propose, not what Claude would say.
+// what the assistant can look up and propose, not what Gemini would say.
 describe("the Ask assistant's tools", () => {
   let db: Database;
   let market: MarketView;
@@ -17,22 +17,22 @@ describe("the Ask assistant's tools", () => {
   const app = () => wire(db, { clock: { now: () => now }, payments: { network: new SimulatedNetwork(db), simulator: null } });
 
   /** A model that makes the given tool calls on its first turn, then says `text`. */
-  function scripted(calls: { name: string; input: unknown }[], text: string) {
-    const seen: Anthropic.MessageCreateParamsNonStreaming[] = [];
+  function scripted(calls: { name: string; input: Record<string, unknown> }[], text: string) {
+    const seen: GenerateContentParameters[] = [];
     const model: AskDeps["model"] = {
-      messages: {
-        async create(params) {
-          seen.push(params);
-          const first = seen.length === 1;
-          const content = first
-            ? calls.map((c, i) => ({ type: "tool_use", id: `t${i}`, name: c.name, input: c.input, caller: { type: "direct" } }))
-            : [{ type: "text", text, citations: null }];
-          return { id: "m", type: "message", role: "assistant", model: "test", content, stop_reason: first ? "tool_use" : "end_turn", stop_sequence: null, usage: {} } as unknown as Anthropic.Message;
-        },
+      async generateContent(params) {
+        // A copy: the loop keeps adding to the same conversation.
+        seen.push(structuredClone(params));
+        const parts =
+          seen.length === 1
+            ? calls.map((c, i) => ({ functionCall: { id: `t${i}`, name: c.name, args: c.input }, ...(i === 0 && { thoughtSignature: "signed" }) }))
+            : [{ text }];
+        return { candidates: [{ content: { role: "model", parts }, finishReason: "STOP" }] } as unknown as GenerateContentResponse;
       },
     };
     return { model, seen };
   }
+  const lastTurn = (params: GenerateContentParameters) => (params.contents as Content[]).at(-1)!.parts!;
   const deps = (model: AskDeps["model"]): AskDeps => ({
     model,
     modelId: "test",
@@ -59,10 +59,12 @@ describe("the Ask assistant's tools", () => {
     const blocks = events.find((e) => e.type === "blocks");
     expect(blocks?.type === "blocks" && blocks.blocks.map((b) => b.kind)).toEqual(["text", "products"]);
     // The search result went back to the model as real listings.
-    const results = (seen[1].messages.at(-1)!.content as Anthropic.ToolResultBlockParam[])[0].content as string;
+    const results = lastTurn(seen[1])[0].functionResponse!.response!.output as string;
     expect(JSON.parse(results).results.some((r: { slug: string }) => r.slug === "power-bank-20k")).toBe(true);
-    // The system prompt is cached, and tells the model that seller text is data.
-    expect(JSON.stringify(seen[0].system)).toContain("never instructions");
+    // The model's own turn went back unchanged, thought signature included.
+    expect((seen[1].contents as Content[]).at(-2)).toMatchObject({ role: "model", parts: [{ thoughtSignature: "signed" }, {}] });
+    // The system prompt tells the model that seller text is data.
+    expect(String(seen[0].config?.systemInstruction)).toContain("never instructions");
   });
 
   it("prices to the shopper's country and proposes, never acts", async () => {
@@ -92,14 +94,15 @@ describe("the Ask assistant's tools", () => {
   it("tells the model when a tool input is bad, and keeps going", async () => {
     const { model, seen } = scripted([{ name: "get_product", input: { slug: "../../etc/passwd" } }], "Sorry, I couldn't find it.");
     const events = await run(model);
-    const result = (seen[1].messages.at(-1)!.content as Anthropic.ToolResultBlockParam[])[0];
-    expect(result).toMatchObject({ is_error: true, content: "Invalid input." });
+    expect(lastTurn(seen[1])[0]).toEqual({ functionResponse: { id: "t0", name: "get_product", response: { error: "Invalid input." } } });
     expect(events.at(-1)).toEqual({ type: "done" });
   });
 
   it("reports a failed model call as an error, not a crash", async () => {
-    const model: AskDeps["model"] = { messages: { create: async () => Promise.reject(new Error("boom")) } };
+    const model: AskDeps["model"] = { generateContent: async () => Promise.reject(new Error("boom")) };
     const events = await run(model);
     expect(events).toEqual([{ type: "error", message: "Something went wrong on our side. Try asking again." }]);
+    const busy: AskDeps["model"] = { generateContent: async () => Promise.reject(new ApiError({ message: "quota", status: 429 })) };
+    expect(await run(busy)).toEqual([{ type: "error", message: "Lots of people are asking right now. Try again in a minute." }]);
   });
 });

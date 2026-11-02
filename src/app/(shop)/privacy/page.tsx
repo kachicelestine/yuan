@@ -33,7 +33,7 @@ export default function PrivacyPage() {
       <ul>
         <li><b>Shops</b> see the delivery details for orders you place with them, once paid, and the messages you send them.</li>
         <li><b>Other people</b> see what you post publicly and your profile.</li>
-        <li><b>Service providers</b> process data for us: hosting and database (Vercel, Neon), file storage (Cloudflare), email (Resend), and AI features (Anthropic) when you use Ask, photo search or translation. Couriers get what they need to deliver.</li>
+        <li><b>Service providers</b> process data for us: hosting and database (Vercel, Neon), file storage (Cloudflare), email (Resend), and AI features (Google) when you use Ask, photo search or translation. Couriers get what they need to deliver.</li>
         <li><b>Authorities</b> when the law requires it.</li>
       </ul>
 

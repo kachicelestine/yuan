@@ -13,7 +13,7 @@ const Input = z.object({ text: z.string().trim().min(1).max(2000), language: z.s
 
 /** Something a person wrote, in the reader's language. Each new text costs model tokens, so it's limited per person. */
 export async function translateAction(text: string, language: string): Promise<{ ok: true; text: string } | Failure> {
-  if (!serverEnv.ANTHROPIC_API_KEY) return fail("off", "Translation isn't switched on.");
+  if (!serverEnv.GEMINI_API_KEY) return fail("off", "Translation isn't switched on.");
   const input = Input.safeParse({ text, language });
   if (!input.success) return fail("invalid", "That couldn't be translated.");
   const account = await currentAccount();

@@ -1,6 +1,9 @@
 allowBuilds:
   sharp: false
   unrs-resolver: false
+  # Gemini SDK: a no-op preinstall, and a protobufjs version warning.
+  "@google/genai": false
+  protobufjs: false
   # Fetches its platform binary; needed by drizzle-kit, tsx and vitest.
   esbuild: true
 

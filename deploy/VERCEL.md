@@ -44,7 +44,8 @@ Vercel → your project → Settings → Environment Variables, for Production. 
 
 | Name | Value |
 | --- | --- |
-| `ANTHROPIC_API_KEY` | Turns on Ask, photo search and translation |
+| `GEMINI_API_KEY` | Turns on Ask, photo search and translation. From aistudio.google.com, on a project with **billing on**: the free tier may not serve people in the EEA, Switzerland or the UK, and Google's reviewers may read what's sent |
+| `ASK_MODEL` | The Gemini model behind them; leave it unset for `gemini-3.8-flash`. Delete any old `claude-…` value: the deploy stops on it |
 | `NEXT_PUBLIC_LEGAL_NAME` | The company named in the Terms and Privacy Policy |
 | `NEXT_PUBLIC_LEGAL_JURISDICTION` | Whose laws govern the Terms, e.g. `England and Wales` |
 | `NEXT_PUBLIC_SUPPORT_EMAIL` | Where Help sends people |
