@@ -2,7 +2,7 @@ import "server-only";
 import { accountData } from "./account-data";
 import type { Services } from "./container";
 
-type App = Pick<Services, "accounts" | "cart" | "engagement" | "fulfilment" | "getOrder" | "identity" | "messaging" | "onboarding" | "profiles">;
+type App = Pick<Services, "accounts" | "cart" | "engagement" | "fulfilment" | "getOrder" | "identity" | "messaging" | "notifications" | "onboarding" | "profiles">;
 
 /** Parcels still moving, or money still held: the account has to stay until they settle. */
 const OPEN_PARCELS = new Set(["awaiting_shipment", "shipped", "disputed"]);
@@ -52,5 +52,6 @@ export async function closureBlock(app: App, accountId: string): Promise<string 
 export async function closeAccount(app: App, accountId: string) {
   await accountData(app).save(accountId, { cart: [], saved: [], alerts: [], watches: [], following: [] });
   await app.profiles.close(accountId);
+  await app.notifications.forgetDevices(accountId);
   await app.identity.close(accountId);
 }

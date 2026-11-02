@@ -47,6 +47,9 @@ const schema = z
     /** Resend (resend.com) API key and sender, for sign-in emails. */
     RESEND_API_KEY: optional(z.string().startsWith("re_", "must be a Resend key (re_…)")),
     EMAIL_FROM: optional(z.string().min(3)),
+    /** Browser alerts: `pnpm exec web-push generate-vapid-keys` makes the pair. Without it, alerts stay off. */
+    NEXT_PUBLIC_VAPID_PUBLIC_KEY: optional(z.string().min(20)),
+    VAPID_PRIVATE_KEY: optional(z.string().min(20)),
     /**
      * inline: the web server also runs background jobs (outbox delivery, invoice sweeps,
      * rate refresh); right for a single server. off: run them in `pnpm worker`, or on
@@ -98,6 +101,7 @@ const schema = z
       .transform((v) => v.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean)),
   })
   .superRefine((env, ctx) => {
+    if (!env.VAPID_PRIVATE_KEY !== !env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) ctx.addIssue({ code: "custom", path: ["VAPID_PRIVATE_KEY"], message: "set both VAPID_PRIVATE_KEY and NEXT_PUBLIC_VAPID_PUBLIC_KEY, or neither" });
     // Docker images build without secrets, so those builds can't check them. Vercel builds
     // see the same settings as the running site: a bad one should stop the deploy, not
     // fail every request after it.

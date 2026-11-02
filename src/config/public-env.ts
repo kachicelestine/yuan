@@ -24,4 +24,6 @@ export const publicEnv = {
   legalName: process.env.NEXT_PUBLIC_LEGAL_NAME?.trim() || null,
   jurisdiction: process.env.NEXT_PUBLIC_LEGAL_JURISDICTION?.trim() || null,
   supportEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || null,
+  // Browser alerts stay off without it.
+  vapidPublicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() || null,
 } as const;

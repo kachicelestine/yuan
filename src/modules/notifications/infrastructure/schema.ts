@@ -22,3 +22,16 @@ export const notifications = notificationsSchema.table(
     index("notifications_unread_idx").on(t.accountId).where(sql`${t.readAt} is null`),
   ],
 );
+
+/** Browsers that turned alerts on. Each belongs to whoever signed in on it last. */
+export const pushDevices = notificationsSchema.table(
+  "push_devices",
+  {
+    endpoint: text().primaryKey(),
+    accountId: uuid().notNull(),
+    p256dh: text().notNull(),
+    auth: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (t) => [index("push_devices_account_idx").on(t.accountId, t.createdAt)],
+);

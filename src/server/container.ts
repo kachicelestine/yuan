@@ -56,9 +56,11 @@ import { DrizzleShipmentRepository } from "@/modules/ordering/infrastructure/dri
 import { makeBuyAdCredit, makeCheckInvoice, makeEscrow, makeRequestPayment, makeSyncInvoices, type PaymentNetwork, type RailId } from "@/modules/payments";
 import { BaseUsdcNetwork } from "@/modules/payments/infrastructure/base-usdc-network";
 import { DrizzleDisbursementRepository, DrizzleInvoiceRepository, DrizzleLedger } from "@/modules/payments/infrastructure/drizzle-payments-repositories";
-import { makeNotifications } from "@/modules/notifications";
+import { makeNotifications, type PushSender } from "@/modules/notifications";
 import { DrizzleNotificationRepository } from "@/modules/notifications/infrastructure/drizzle-notifications-repository";
+import { DrizzlePushDeviceRepository } from "@/modules/notifications/infrastructure/drizzle-push-device-repository";
 import { ConsoleEmail, ResendEmail } from "@/modules/notifications/infrastructure/email";
+import { WebPushSender } from "@/modules/notifications/infrastructure/web-push";
 import { RailRouter, SimulatedNetwork } from "@/modules/payments/infrastructure/networks";
 import { SolanaUsdcNetwork } from "@/modules/payments/infrastructure/solana-usdc-network";
 import { TronUsdtNetwork } from "@/modules/payments/infrastructure/tron-usdt-network";
@@ -162,7 +164,14 @@ const listenClient = (url: string) => async () => {
 if (process.env.VERCEL) outboxSignal.onRecorded = deliverEventsSoon;
 
 /** What tests swap out; production uses the defaults. */
-export type WireOptions = { clock?: Clock; newTag?: () => number; payments?: Payments; media?: Media; bus?: LiveBus };
+export type WireOptions = { clock?: Clock; newTag?: () => number; payments?: Payments; media?: Media; bus?: LiveBus; push?: PushSender };
+
+/** Browser alerts, when this site has a key pair. */
+function pushSender(): PushSender | null {
+  const { VAPID_PRIVATE_KEY: privateKey, NEXT_PUBLIC_VAPID_PUBLIC_KEY: publicKey } = serverEnv;
+  if (!privateKey || !publicKey) return null;
+  return new WebPushSender({ publicKey, privateKey, subject: brand.supportEmail ? `mailto:${brand.supportEmail}` : brand.url });
+}
 
 /**
  * The composition root: the one place that knows which adapter backs each port.
@@ -553,6 +562,8 @@ export function wire(db: Database, options: WireOptions = {}) {
     escrow,
     notifications: makeNotifications({
       notifications: new DrizzleNotificationRepository(db),
+      devices: new DrizzlePushDeviceRepository(db),
+      push: options.push ?? pushSender(),
       email: serverEnv.RESEND_API_KEY && serverEnv.EMAIL_FROM ? new ResendEmail({ apiKey: serverEnv.RESEND_API_KEY, from: serverEnv.EMAIL_FROM }) : new ConsoleEmail(),
       directory: new IdentityEmails(new DrizzleAccountRepository(db)),
       clock,

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { NotificationList } from "@/components/notifications/notification-list";
+import { PushToggle } from "@/components/notifications/push-toggle";
 import { SellFrame, SellSkeleton } from "@/components/sell/sell-frame";
 import { services } from "@/server/container";
 import { currentAccount } from "@/server/session";
@@ -23,6 +24,7 @@ async function NotificationsBody() {
   if (!account) redirect("/signin?next=/notifications");
   return (
     <SellFrame title="Notifications">
+      <PushToggle />
       <NotificationList items={await (await services()).notifications.list(account.id)} />
     </SellFrame>
   );

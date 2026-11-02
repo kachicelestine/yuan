@@ -18,7 +18,7 @@ export default function PrivacyPage() {
         <li><b>Orders:</b> what you buy, your delivery name, phone and address, and your payment&apos;s transaction on the blockchain. Blockchains are public, so that transaction is visible to anyone.</li>
         <li><b>What you do here:</b> your posts, comments, reviews, messages to shops, saved items, follows and what you watch, which tunes your feed.</li>
         <li><b>Shops:</b> business details, a payout wallet, and identity and business documents. These are kept privately and only our review team can open them.</li>
-        <li><b>Device:</b> your IP address and country, used to protect sign-in and to start you in the right currency, and your bag and settings, stored in your browser.</li>
+        <li><b>Device:</b> your IP address and country, used to protect sign-in and to start you in the right currency, and your bag and settings, stored in your browser. If you turn on alerts, your browser&apos;s push address, which we forget when you turn them off or sign out.</li>
       </ul>
 
       <h2>Why we use it</h2>

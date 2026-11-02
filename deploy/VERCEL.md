@@ -23,6 +23,7 @@ Vercel → your project → Settings → Environment Variables, for Production. 
 | `INTERNAL_TOKEN` | A different generated secret (32+ characters) |
 | `ADMIN_EMAILS` | Who can open `/admin`, comma-separated |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Sign-in codes and order emails; the sender's domain must be verified in Resend |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Optional. Browser alerts, from `pnpm exec web-push generate-vapid-keys`. Keep the pair once set: changing it stops alerts until people turn them on again |
 | `AUTH_DEV_CODES` | `false` |
 
 ### Taking payments
