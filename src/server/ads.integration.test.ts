@@ -114,4 +114,62 @@ describe("sponsored listings", () => {
     await app().ads.update(video.sellerId, boost.value.id, { status: "paused" });
     expect((await app().ads.promotedVideos()).some((e) => e.campaignId === boost.value.id)).toBe(false);
   });
+
+  it("sells ad credit that pays for taps before earnings and can never be withdrawn", async () => {
+    const network = new SimulatedNetwork(db);
+    const shop = wire(db, { clock, payments: { network, simulator: network } });
+    const rail = network.rails[0];
+    expect((await shop.buyAdCredit({ sellerId: "mei", amount: money.fromDollars(5), rail })).ok).toBe(false);
+    expect((await shop.buyAdCredit({ sellerId: "mei", amount: money.fromDollars(5001), rail })).ok).toBe(false);
+    expect((await shop.buyAdCredit({ sellerId: "mei", amount: money.fromDollars(10), rail: "not-a-rail" })).ok).toBe(false);
+
+    const bought = await shop.buyAdCredit({ sellerId: "mei", amount: money.fromDollars(20), rail });
+    if (!bought.ok) throw new Error(bought.error.message);
+    // An unpaid invoice buys nothing.
+    expect(await shop.escrow.adCredit("mei")).toBe(0);
+    const treasury = await shop.ledger.balance(`treasury:${rail}`);
+
+    await shop.simulatePayment!(bought.value.invoiceId);
+    expect(await shop.checkInvoice(bought.value.invoiceId)).toMatchObject({ status: "paid", adSellerId: "mei" });
+    await shop.checkInvoice(bought.value.invoiceId);
+    expect(await shop.escrow.adCredit("mei")).toBe(2000);
+    expect(await shop.ledger.balance(`treasury:${rail}`)).toBe(treasury + 2000);
+
+    // It isn't earnings, so it can't come back out as a payout.
+    expect(await shop.escrow.available("mei")).toBe(0);
+    expect((await shop.escrow.requestPayout("mei", money.fromDollars(20))).ok).toBe(false);
+
+    // A shop with no sales can now win a slot and pay for the tap.
+    const mine = (await shop.ads.promoted()).filter((e) => e.sellerId === "mei");
+    const [served] = await shop.ads.serve(mine, 1);
+    expect((await shop.ads.click(served.token)).billed).toBe(true);
+    const spent = money.fromDollars(served.price);
+    expect(await shop.escrow.adCredit("mei")).toBe(2000 - spent);
+    expect(await shop.escrow.available("mei")).toBe(0);
+
+    // Credit goes first, earnings cover what's left, and nothing goes below zero.
+    await fund("mei", 30);
+    const credit = await shop.escrow.adCredit("mei");
+    expect(await shop.escrow.chargeAds({ sellerId: "mei", amount: money.cents(credit + 500), reference: "test-split" })).toBe(true);
+    expect(await shop.escrow.adCredit("mei")).toBe(0);
+    expect(await shop.escrow.available("mei")).toBe(2500);
+    expect(await shop.escrow.chargeAds({ sellerId: "mei", amount: money.fromDollars(26), reference: "test-too-much" })).toBe(false);
+    expect(await shop.escrow.available("mei")).toBe(2500);
+  });
+
+  it("lets unpaid ad credit lapse, and still honours a late payment", async () => {
+    const network = new SimulatedNetwork(db);
+    const shop = wire(db, { clock, payments: { network, simulator: network } });
+    const later = wire(db, { clock: { now: () => new Date(clock.now().getTime() + 31 * 60_000) }, payments: { network, simulator: network } });
+    const bought = await shop.buyAdCredit({ sellerId: "sunvolt", amount: money.fromDollars(10), rail: network.rails[0] });
+    if (!bought.ok) throw new Error(bought.error.message);
+    const before = await shop.escrow.adCredit("sunvolt");
+
+    expect(await later.checkInvoice(bought.value.invoiceId)).toMatchObject({ status: "expired" });
+    expect(await shop.escrow.adCredit("sunvolt")).toBe(before);
+
+    await later.simulatePayment!(bought.value.invoiceId);
+    expect(await later.checkInvoice(bought.value.invoiceId)).toMatchObject({ status: "paid", late: true });
+    expect(await shop.escrow.adCredit("sunvolt")).toBe(before + 1000);
+  });
 });

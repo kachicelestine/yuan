@@ -424,10 +424,10 @@ const PLATFORM_LABELS: Record<string, string> = {
 
 /** Where the money sits, from the ledger: platform accounts, escrow, and what shops and creators are owed. */
 export async function ledgerSummary(db: Database): Promise<LedgerLine[]> {
-  const kind = sql<string>`case when ${ledgerEntries.account} like 'escrow:%' then 'escrow' when ${ledgerEntries.account} like 'seller:%' then 'sellers' when ${ledgerEntries.account} like 'creator:%' then 'creators' when ${ledgerEntries.account} like 'treasury:%' then ${ledgerEntries.account} else ${ledgerEntries.account} end`;
+  const kind = sql<string>`case when ${ledgerEntries.account} like 'escrow:%' then 'escrow' when ${ledgerEntries.account} like 'seller:%' then 'sellers' when ${ledgerEntries.account} like 'creator:%' then 'creators' when ${ledgerEntries.account} like 'adcredit:%' then 'adcredit' when ${ledgerEntries.account} like 'treasury:%' then ${ledgerEntries.account} else ${ledgerEntries.account} end`;
   const rows = await db.select({ account: kind, total: sum(ledgerEntries.amountCents) }).from(ledgerEntries).groupBy(kind);
   const label = (a: string) =>
-    PLATFORM_LABELS[a] ?? (a === "escrow" ? "Held in escrow" : a === "sellers" ? "Owed to shops" : a === "creators" ? "Owed to creators" : a.startsWith("treasury:") ? `Treasury (${a.slice(9)})` : a);
+    PLATFORM_LABELS[a] ?? (a === "escrow" ? "Held in escrow" : a === "sellers" ? "Owed to shops" : a === "creators" ? "Owed to creators" : a === "adcredit" ? "Ad credit shops hold" : a.startsWith("treasury:") ? `Treasury (${a.slice(9)})` : a);
   return rows
     .map((r) => ({ account: r.account, label: label(r.account), balance: dollars(r.total) }))
     .filter((r) => r.balance !== 0)

@@ -11,6 +11,7 @@ import { disbursements, invoices, journals, ledgerEntries } from "./schema";
 const toInvoice = (r: typeof invoices.$inferSelect): Invoice => ({
   id: r.id,
   orderId: r.orderId,
+  adSellerId: r.adSellerId,
   rail: r.rail as RailId,
   amount: cents(r.amountCents),
   units: r.units,
@@ -50,6 +51,7 @@ export class DrizzleInvoiceRepository implements InvoiceRepository {
     const row = {
       id: i.id,
       orderId: i.orderId,
+      adSellerId: i.adSellerId,
       rail: i.rail,
       amountCents: i.amount,
       units: i.units,

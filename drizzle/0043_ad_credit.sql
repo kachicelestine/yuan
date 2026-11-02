@@ -1,0 +1,1 @@
+ALTER TABLE "payments"."invoices" ADD COLUMN "ad_seller_id" text;

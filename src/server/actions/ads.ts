@@ -51,6 +51,18 @@ export async function updateCampaignAction(id: string, patch: z.input<typeof Pat
   return r.ok ? { ok: true, campaign: r.value } : fail(r.error.code, r.error.message);
 }
 
+const Credit = z.object({ amount: dollars, rail: z.string().min(1).max(40) });
+
+/** Opens an invoice for ad credit; the shop's owner pays it on the pay screen. */
+export async function buyAdCreditAction(input: z.input<typeof Credit>): Promise<{ ok: true; invoiceId: string } | Failure> {
+  const s = await owner();
+  if (!s.allowed) return s.error;
+  const p = Credit.safeParse(input);
+  if (!p.success) return fail("invalid", "Check the amount.");
+  const r = await s.app.buyAdCredit({ sellerId: s.sellerId, amount: money.fromDollars(p.data.amount), rail: p.data.rail });
+  return r.ok ? { ok: true, invoiceId: r.value.invoiceId } : fail(r.error.code, r.error.message);
+}
+
 const Boost = z.object({ videoId: z.string().min(1).max(64), bid: dollars, dailyBudget: dollars });
 
 /** Boosts a video of one of the shop's products into For You as a sponsored slide, paid per tap. */

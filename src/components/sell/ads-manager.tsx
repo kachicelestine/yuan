@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Icon } from "@/components/icon";
 import type { CampaignView } from "@/modules/ads";
-import { createCampaignAction, updateCampaignAction } from "@/server/actions/ads";
+import { RAILS } from "@/modules/payments";
+import { buyAdCreditAction, createCampaignAction, updateCampaignAction } from "@/server/actions/ads";
 
 type Listing = { slug: string; title: string; image: string; price: number | null };
 
@@ -13,18 +14,21 @@ const usd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits
 const ctr = (clicks: number, impressions: number) => (impressions ? `${((clicks / impressions) * 100).toFixed(1)}%` : "–");
 
 /** A shop's sponsored-listing campaigns: start one, pause it, change its bid or budget, see what it did. */
-export function AdsManager({ campaigns, listings, balance, owner }: { campaigns: CampaignView[]; listings: Listing[]; balance: number; owner: boolean }) {
+export function AdsManager({ campaigns, listings, balance, credit, rails, owner }: { campaigns: CampaignView[]; listings: Listing[]; balance: number; credit: number; rails: string[]; owner: boolean }) {
   const [creating, setCreating] = useState(campaigns.length === 0);
   const image = new Map(listings.map((l) => [l.slug, l.image]));
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="glass flex items-center gap-3 rounded-[22px] p-4">
-        <span className="min-w-0 flex-1">
-          <span className="block text-xs font-semibold text-ink-2">Paid from your balance</span>
-          <span className="block font-display text-[26px] leading-tight font-extrabold">{usd(balance)}</span>
-        </span>
-        <span className="max-w-[55%] text-right text-xs text-ink-2">{balance < 1 ? "Ads pause while your balance can't cover a click. Delivered orders add to it." : "Each tap is paid from it, never more than your bid."}</span>
+      <div className="glass flex flex-col gap-3 rounded-[22px] p-4">
+        <div className="flex items-center gap-3">
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-semibold text-ink-2">Ad credit</span>
+            <span className="block font-display text-[26px] leading-tight font-extrabold">{usd(credit)}</span>
+          </span>
+          <span className="max-w-[55%] text-right text-xs text-ink-2">{credit + balance < 1 ? "Ads pause until you add credit or delivered orders add to your earnings." : `Each tap uses your credit first, then your ${usd(balance)} earnings, never more than your bid.`}</span>
+        </div>
+        {owner && rails.length > 0 && <AddCredit rails={rails} />}
       </div>
 
       {campaigns.map((c) => (
@@ -43,6 +47,65 @@ export function AdsManager({ campaigns, listings, balance, owner }: { campaigns:
       <p className="px-1 text-xs text-ink-3">
         Sponsored listings show at the top of searches they match and on their category page, marked “Sponsored”. The highest bid doesn’t always win: listings people tap more often pay less for the same place.
       </p>
+    </div>
+  );
+}
+
+const AMOUNTS = [20, 50, 100, 250];
+
+/** Prepays for ads in stablecoins, for shops with no earnings to spend yet. */
+function AddCredit({ rails }: { rails: string[] }) {
+  const router = useRouter();
+  const options = RAILS.filter((r) => rails.includes(r.id));
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState(AMOUNTS[1]);
+  const [rail, setRail] = useState(options[0]?.id);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, start] = useTransition();
+
+  const pay = () =>
+    start(async () => {
+      const r = await buyAdCreditAction({ amount, rail: rail ?? "" });
+      if (!r.ok) return setError(r.message);
+      router.push(`/pay/${r.invoiceId}`);
+    });
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="glass-inset flex h-11 items-center justify-center gap-2 rounded-full text-sm font-bold">
+        <Icon name="plus" className="size-4" />
+        Add credit
+      </button>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-2.5">
+      <div role="group" aria-label="Amount" className="grid grid-cols-4 gap-1.5">
+        {AMOUNTS.map((a) => (
+          <button key={a} type="button" aria-pressed={amount === a} onClick={() => setAmount(a)} className={`h-10 rounded-full text-sm font-bold ${amount === a ? "bg-white text-black" : "glass-inset"}`}>
+            ${a}
+          </button>
+        ))}
+      </div>
+      {options.length > 1 && (
+        <div role="group" aria-label="Pay with" className="grid auto-cols-fr grid-flow-col gap-1.5">
+          {options.map((r) => (
+            <button key={r.id} type="button" aria-pressed={rail === r.id} onClick={() => setRail(r.id)} className={`flex h-12 min-w-0 flex-col items-center justify-center rounded-full px-2 text-xs leading-tight font-semibold ${rail === r.id ? "bg-white text-black" : "glass-inset"}`}>
+              {r.asset}
+              <span className="font-normal opacity-70">{r.network}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <p className="px-1 text-xs text-ink-3">Credit can only be spent on ads. It can&apos;t be withdrawn or moved to your earnings.</p>
+      {error && (
+        <p role="alert" className="px-1 text-xs text-save">
+          {error}
+        </p>
+      )}
+      <button type="button" onClick={pay} disabled={busy} className="grid h-11 place-items-center rounded-full bg-accent text-sm font-bold disabled:opacity-60">
+        {busy ? "Opening…" : `Pay ${usd(amount)}`}
+      </button>
     </div>
   );
 }

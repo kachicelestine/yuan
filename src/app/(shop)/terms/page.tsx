@@ -46,6 +46,7 @@ export default function TermsPage() {
       <ul>
         <li>Shops must pass our review, describe goods honestly, ship on time and keep their listings accurate.</li>
         <li>We keep a commission on each sale, shown in your shop before you list anything, and shops pay for any ads and vouchers they choose to run.</li>
+        <li>Ad credit is prepaid and can only be spent on ads here. It can&apos;t be withdrawn or moved to your earnings, and we refund it only where the law requires.</li>
         <li>Shops are responsible for their own taxes and for the rules on what they sell.</li>
         <li>Not allowed: illegal goods, counterfeits, weapons, drugs, recalled products, and anything that needs a licence you don&apos;t hold.</li>
       </ul>

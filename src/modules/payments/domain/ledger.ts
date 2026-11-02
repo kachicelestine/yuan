@@ -7,6 +7,7 @@ import { domainError, err, money, ok, type Cents, type DomainError, type Result 
  *   escrow:<orderId>  a buyer's payment held by Protect until delivery
  *   seller:<sellerId> what a seller has earned and can withdraw
  *   creator:<accountId> what a creator has earned from referred orders
+ *   adcredit:<sellerId> what a shop prepaid for ads; it can only be spent on ads, never withdrawn
  */
 export type LedgerEntry = Readonly<{ account: string; amount: Cents }>;
 export type Journal = Readonly<{ id: string; reference: string; memo: string; entries: readonly LedgerEntry[]; at: Date }>;
@@ -16,6 +17,7 @@ export const accounts = {
   escrow: (orderId: string) => `escrow:${orderId}`,
   seller: (sellerId: string) => `seller:${sellerId}`,
   creator: (accountId: string) => `creator:${accountId}`,
+  adCredit: (sellerId: string) => `adcredit:${sellerId}`,
 };
 
 export function journal(props: Journal): Result<Journal, DomainError<"unbalanced_journal">> {
@@ -34,6 +36,20 @@ export function paymentReceived(props: { id: string; invoiceId: string; orderId:
     entries: [
       { account: accounts.treasury(props.rail), amount: props.amount },
       { account: accounts.escrow(props.orderId), amount: money.cents(-props.amount) },
+    ],
+  });
+}
+
+/** A paid invoice for ad credit: the treasury received the funds, and the shop can spend them on ads. */
+export function adCreditBought(props: { id: string; invoiceId: string; sellerId: string; rail: string; amount: Cents; at: Date }) {
+  return journal({
+    id: props.id,
+    reference: `invoice:${props.invoiceId}`,
+    memo: "Ad credit bought",
+    at: props.at,
+    entries: [
+      { account: accounts.treasury(props.rail), amount: props.amount },
+      { account: accounts.adCredit(props.sellerId), amount: money.cents(-props.amount) },
     ],
   });
 }
@@ -86,17 +102,18 @@ export function sellerRelease(props: {
   });
 }
 
-/** A shop paid for a click on its sponsored listing, out of its balance. */
-export function adCharged(props: { id: string; reference: string; sellerId: string; amount: Cents; at: Date }) {
+/** A shop paid for a click on its sponsored listing, from its ad credit first, then its balance. */
+export function adCharged(props: { id: string; reference: string; sellerId: string; amount: Cents; fromCredit: Cents; at: Date }) {
   return journal({
     id: props.id,
     reference: props.reference,
     memo: "Sponsored listing click",
     at: props.at,
     entries: [
-      { account: accounts.seller(props.sellerId), amount: props.amount },
+      { account: accounts.adCredit(props.sellerId), amount: props.fromCredit },
+      { account: accounts.seller(props.sellerId), amount: money.subtract(props.amount, props.fromCredit) },
       { account: platform.ads, amount: money.cents(-props.amount) },
-    ],
+    ].filter((e) => e.amount !== 0),
   });
 }
 

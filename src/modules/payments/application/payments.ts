@@ -1,12 +1,14 @@
 import { domainError, err, ok, type Cents, type Clock, type DomainError, type EventLog, type Result } from "@/shared/kernel";
-import { confirmPayment, expire, formatUnits, openInvoice, type Invoice, type InvoiceExpired, type InvoiceStatus } from "../domain/invoice";
-import { paymentReceived } from "../domain/ledger";
+import { confirmPayment, expire, formatUnits, MAX_AD_CREDIT, MIN_AD_CREDIT, openInvoice, type Invoice, type InvoiceExpired, type InvoiceStatus } from "../domain/invoice";
+import { adCreditBought, paymentReceived } from "../domain/ledger";
 import type { InvoiceRepository, Ledger, PaymentNetwork } from "../domain/ports";
 import { isRailId, RAILS } from "../domain/rails";
 
 export type InvoiceView = {
   id: string;
   orderId: string;
+  /** The shop buying ad credit, when this isn't paying an order. */
+  adSellerId: string | null;
   status: InvoiceStatus;
   rail: string;
   asset: string;
@@ -31,6 +33,7 @@ export function toInvoiceView(i: Invoice, network: Pick<PaymentNetwork, "payment
   return {
     id: i.id,
     orderId: i.orderId,
+    adSellerId: i.adSellerId,
     status: i.status,
     rail: i.rail,
     asset: rail.asset,
@@ -49,14 +52,22 @@ export function toInvoiceView(i: Invoice, network: Pick<PaymentNetwork, "payment
 
 /** Opens the invoice for an order on the rail the buyer picked. */
 export function makeRequestPayment(deps: { network: PaymentNetwork; invoices: InvoiceRepository; clock: Clock; newId: () => string; newTag: () => number }) {
-  return async (req: { orderId: string; amount: Cents; rail: string }): Promise<Result<{ invoiceId: string }, DomainError<"rail_unavailable" | "invalid_amount">>> => {
+  return async (req: { orderId: string; adSellerId?: string; amount: Cents; rail: string }): Promise<Result<{ invoiceId: string }, DomainError<"rail_unavailable" | "invalid_amount">>> => {
     if (!isRailId(req.rail) || !deps.network.rails.includes(req.rail)) {
       return err(domainError("rail_unavailable", `Payments on ${req.rail} aren't available right now.`));
     }
-    const opened = openInvoice({ id: deps.newId(), orderId: req.orderId, rail: req.rail, amount: req.amount, payTo: deps.network.payTo(req.rail), tag: deps.newTag(), at: deps.clock.now() });
+    const opened = openInvoice({ id: deps.newId(), orderId: req.orderId, adSellerId: req.adSellerId, rail: req.rail, amount: req.amount, payTo: deps.network.payTo(req.rail), tag: deps.newTag(), at: deps.clock.now() });
     if (!opened.ok) return err(domainError("invalid_amount", opened.error.message));
     await deps.invoices.save(opened.value);
     return ok({ invoiceId: opened.value.id });
+  };
+}
+
+/** A shop's owner buys ad credit: an invoice with no order behind it, settled into the shop's credit. */
+export function makeBuyAdCredit(deps: { request: ReturnType<typeof makeRequestPayment>; newId: () => string }) {
+  return async (req: { sellerId: string; amount: Cents; rail: string }) => {
+    if (req.amount < MIN_AD_CREDIT || req.amount > MAX_AD_CREDIT) return err(domainError("invalid_amount", `Add between $${MIN_AD_CREDIT / 100} and $${MAX_AD_CREDIT / 100} at a time.`));
+    return deps.request({ orderId: deps.newId(), adSellerId: req.sellerId, amount: req.amount, rail: req.rail });
   };
 }
 
@@ -118,9 +129,12 @@ export function makeCheckInvoice(deps: {
         await deps.uow.run(async ({ invoices, ledger, events, orderPaid }) => {
           await invoices.save(paid);
           await events.record(paid.id, event);
-          const entry = paymentReceived({ id: deps.newId(), invoiceId: paid.id, orderId: paid.orderId, rail: paid.rail, amount: paid.amount, at: event.at });
+          const entry = paid.adSellerId
+            ? adCreditBought({ id: deps.newId(), invoiceId: paid.id, sellerId: paid.adSellerId, rail: paid.rail, amount: paid.amount, at: event.at })
+            : paymentReceived({ id: deps.newId(), invoiceId: paid.id, orderId: paid.orderId, rail: paid.rail, amount: paid.amount, at: event.at });
           if (!entry.ok) throw new Error(entry.error.message);
           await ledger.post(entry.value);
+          if (paid.adSellerId) return;
           const r = await orderPaid(paid.orderId, event.at);
           if (!r.ok) throw new Error(r.error.message);
         });
@@ -135,6 +149,7 @@ export function makeCheckInvoice(deps: {
           await invoices.save(r.value);
           const expired: InvoiceExpired = { type: "InvoiceExpired", invoiceId: r.value.id, orderId: r.value.orderId, at: deps.clock.now() };
           await events.record(r.value.id, expired);
+          if (r.value.adSellerId) return;
           const lapsed = await orderLapsed(r.value.orderId);
           if (!lapsed.ok) throw new Error(lapsed.error.message);
         });

@@ -14,6 +14,7 @@ import { SamplesManager } from "@/components/sell/samples-manager";
 import { SellFrame, SellSkeleton } from "@/components/sell/sell-frame";
 import { endShopVoucherAction, issueShopVoucherAction } from "@/server/actions/promos";
 import { services } from "@/server/container";
+import { availableRails } from "@/server/payments-config";
 import { currentShop } from "@/server/shop";
 
 export const metadata: Metadata = { title: "Promote" };
@@ -32,10 +33,11 @@ async function Body() {
   // Ads and promotions spend the shop's money, so they stay with its owner.
   if (!shop || shop.role !== "owner") redirect("/sell");
   const app = await services();
-  const [campaigns, listings, available, offers, drops, teams, sampleOffers, sampleRequests, depositOffers, boxSeries, vouchers, videos] = await Promise.all([
+  const [campaigns, listings, available, credit, offers, drops, teams, sampleOffers, sampleRequests, depositOffers, boxSeries, vouchers, videos] = await Promise.all([
     app.ads.list(shop.sellerId),
     app.selling.listings(shop.sellerId),
     app.escrow.available(shop.sellerId),
+    app.escrow.adCredit(shop.sellerId),
     app.chops.sellerOffers(shop.sellerId),
     app.promos.sellerDrops(shop.sellerId),
     app.promos.sellerTeamOffers(shop.sellerId),
@@ -54,7 +56,7 @@ async function Body() {
         <h2 id="ads-h" className="px-1 font-display text-xl font-bold">
           Sponsored listings
         </h2>
-        <AdsManager campaigns={campaigns} listings={live} balance={available / 100} owner={shop.role === "owner"} />
+        <AdsManager campaigns={campaigns} listings={live} balance={available / 100} credit={credit / 100} rails={availableRails()} owner={shop.role === "owner"} />
       </section>
       <section aria-labelledby="boost-h" className="mt-6 flex flex-col gap-2">
         <h2 id="boost-h" className="px-1 font-display text-xl font-bold">

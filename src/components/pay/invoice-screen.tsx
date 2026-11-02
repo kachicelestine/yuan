@@ -14,14 +14,18 @@ import { QrCode } from "./qr-code";
 
 const POLL_MS = 4_000;
 
-/** Pay an order in stablecoins: exact amount, address, QR and wallet link, then live confirmation. */
-export function InvoiceScreen({ initial, orderNumber, priceUpdated = false }: { initial: InvoiceView; orderNumber: string; priceUpdated?: boolean }) {
+/** Pay an order or ad credit in stablecoins: exact amount, address, QR and wallet link, then live confirmation. */
+export function InvoiceScreen({ initial, orderNumber, priceUpdated = false }: { initial: InvoiceView; orderNumber: string | null; priceUpdated?: boolean }) {
   const money = useMoney();
   const now = useNow(1000);
   const [invoice, setInvoice] = useState(initial);
   const [copied, setCopied] = useState<"amount" | "address" | null>(null);
   const [simulating, startSimulate] = useTransition();
   const pending = invoice.status === "pending";
+  // Ad credit has no order: it comes from, and goes back to, the shop's Promote page.
+  const adCredit = invoice.adSellerId !== null;
+  const back = adCredit ? "/sell/ads" : "/checkout";
+  const about = adCredit ? "Ad credit" : `Order ${orderNumber}`;
   const left = now === null ? null : Math.max(0, (Date.parse(invoice.expiresAt) - now) / 1000);
 
   // Ask the server to check the chain every few seconds until it's settled.
@@ -71,16 +75,18 @@ export function InvoiceScreen({ initial, orderNumber, priceUpdated = false }: { 
           </span>
           <h1 className="font-display text-2xl font-extrabold tracking-[-0.02em]">Payment received</h1>
           <p className="text-sm text-ink-2">
-            Order {orderNumber} · {formatMoney(invoice.amount, "USD")} in {invoice.asset}
+            {about} · {formatMoney(invoice.amount, "USD")} in {invoice.asset}
           </p>
-          <p className="mb-1 text-sm leading-relaxed text-ink-2">Protect holds it until your order arrives as described. The sellers are packing now.</p>
+          <p className="mb-1 text-sm leading-relaxed text-ink-2">{adCredit ? "It's in your ad credit, and your campaigns can spend it now." : "Protect holds it until your order arrives as described. The sellers are packing now."}</p>
           {invoice.txHash && <p className="mb-2 max-w-full truncate font-mono text-[11px] text-ink-3">tx {invoice.txHash}</p>}
-          <Link href={`/orders/${orderNumber}`} className="grid h-[52px] w-full place-items-center rounded-full bg-accent text-[15px] font-bold">
-            Track order
+          <Link href={adCredit ? back : `/orders/${orderNumber}`} className="grid h-[52px] w-full place-items-center rounded-full bg-accent text-[15px] font-bold">
+            {adCredit ? "Back to Promote" : "Track order"}
           </Link>
-          <Link href="/" className="glass-inset grid h-[52px] w-full place-items-center rounded-full text-[15px] font-semibold">
-            Keep watching
-          </Link>
+          {!adCredit && (
+            <Link href="/" className="glass-inset grid h-[52px] w-full place-items-center rounded-full text-[15px] font-semibold">
+              Keep watching
+            </Link>
+          )}
         </div>
       </div>
     );
@@ -89,13 +95,13 @@ export function InvoiceScreen({ initial, orderNumber, priceUpdated = false }: { 
   return (
     <div className="mx-auto max-w-[520px] px-3.5 pt-safe pb-16">
       <header className="flex items-center gap-3 pt-2 pb-4">
-        <Link href="/checkout" aria-label="Back to bag" className="glass grid size-11 shrink-0 place-items-center rounded-full">
+        <Link href={back} aria-label={adCredit ? "Back to Promote" : "Back to bag"} className="glass grid size-11 shrink-0 place-items-center rounded-full">
           <Icon name="back" className="size-5" />
         </Link>
         <div className="min-w-0 flex-1">
           <h1 className="font-display text-xl font-bold">Pay {formatMoney(invoice.amount, "USD")}</h1>
           <p className="text-xs text-ink-2">
-            Order {orderNumber} · about {money(invoice.amount)}
+            {about} · about {money(invoice.amount)}
           </p>
         </div>
         {pending && left !== null && (
@@ -128,9 +134,9 @@ export function InvoiceScreen({ initial, orderNumber, priceUpdated = false }: { 
         <section className="glass flex flex-col items-center gap-2 rounded-[30px] p-6 text-center">
           <Icon name="clock" className="size-10 text-ink-3" />
           <h2 className="font-display text-xl font-bold">This payment window closed</h2>
-          <p className="text-sm text-ink-2">Nothing was charged. If you already sent the funds, they&apos;ll still be matched to your order; contact us with the transaction hash.</p>
-          <Link href="/checkout" className="mt-2 grid h-12 w-full place-items-center rounded-full bg-white text-[15px] font-bold text-black">
-            Back to your bag
+          <p className="text-sm text-ink-2">Nothing was charged. If you already sent the funds, they&apos;ll still be matched to your {adCredit ? "credit" : "order"}; contact us with the transaction hash.</p>
+          <Link href={back} className="mt-2 grid h-12 w-full place-items-center rounded-full bg-white text-[15px] font-bold text-black">
+            {adCredit ? "Back to Promote" : "Back to your bag"}
           </Link>
         </section>
       ) : (
@@ -163,7 +169,7 @@ export function InvoiceScreen({ initial, orderNumber, priceUpdated = false }: { 
                 {copied === "amount" ? "Copied" : "Copy"}
               </span>
             </button>
-            <p className="mt-1.5 text-[11.5px] text-ink-3">The last digits identify your order, so send this exact amount.</p>
+            <p className="mt-1.5 text-[11.5px] text-ink-3">The last digits identify your {adCredit ? "payment" : "order"}, so send this exact amount.</p>
           </div>
 
           <div>
@@ -199,7 +205,7 @@ export function InvoiceScreen({ initial, orderNumber, priceUpdated = false }: { 
         </section>
       )}
 
-      <p className="mt-4 px-2 text-center text-xs text-ink-3">We check the network every few seconds. You can leave this page; the order updates on its own.</p>
+      <p className="mt-4 px-2 text-center text-xs text-ink-3">We check the network every few seconds. You can leave this page; {adCredit ? "your credit" : "the order"} updates on its own.</p>
     </div>
   );
 }

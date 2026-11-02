@@ -2,7 +2,7 @@ import { domainError, err, money, ok, type Cents, type Clock, type Result } from
 import { auction, CLICK_WINDOW_MS, createCampaign, editCampaign, quality, shouldServe, type AdError, type Campaign, type CampaignInput, type CampaignStatus, type Candidate } from "../domain/ads";
 import type { AdStatsRepository, CampaignRepository, DailyStats } from "../domain/repositories";
 
-/** Shops pay for clicks from their earnings (payments owns the balance and the ledger). */
+/** Shops pay for clicks from their ad credit and earnings (payments owns both and the ledger). */
 export interface AdBilling {
   available(sellerIds: readonly string[]): Promise<Map<string, Cents>>;
   /** Moves the click's price from the shop's balance; false if it can't pay or was already charged. */

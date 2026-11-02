@@ -302,6 +302,13 @@
       "when": 1793572776282,
       "tag": "0042_translations",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793601712441,
+      "tag": "0043_ad_credit",
+      "breakpoints": true
     }
   ]
 }

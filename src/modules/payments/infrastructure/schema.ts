@@ -14,7 +14,10 @@ export const invoices = paymentsSchema.table(
   "invoices",
   {
     id: uuid().primaryKey(),
+    /** The order this pays, or for ad credit this purchase's own id. */
     orderId: uuid().notNull().unique(),
+    /** The shop buying ad credit; null for an order. */
+    adSellerId: text(),
     rail: railEnum().notNull(),
     amountCents: integer().notNull(),
     /** Token base units (6 decimals); bigint because a large order exceeds 2^31. */

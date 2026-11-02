@@ -1,9 +1,13 @@
-import { domainError, err, ok, type Cents, type DomainError, type Result } from "@/shared/kernel";
+import { domainError, err, money, ok, type Cents, type DomainError, type Result } from "@/shared/kernel";
 import type { RailId } from "./rails";
 
 /** USDC and USDT both use 6 decimals: one cent is 10,000 base units. */
 export const UNITS_PER_CENT = 10_000;
 export const INVOICE_TTL_MS = 30 * 60_000;
+
+/** What a shop can add to its ad credit at a time. */
+export const MIN_AD_CREDIT = money.fromDollars(10);
+export const MAX_AD_CREDIT = money.fromDollars(5000);
 
 export type InvoiceStatus = "pending" | "paid" | "expired";
 
@@ -14,6 +18,8 @@ export type Invoice = Readonly<{
   id: string;
   orderId: string;
   rail: RailId;
+  /** Set when a shop is buying ad credit; `orderId` is then this purchase's own id, with no order behind it. */
+  adSellerId: string | null;
   /** The order total. */
   amount: Cents;
   /**
@@ -42,12 +48,13 @@ export function formatUnits(units: bigint, decimals = 6) {
   return `${s.slice(0, -decimals)}.${s.slice(-decimals)}`;
 }
 
-export function openInvoice(props: { id: string; orderId: string; rail: RailId; amount: Cents; payTo: string; tag: number; at: Date }): Result<Invoice, InvoiceError> {
+export function openInvoice(props: { id: string; orderId: string; adSellerId?: string | null; rail: RailId; amount: Cents; payTo: string; tag: number; at: Date }): Result<Invoice, InvoiceError> {
   if (props.amount <= 0) return err(domainError("invalid_amount", "There is nothing to pay."));
   if (!Number.isInteger(props.tag) || props.tag < 1 || props.tag >= UNITS_PER_CENT) return err(domainError("invalid_amount", "Invoice tag must be 1–9,999."));
   return ok({
     id: props.id,
     orderId: props.orderId,
+    adSellerId: props.adSellerId ?? null,
     rail: props.rail,
     amount: props.amount,
     units: BigInt(props.amount) * BigInt(UNITS_PER_CENT) + BigInt(props.tag),

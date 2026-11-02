@@ -87,6 +87,8 @@ export function makeEscrow({ ledger, disbursements, invoices, orders, wallets, r
   const available = (sellerId: string) => owed(accounts.seller(sellerId));
   /** A creator's withdrawable earnings. */
   const creatorAvailable = (accountId: string) => owed(accounts.creator(accountId));
+  /** What a shop prepaid for ads and hasn't spent. */
+  const adCredit = (sellerId: string) => owed(accounts.adCredit(sellerId));
 
   async function savePayout(d: Disbursement, account: string) {
     const j = payoutRequested({ id: newId(), payoutId: d.id, account, amount: d.amount, at: clock.now() });
@@ -100,11 +102,19 @@ export function makeEscrow({ ledger, disbursements, invoices, orders, wallets, r
   return {
     available,
     creatorAvailable,
+    adCredit,
 
-    /** Sponsored-listing clicks are paid from the shop's balance; false if it can't cover it or was charged already. */
+    /** What a shop can spend on ads: its credit and its earnings. */
+    async adFunds(sellerId: string): Promise<Cents> {
+      const [credit, earnings] = await Promise.all([adCredit(sellerId), available(sellerId)]);
+      return money.add(credit, earnings);
+    },
+
+    /** Sponsored-listing clicks are paid from the shop's ad credit, then its balance; false if it can't cover it or was charged already. */
     async chargeAds(e: { sellerId: string; amount: Cents; reference: string }): Promise<boolean> {
-      if ((await available(e.sellerId)) < e.amount) return false;
-      const j = adCharged({ id: newId(), ...e, at: clock.now() });
+      const [credit, earnings] = await Promise.all([adCredit(e.sellerId), available(e.sellerId)]);
+      if (credit + earnings < e.amount) return false;
+      const j = adCharged({ id: newId(), ...e, fromCredit: money.cents(Math.max(0, Math.min(credit, e.amount))), at: clock.now() });
       if (!j.ok) throw new Error(j.error.message);
       return ledger.postOnce(j.value);
     },

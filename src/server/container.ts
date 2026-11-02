@@ -53,7 +53,7 @@ import { DrizzleGiftRepository } from "@/modules/ordering/infrastructure/drizzle
 import { DrizzleCartRepository } from "@/modules/ordering/infrastructure/drizzle-cart-repository";
 import { DrizzleOrderRepository } from "@/modules/ordering/infrastructure/drizzle-order-repository";
 import { DrizzleShipmentRepository } from "@/modules/ordering/infrastructure/drizzle-shipment-repository";
-import { makeCheckInvoice, makeEscrow, makeRequestPayment, makeSyncInvoices, type PaymentNetwork, type RailId } from "@/modules/payments";
+import { makeBuyAdCredit, makeCheckInvoice, makeEscrow, makeRequestPayment, makeSyncInvoices, type PaymentNetwork, type RailId } from "@/modules/payments";
 import { BaseUsdcNetwork } from "@/modules/payments/infrastructure/base-usdc-network";
 import { DrizzleDisbursementRepository, DrizzleInvoiceRepository, DrizzleLedger } from "@/modules/payments/infrastructure/drizzle-payments-repositories";
 import { makeNotifications } from "@/modules/notifications";
@@ -562,6 +562,7 @@ export function wire(db: Database, options: WireOptions = {}) {
     }),
 
     checkInvoice,
+    buyAdCredit: makeBuyAdCredit({ request: makeRequestPayment({ network, invoices: new DrizzleInvoiceRepository(db), clock, newId: () => newId(), newTag }), newId: () => newId() }),
     /** The invoice opened for an order (to pay it later). */
     invoiceIdFor: async (orderId: string) => (await new DrizzleInvoiceRepository(db).findByOrder(orderId))?.id ?? null,
     syncInvoices: makeSyncInvoices({ invoices: new DrizzleInvoiceRepository(db), checkInvoice, clock }),

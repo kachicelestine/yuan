@@ -5,12 +5,12 @@ import type { ProductRepository } from "@/modules/catalog";
 import type { Escrow } from "@/modules/payments";
 import type { Cents } from "@/shared/kernel";
 
-/** Shops pay for clicks from their earnings balance in the ledger. */
+/** Shops pay for clicks from their ad credit and earnings in the ledger. */
 export class EscrowAdBilling implements AdBilling {
   constructor(private readonly escrow: () => Escrow) {}
 
   async available(sellerIds: readonly string[]) {
-    const entries = await Promise.all(sellerIds.map(async (id) => [id, await this.escrow().available(id)] as const));
+    const entries = await Promise.all(sellerIds.map(async (id) => [id, await this.escrow().adFunds(id)] as const));
     return new Map<string, Cents>(entries);
   }
 
